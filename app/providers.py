@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 from time import perf_counter,sleep
+from random import uniform
 from uuid import uuid4
 import json
 from app.models import now
@@ -20,7 +21,9 @@ class ProviderRouter:
             try: return next(iter(self.providers.values())).complete(request)
             except Exception as exc:
                 last=exc
-                if attempt<self.retries: sleep(0.05*(attempt+1))
+                if attempt<self.retries:
+                    delay=min(2.0,0.1*(2**attempt))+uniform(0.0,0.05)
+                    sleep(delay)
         raise last
 class ObservableProvider:
     def __init__(self,provider,db): self.provider=provider; self.db=db
