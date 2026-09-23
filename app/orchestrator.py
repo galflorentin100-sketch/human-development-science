@@ -5,6 +5,7 @@ from app.tasks import TaskEngine
 from app.planner import AutonomousPlanner
 from app.execution import AgentExecutor
 from app.evaluation import EvaluationService
+from app.decision_engine import DecisionEngine
 class CompanyOrchestrator:
     def __init__(self,db): self.db=db; self.tasks=TaskEngine(db); self.planner=AutonomousPlanner(db)
     def start_goal(self,goal_id):
@@ -31,6 +32,17 @@ class CompanyOrchestrator:
         self.db.execute("UPDATE tasks SET status='FAILED',updated_at=? WHERE id=?",(now(),task["id"]))
         replanned=self.planner.replan_after_failure(project_id,failure)
         return {"status":"FAILED","task":task,"evaluation":evaluation,"failure":failure,"replanned_tasks":replanned}
+    def decide_next(self,project_id):
+        project=self.db.one("SELECT * FROM projects WHERE id=?",(project_id,))
+        if not project: raise ValueError("project not found")
+        failures=self.db.all("SELECT lesson FROM failures WHERE project_id=? ORDER BY created_at DESC LIMIT 5",(project_id,))
+        claims=self.db.all("SELECT statement,classification,confidence FROM claims WHERE project_id=? ORDER BY created_at DESC LIMIT 10",(project_id,))
+        pending=self.db.all("SELECT title,status FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED','RUNNING','REVIEW')",(project_id,))
+        if failures:
+            return DecisionEngine(self.db).assess(project_id,"Investigate and correct the latest failure",["Retry immediately","Run corrective validation"],claims,failures,0.65,"Resolve the failure and demonstrate corrected behavior",owner="ceo",risk_level="MEDIUM")
+        if pending:
+            return {"action":"EXECUTE_NEXT_TASK","task":pending[0],"reason":"There is actionable work remaining."}
+        return DecisionEngine(self.db).assess(project_id,"Close project after evidence review",["Continue research","Close project"],claims,[],0.8,"Close only after required evidence and validation are complete",owner="ceo",risk_level="MEDIUM")
     def advance(self,project_id):
         project=self.db.one("SELECT * FROM projects WHERE id=?",(project_id,))
         if not project: raise ValueError("project not found")
