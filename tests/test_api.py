@@ -126,3 +126,8 @@ def test_health_reports_dependency_checks(tmp_path):
     from app.workflow import ResearchCycle
     db=Database(str(tmp_path/"health.db")); ResearchCycle(db)
     assert db.one("SELECT 1 AS ok")["ok"]==1
+
+def test_autonomous_loop_endpoint_path_is_wired():
+    from app.main import app
+    paths={route.path for route in app.routes}
+    assert "/api/projects/{project_id}/autonomous-run" in paths
