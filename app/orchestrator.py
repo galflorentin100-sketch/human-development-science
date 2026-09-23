@@ -29,7 +29,8 @@ class CompanyOrchestrator:
             return {"status":"COMPLETED","task":task,"evaluation":evaluation}
         failure=EvaluationService(self.db).record_failure(project_id,"agent_execution",task["success_criteria"],"Unverified output","Execution produced no independently verified result.","Require verification before completion.","Add evidence-backed evaluator or external model.")
         self.db.execute("UPDATE tasks SET status='FAILED',updated_at=? WHERE id=?",(now(),task["id"]))
-        return {"status":"FAILED","task":task,"evaluation":evaluation,"failure":failure}
+        replanned=self.planner.replan_after_failure(project_id,failure)
+        return {"status":"FAILED","task":task,"evaluation":evaluation,"failure":failure,"replanned_tasks":replanned}
     def advance(self,project_id):
         project=self.db.one("SELECT * FROM projects WHERE id=?",(project_id,))
         if not project: raise ValueError("project not found")
