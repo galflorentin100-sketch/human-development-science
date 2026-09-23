@@ -33,3 +33,14 @@ def test_founder_goal_creates_project_and_tasks():
     body=r.json()
     assert body["orchestration"]["project"]["status"]=="RUNNING"
     assert len(body["orchestration"]["tasks"])==5
+
+def test_planner_context_and_failure_replan(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.planner import AutonomousPlanner
+    db=Database(str(tmp_path/"planner.db")); ResearchCycle(db)
+    project=ResearchCycle(db).run("planner")["project"]
+    failure={"lesson":"verification failed"}
+    tasks=AutonomousPlanner(db).replan_after_failure(project["id"],failure)
+    assert len(tasks)==2
+    assert all(t["status"]=="PLANNED" for t in tasks)
