@@ -157,7 +157,8 @@ def test_sc001_study_execution_records_missing_data_and_analysis(tmp_path):
     from app.research import StudyExecution
     db=Database(str(tmp_path/"study.db")); ResearchCycle(db)
     p=ResearchCycle(db).run("study")["project"]
-    study=db.one("SELECT id FROM studies LIMIT 1")
+    registered=__import__("app.sc001",fromlist=["SC001Protocol"]).SC001Protocol().register(db,p["id"])
+    study=registered["study"]
     sx=StudyExecution(db)
     participant=sx.participant(study["id"],"p1")
     sx.randomize(study["id"],participant["id"],seed=1)
