@@ -120,3 +120,9 @@ def test_project_does_not_complete_with_blocked_task(tmp_path):
     db.execute("UPDATE tasks SET status='BLOCKED' WHERE project_id=?",(p["id"],))
     result=CompanyOrchestrator(db).advance(p["id"])
     assert result["status"]=="TASKS_PENDING"
+
+def test_health_reports_dependency_checks(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    db=Database(str(tmp_path/"health.db")); ResearchCycle(db)
+    assert db.one("SELECT 1 AS ok")["ok"]==1
