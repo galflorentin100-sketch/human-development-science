@@ -22,7 +22,15 @@ class ResearchRequest(BaseModel): question:str=Field(min_length=1,max_length=400
 class ExperimentRequest(BaseModel):
     project_id:str; hypothesis:str=Field(min_length=1); design:str=Field(min_length=1)
 @app.get("/health")
-def health(): return {"status":"ok","service":"hds-company-os","environment":settings.environment}
+def health():
+    checks={"database":False,"agents":False}
+    try:
+        db.migrate()
+        checks["database"]=db.one("SELECT 1 AS ok")["ok"]==1
+        checks["agents"]=db.one("SELECT COUNT(*) AS n FROM agents")["n"]>=1
+    except Exception:
+        pass
+    return {"status":"ok" if all(checks.values()) else "degraded","service":"hds-company-os","environment":settings.environment,"checks":checks}
 @app.get("/api/company-state")
 def state(): return db.one("SELECT * FROM companies WHERE id='hds'")
 @app.get("/api/company-state/full")
