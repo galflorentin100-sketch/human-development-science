@@ -15,6 +15,17 @@ class ApprovalService:
     def get(self,i): return self.db.one("SELECT * FROM approvals WHERE id=?",(i,))
     def resolve(self,i,status,actor):
         s=status.value if isinstance(status,ApprovalStatus) else status
+        if s not in {x.value for x in ApprovalStatus}:
+            raise ValueError("invalid approval status")
+        row=self.get(i)
+        if row is None:
+            raise ApprovalRequired(i)
+        if row["status"] != ApprovalStatus.PENDING.value:
+            raise ApprovalRequired(i)
+        if row["expires_at"] and datetime.fromisoformat(row["expires_at"]) <= datetime.now(timezone.utc):
+            self.db.execute("UPDATE approvals SET status=?,resolved_at=? WHERE id=?",(ApprovalStatus.EXPIRED.value,now(),i))
+            self.db.execute("INSERT INTO approval_events(id,approval_id,actor,action,payload,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),i,actor,"EXPIRED","{}",now()))
+            raise ApprovalRequired(i)
         self.db.execute("UPDATE approvals SET status=?,approved_by=?,resolved_at=? WHERE id=?",(s,actor,now(),i))
         self.db.execute("INSERT INTO approval_events(id,approval_id,actor,action,payload,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),i,actor,s,"{}",now()))
         return self.get(i)
