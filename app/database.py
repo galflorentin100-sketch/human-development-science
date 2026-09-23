@@ -158,21 +158,14 @@ class PostgreSQLDatabase:
 
     @staticmethod
     def _sql(sql: str) -> str:
-        sql = sql.replace("INSERT OR IGNORE", "INSERT")
         sql = sql.replace("?", "%s")
+        if sql.lstrip().upper().startswith("INSERT OR IGNORE"):
+            sql = sql.replace("INSERT OR IGNORE", "INSERT", 1).rstrip().rstrip(";") + " ON CONFLICT DO NOTHING"
         return sql
 
     def execute(self, sql: str, params: tuple[Any, ...] = ()) -> None:
         with self.connect() as con:
-            try:
-                con.execute(self._sql(sql), params)
-            except Exception:
-                if sql.lstrip().upper().startswith("INSERT OR IGNORE"):
-                    # PostgreSQL equivalent for the common SQLite pattern.
-                    statement = self._sql(sql).rstrip().rstrip(";") + " ON CONFLICT DO NOTHING"
-                    con.execute(statement, params)
-                else:
-                    raise
+            con.execute(self._sql(sql), params)
 
     def one(self, sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
         with self.connect() as con:
