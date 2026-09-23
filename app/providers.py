@@ -29,8 +29,9 @@ class ObservableProvider:
         try:
             r=self.provider.complete(request); status="COMPLETED"
         except Exception as exc:
-            r=ModelResponse("",getattr(self.provider,"name","unknown"),"unknown"); status="FAILED"; error=str(exc); raise
+            r=ModelResponse("",getattr(self.provider,"name","unknown"),"unknown"); status="FAILED"; error=str(exc)
         finally:
             latency=int((perf_counter()-started)*1000)
             self.db.execute("INSERT INTO model_calls(id,correlation_id,provider,model,purpose,input_metadata,output_metadata,input_tokens,output_tokens,estimated_cost,latency_ms,retry_count,status,error,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(str(uuid4()),correlation,r.provider,r.model,request.task,"{}",json.dumps({"safety_profile":request.safety_profile}),r.input_tokens,r.output_tokens,r.estimated_cost,latency,0,status,error,now()))
+        if error: raise RuntimeError(error)
         return r
