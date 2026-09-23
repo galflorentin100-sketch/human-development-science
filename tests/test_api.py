@@ -150,3 +150,21 @@ def test_sc001_registers_hypothesis_and_experiment(tmp_path):
     out=SC001Protocol().register(db,p["id"])
     assert out["hypothesis"]["project_id"]==p["id"]
     assert out["experiment"]["status"]=="PLANNED"
+
+def test_sc001_study_execution_records_missing_data_and_analysis(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.research import StudyExecution
+    db=Database(str(tmp_path/"study.db")); ResearchCycle(db)
+    p=ResearchCycle(db).run("study")["project"]
+    study=db.one("SELECT id FROM studies LIMIT 1")
+    sx=StudyExecution(db)
+    participant=sx.participant(study["id"],"p1")
+    sx.randomize(study["id"],participant["id"],seed=1)
+    sx.outcome(study["id"],participant["id"],"goal_execution_rate",0.4)
+    sx.outcome(study["id"],participant["id"],"goal_execution_rate",0.6)
+    plan=sx.freeze_analysis_plan(study["id"],"descriptive pre/post mean change")
+    result=sx.analyze_mean_change(study["id"],plan["id"],"goal_execution_rate")
+    assert result["n_total"]==1
+    assert result["n_observed"]==1
+    assert result["estimate"]==0.2
