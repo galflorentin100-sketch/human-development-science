@@ -5,5 +5,7 @@ class ClaimChangeService:
     def revise(self,claim_id,new_text,reason,actor="system"):
         old=self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
         if not old: raise ValueError("claim not found")
-        self.db.execute("INSERT INTO claim_revisions(id,claim_id,old_text,new_text,reason,created_at,created_by) VALUES (?,?,?,?,?,?,?)",(str(uuid4()),claim_id,old["text"],new_text,reason,now(),actor))
-        self.db.execute("UPDATE claims SET text=?,updated_at=? WHERE id=?",(new_text,now(),claim_id)); return self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
+        old_text=old.get("statement",old.get("text"))
+        self.db.execute("INSERT INTO claim_revisions(id,claim_id,prior_classification,prior_confidence,prior_evidence_level,change_reason,changed_by,changed_at) VALUES (?,?,?,?,?,?,?,?)",(str(uuid4()),claim_id,old.get("classification"),old.get("confidence"),old.get("evidence_level"),reason,actor,now()))
+        self.db.execute("UPDATE claims SET statement=? WHERE id=?",(new_text,claim_id))
+        return self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
