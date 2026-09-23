@@ -18,7 +18,7 @@ class AutonomousPlanner:
         created=[]
         for c in self.plan(project_id,candidates)[:limit]:
             tid=str(uuid4()); priority=self.priority(c.get("impact",1),c.get("urgency",1),c.get("confidence",1),c.get("feasibility",1),c.get("cost",1))
-            self.db.execute("INSERT INTO tasks(id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at,owner,required_permissions) VALUES (?,?,?,?,?,?,?,?,?,?,?)",(tid,project_id,c.get("title","Untitled task"),"PLANNED",c.get("agent_id","coo"),priority,c.get("success_criteria","Produce a verifiable output."),now(),now(),c.get("agent_id","coo"),'["READ"]'))
+            self.db.execute("INSERT INTO tasks(id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at,owner,required_permissions) VALUES (?,?,?,?,?,?,?,?,?,?,?)",(tid,project_id,c.get("title","Untitled task"),"PLANNED",c.get("agent_id","coo"),priority,c.get("success_criteria","Produce a verifiable output."),now(),now(),c.get("agent_id","coo"),'["READ"]')); self.db.execute("UPDATE tasks SET retry_limit=? WHERE id=?",(max(0,int(c.get("retry_limit",2))),tid))
             created.append(self.db.one("SELECT * FROM tasks WHERE id=?",(tid,)))
         return created
     def replan_after_failure(self,project_id,failure):
