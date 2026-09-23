@@ -168,7 +168,7 @@ def test_sc001_study_execution_records_missing_data_and_analysis(tmp_path):
     result=sx.analyze_mean_change(study["id"],plan["id"],"goal_execution_rate")
     assert result["n_total"]==1
     assert result["n_observed"]==1
-    assert result["estimate"]==0.2
+    assert abs(result["estimate"]-0.2)<1e-9
 
 def test_task_retry_escalates_after_limit(tmp_path):
     from app.database import Database
