@@ -1,6 +1,6 @@
 from uuid import uuid4
 import json
-from app.models import now
+from app.models import now,TaskStatus
 class TaskEngine:
     def __init__(self,db): self.db=db
     def create_goal(self,title,description=""):
