@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from pathlib import Path
 from app.config import Settings
-from app.database import Database
+from app.database import database_from_settings
 from app.workflow import ResearchCycle
 from app.intelligence import IntelligenceService
 from app.tasks import TaskEngine
@@ -16,7 +16,7 @@ from app.evidence_pipeline import EvidencePipeline
 from app.autonomous_loop import AutonomousLoop
 from app.sc001 import SC001Protocol
 settings=Settings.load()
-db=Database(settings.database_path)
+db=database_from_settings(settings)
 cycle=ResearchCycle(db)
 app=FastAPI(title="HDS Company OS")
 class Goal(BaseModel): goal:str=Field(min_length=1,max_length=2000)
