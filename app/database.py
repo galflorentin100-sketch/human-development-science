@@ -109,6 +109,11 @@ CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status, created_at)
 CREATE INDEX IF NOT EXISTS idx_model_calls_correlation ON model_calls(correlation_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_claim_revisions_claim ON claim_revisions(claim_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_findings_project_created ON findings(project_id, created_at);
+CREATE TABLE IF NOT EXISTS evidence_sources (id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES sources(id), state TEXT NOT NULL, content_hash TEXT, fetched_at TEXT, parsed_at TEXT, rejection_reason TEXT, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS evidence_reviews (id TEXT PRIMARY KEY, evidence_id TEXT NOT NULL REFERENCES evidence(id), reviewer TEXT NOT NULL, verdict TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS retry_events (id TEXT PRIMARY KEY, task_id TEXT REFERENCES tasks(id), attempt INTEGER NOT NULL, reason TEXT, action TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_retry_task ON retry_events(task_id, attempt);
+
 """
 _PHASE3_COLUMNS = {
     "approvals": {"reason": "TEXT", "evidence": "TEXT NOT NULL DEFAULT '[]'", "expected_outcome": "TEXT", "expires_at": "TEXT", "approved_by": "TEXT", "resolved_at": "TEXT", "correlation_id": "TEXT"},
