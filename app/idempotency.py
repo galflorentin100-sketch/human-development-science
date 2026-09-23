@@ -13,5 +13,11 @@ class IdempotencyService:
         result=fn()
         now=datetime.now(timezone.utc)
         expires=(now+timedelta(hours=ttl_hours)).isoformat()
-        self.db.execute("INSERT INTO idempotency_keys(key,actor,operation,response,created_at,expires_at) VALUES (?,?,?,?,?,?)",(key,actor,operation,json.dumps(result),now.isoformat(),expires))
+        try:
+            self.db.execute("INSERT INTO idempotency_keys(key,actor,operation,response,created_at,expires_at) VALUES (?,?,?,?,?,?)",(key,actor,operation,json.dumps(result),now.isoformat(),expires))
+        except Exception:
+            existing=self.db.one("SELECT * FROM idempotency_keys WHERE key=?",(key,))
+            if existing and existing["actor"]==actor and existing["operation"]==operation:
+                return json.loads(existing["response"])
+            raise
         return result
