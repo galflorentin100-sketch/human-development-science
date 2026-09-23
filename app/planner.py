@@ -18,7 +18,16 @@ class AutonomousPlanner:
         created=[]
         for c in self.plan(project_id,candidates)[:limit]:
             tid=str(uuid4()); priority=self.priority(c.get("impact",1),c.get("urgency",1),c.get("confidence",1),c.get("feasibility",1),c.get("cost",1))
-            self.db.execute("INSERT INTO tasks(id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at,owner,required_permissions) VALUES (?,?,?,?,?,?,?,?,?,?,?)",(tid,project_id,c.get("title","Untitled task"),"PLANNED",c.get("agent_id","coo"),priority,c.get("success_criteria","Produce a verifiable output."),now(),now(),c.get("agent_id","coo"),'["READ"]')); self.db.execute("UPDATE tasks SET retry_limit=? WHERE id=?",(max(0,int(c.get("retry_limit",2))),tid))
+            self.db.execute("INSERT INTO tasks(id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at,owner,required_permissions) VALUES (?,?,?,?,?,?,?,?,?,?,?)",(tid,project_id,c.get("title","Untitled task"),"PLANNED",c.get("agent_id","coo"),priority,c.get("success_criteria","Produce a verifiable output."),now(),now(),c.get("agent_id","coo"),'["READ"]'))
+            high_risk={"PUBLISH","SPEND","DEPLOY","DELETE","CONTACT_EXTERNAL_PARTY"}
+            action=str(c.get("action","")).upper()
+            risk=str(c.get("risk_level","MEDIUM")).upper()
+            explicitly_retryable=bool(c.get("retryable",False))
+            default_retry=2 if explicitly_retryable or (action not in high_risk and risk not in {"HIGH","CRITICAL"}) else 0
+            retry_limit=max(0,int(c.get("retry_limit",default_retry)))
+            if action in high_risk or risk in {"HIGH","CRITICAL"}:
+                retry_limit=retry_limit if explicitly_retryable else 0
+            self.db.execute("UPDATE tasks SET retry_limit=? WHERE id=?",(retry_limit,tid))
             created.append(self.db.one("SELECT * FROM tasks WHERE id=?",(tid,)))
         return created
     def replan_after_failure(self,project_id,failure):
