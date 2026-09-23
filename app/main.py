@@ -55,7 +55,9 @@ def intelligence():
 @app.get("/api/agents")
 def agents(): return db.all("SELECT * FROM agents ORDER BY id")
 @app.post("/api/founder-goals")
-def founder_goal(body:Goal, idempotency_key: str|None = None):
+def founder_goal(body:Goal, idempotency_key: str|None = None, external_subject: str|None = None):
+    if external_subject:
+        auth.authorize(external_subject, "WRITE")
     def operation():
         goal=TaskEngine(db).create_goal(body.goal,body.goal)
         return {"goal":goal,"orchestration":CompanyOrchestrator(db).start_goal(goal["id"])}
