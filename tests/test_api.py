@@ -140,3 +140,13 @@ def test_sc001_protocol_has_transfer_and_retention():
     assert gates["transfer_defined"]
     assert gates["retention_defined"]
     assert gates["status"]=="READY_FOR_REVIEW"
+
+def test_sc001_registers_hypothesis_and_experiment(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.sc001 import SC001Protocol
+    db=Database(str(tmp_path/"sc001.db")); ResearchCycle(db)
+    p=ResearchCycle(db).run("SC001")["project"]
+    out=SC001Protocol().register(db,p["id"])
+    assert out["hypothesis"]["project_id"]==p["id"]
+    assert out["experiment"]["status"]=="PLANNED"
