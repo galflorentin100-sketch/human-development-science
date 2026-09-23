@@ -1,0 +1,2 @@
+-- Initial migration marker.
+-- Development SQLite schema is applied idempotently by app.database.
