@@ -5,7 +5,7 @@ def test_cycle_smoke(tmp_path):
     result=cycle.run("Research whether self-regulation can be trained and transferred to daily behavior.")
     assert result["project"]["status"]=="COMPLETED"
     assert len(result["tasks"])==5
-    assert result["claims"][0]["classification"]=="SUPPORTED"
+    assert result["claims"][0]["classification"]=="PRELIMINARY"
     assert len(result["sources"])==3
     assert result["questions"][-1]["status"]=="OPEN"
     assert "NO FOUNDER ACTION REQUIRED" in result["brief"]["content"]
