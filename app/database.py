@@ -138,11 +138,28 @@ def _migrate_phase3(self: Database) -> None:
 Database.migrate = _migrate_phase3
 
 class DatabaseConfigurationError(RuntimeError): pass
+
+class PostgreSQLDatabase:
+    """Production PostgreSQL boundary; never silently falls back to SQLite."""
+    def __init__(self, url: str):
+        self.url = url
+        try:
+            import psycopg
+        except ImportError as exc:
+            raise DatabaseConfigurationError(
+                "PostgreSQL support requires the optional psycopg dependency"
+            ) from exc
+        self._psycopg = psycopg
+
+    @contextmanager
+    def connect(self):
+        with self._psycopg.connect(self.url) as con:
+            yield con
 def database_from_settings(settings: Any) -> Database:
     if settings.database_url:
         if not settings.database_url.startswith(("postgresql://", "postgres://")):
             raise DatabaseConfigurationError("DATABASE_URL must be a PostgreSQL URL")
-        raise DatabaseConfigurationError("PostgreSQL adapter requires the optional production dependency; SQLite fallback is disabled")
+        return PostgreSQLDatabase(settings.database_url)
     if settings.environment == "production":
         raise DatabaseConfigurationError("production database configuration is required")
     return Database(settings.database_path)
