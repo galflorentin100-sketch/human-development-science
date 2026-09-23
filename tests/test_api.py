@@ -61,3 +61,32 @@ def test_founder_brief_counts_only_actionable_items(tmp_path):
     from app.briefs import FounderBriefService
     db=Database(str(tmp_path/"brief.db")); ResearchCycle(db)
     assert FounderBriefService(db).build()["founder_action_required"]==0
+
+def test_idempotent_goal_creation(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.idempotency import IdempotencyService
+    db=Database(str(tmp_path/"idem.db")); ResearchCycle(db)
+    svc=IdempotencyService(db)
+    calls={"n":0}
+    def op():
+        calls["n"]+=1
+        return {"ok":True,"value":42}
+    assert svc.run("k1","founder","op",op)=={"ok":True,"value":42}
+    assert svc.run("k1","founder","op",op)=={"ok":True,"value":42}
+    assert calls["n"]==1
+
+def test_evidence_pipeline_tracks_hash_and_review(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.evidence_pipeline import EvidencePipeline
+    db=Database(str(tmp_path/"evidence.db")); ResearchCycle(db)
+    p=ResearchCycle(db).run("evidence")["project"]
+    claim=db.one("SELECT id FROM claims WHERE project_id=?",(p["id"],))
+    ep=EvidencePipeline(db)
+    src=ep.register_source("Test paper","https://example.org/test-paper")
+    parsed=ep.ingest_text(src["id"],"verified text")
+    evidence=ep.attach(claim["id"],src["id"],"verified text",verified=True)
+    review=ep.review(evidence["id"],"auditor","ACCEPT","Traceable excerpt")
+    assert parsed["content_hash"]
+    assert review["verdict"]=="ACCEPT"
