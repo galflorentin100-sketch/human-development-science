@@ -8,7 +8,7 @@ from app.workflow import ResearchCycle
 from app.intelligence import IntelligenceService
 from app.tasks import TaskEngine
 from app.briefs import FounderBriefService
-from app.research import ResearchRepository
+from app.research import ResearchRepository,StudyExecution
 from app.planner import AutonomousPlanner
 from app.orchestrator import CompanyOrchestrator
 from app.idempotency import IdempotencyService
@@ -23,6 +23,10 @@ class Goal(BaseModel): goal:str=Field(min_length=1,max_length=2000)
 class ResearchRequest(BaseModel): question:str=Field(min_length=1,max_length=4000)
 class ExperimentRequest(BaseModel):
     project_id:str; hypothesis:str=Field(min_length=1); design:str=Field(min_length=1)
+class StudyParticipantRequest(BaseModel):
+    study_id:str; external_ref:str=Field(min_length=1,max_length=200); consent_status:str="CONSENTED"
+class StudyOutcomeRequest(BaseModel):
+    study_id:str; participant_id:str; outcome_name:str=Field(min_length=1); value:float|None=None; unit:str|None=None; session_id:str|None=None; missing_reason:str|None=None
 @app.get("/health")
 def health():
     checks={"database":False,"agents":False}
@@ -68,6 +72,12 @@ def sc001_register(project_id:str):
     return SC001Protocol().register(db,project_id)
 @app.post("/api/research/run")
 def research_run(body:ResearchRequest): return cycle.run(body.question)
+@app.post("/api/studies/participants")
+def study_participant(body:StudyParticipantRequest):
+    return StudyExecution(db).participant(body.study_id,body.external_ref,body.consent_status)
+@app.post("/api/studies/outcomes")
+def study_outcome(body:StudyOutcomeRequest):
+    return StudyExecution(db).outcome(body.study_id,body.participant_id,body.outcome_name,body.value,body.unit,body.session_id,body.missing_reason)
 @app.post("/api/experiments")
 def create_experiment(body:ExperimentRequest):
     if not db.one("SELECT 1 FROM projects WHERE id=?",(body.project_id,)): raise HTTPException(404,"project not found")
