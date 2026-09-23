@@ -131,3 +131,12 @@ def test_autonomous_loop_endpoint_path_is_wired():
     from app.main import app
     paths={route.path for route in app.routes}
     assert "/api/projects/{project_id}/autonomous-run" in paths
+
+def test_sc001_protocol_has_transfer_and_retention():
+    from app.sc001 import SC001Protocol
+    p=SC001Protocol().draft()
+    gates=SC001Protocol().quality_gates(p)
+    assert gates["falsifiable_question"]
+    assert gates["transfer_defined"]
+    assert gates["retention_defined"]
+    assert gates["status"]=="READY_FOR_REVIEW"
