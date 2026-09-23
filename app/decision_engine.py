@@ -16,7 +16,7 @@ class DecisionEngine:
         did=str(uuid4())
         self.db.execute("INSERT INTO decisions(id,company_id,decision,alternatives,evidence,assumptions,confidence,expected_outcome,actual_outcome,owner,follow_up,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(did,"hds",decision,json.dumps(alternatives),json.dumps(evidence),json.dumps(assumptions),confidence,expected_outcome,None,owner,"Resolve approval or gather missing evidence." if action_required else "Execute and measure outcome.",now()))
         approval=None
-        if action_required:
+        if action_required and risk_level in ("HIGH","CRITICAL") or action_required and decision in self.HIGH_RISK:
             aid=str(uuid4())
             self.db.execute("INSERT INTO approvals(id,company_id,action,risk_level,status,requested_by,context,created_at) VALUES (?,?,?,?,?,?,?,?)",(aid,"hds","DECISION:"+did,risk_level,"PENDING",owner,json.dumps({"decision_id":did,"missing":missing}),now()))
             approval=self.db.one("SELECT * FROM approvals WHERE id=?",(aid,))
