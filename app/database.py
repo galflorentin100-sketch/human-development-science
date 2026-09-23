@@ -140,7 +140,7 @@ Database.migrate = _migrate_phase3
 class DatabaseConfigurationError(RuntimeError): pass
 
 class PostgreSQLDatabase:
-    """Production PostgreSQL boundary; never silently falls back to SQLite."""
+    """PostgreSQL adapter implementing the same repository API as SQLite."""
     def __init__(self, url: str):
         self.url = url
         try:
@@ -155,7 +155,73 @@ class PostgreSQLDatabase:
     def connect(self):
         with self._psycopg.connect(self.url) as con:
             yield con
-def database_from_settings(settings: Any) -> Database:
+
+    @staticmethod
+    def _sql(sql: str) -> str:
+        sql = sql.replace("INSERT OR IGNORE", "INSERT")
+        sql = sql.replace("?", "%s")
+        return sql
+
+    def execute(self, sql: str, params: tuple[Any, ...] = ()) -> None:
+        with self.connect() as con:
+            try:
+                con.execute(self._sql(sql), params)
+            except Exception:
+                if sql.lstrip().upper().startswith("INSERT OR IGNORE"):
+                    # PostgreSQL equivalent for the common SQLite pattern.
+                    statement = self._sql(sql).rstrip().rstrip(";") + " ON CONFLICT DO NOTHING"
+                    con.execute(statement, params)
+                else:
+                    raise
+
+    def one(self, sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
+        with self.connect() as con:
+            cur = con.execute(self._sql(sql), params)
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return dict(zip([d.name for d in cur.description], row))
+
+    def all(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+        with self.connect() as con:
+            cur = con.execute(self._sql(sql), params)
+            names = [d.name for d in cur.description]
+            return [dict(zip(names, row)) for row in cur.fetchall()]
+
+    def audit(self, event_type: str, entity_type: str, entity_id: str, actor: str,
+              payload: dict[str, Any], created_at: str, audit_id: str) -> None:
+        self.execute(
+            "INSERT INTO audit_logs VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (audit_id, event_type, entity_type, entity_id, actor, json.dumps(payload), created_at),
+        )
+
+    def migrate(self) -> None:
+        statements = []
+        for schema in (SCHEMA, PHASE2_SCHEMA, PHASE3_SCHEMA):
+            statements.extend(
+                statement.strip()
+                for statement in schema.split(";")
+                if statement.strip() and not statement.strip().startswith("PRAGMA")
+            )
+        with self.connect() as con:
+            for statement in statements:
+                con.execute(self._sql(statement))
+            # Additive columns used by later phases.
+            for table, columns in {**_PHASE2_COLUMNS, **_PHASE3_COLUMNS}.items():
+                existing = {
+                    row[0]
+                    for row in con.execute(
+                        "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=%s",
+                        (table,),
+                    ).fetchall()
+                }
+                for name, definition in columns.items():
+                    if name not in existing:
+                        con.execute(
+                            f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
+                        )
+
+def database_from_settings(settings: Any) -> Database | PostgreSQLDatabase:
     if settings.database_url:
         if not settings.database_url.startswith(("postgresql://", "postgres://")):
             raise DatabaseConfigurationError("DATABASE_URL must be a PostgreSQL URL")
