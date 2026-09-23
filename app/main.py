@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
+from app.auth import AuthService
 from pathlib import Path
 from app.config import Settings
 from app.database import database_from_settings
@@ -17,6 +18,7 @@ from app.autonomous_loop import AutonomousLoop
 from app.sc001 import SC001Protocol
 settings=Settings.load()
 db=database_from_settings(settings)
+auth=AuthService(db)
 cycle=ResearchCycle(db)
 app=FastAPI(title="HDS Company OS")
 class Goal(BaseModel): goal:str=Field(min_length=1,max_length=2000)
