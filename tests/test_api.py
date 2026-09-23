@@ -169,3 +169,17 @@ def test_sc001_study_execution_records_missing_data_and_analysis(tmp_path):
     assert result["n_total"]==1
     assert result["n_observed"]==1
     assert result["estimate"]==0.2
+
+def test_task_retry_escalates_after_limit(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.tasks import TaskEngine
+    db=Database(str(tmp_path/"retry.db")); ResearchCycle(db)
+    p=ResearchCycle(db).run("retry")["project"]
+    task=TaskEngine(db).create_task("retry","test",p["id"],"researcher",priority=1.0)
+    db.execute("UPDATE tasks SET retry_limit=1 WHERE id=?",(task["id"],))
+    first=TaskEngine(db).retry_or_escalate(task["id"],"transient failure")
+    assert first["action"]=="RETRY"
+    second=TaskEngine(db).retry_or_escalate(task["id"],"repeat failure")
+    assert second["action"]=="ESCALATE"
+    assert TaskEngine(db).get(task["id"])["escalation_required"]==1
