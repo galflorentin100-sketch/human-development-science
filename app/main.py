@@ -10,6 +10,7 @@ from app.tasks import TaskEngine
 from app.briefs import FounderBriefService
 from app.research import ResearchRepository
 from app.planner import AutonomousPlanner
+from app.orchestrator import CompanyOrchestrator
 settings=Settings.load()
 db=Database(settings.database_path)
 cycle=ResearchCycle(db)
@@ -30,7 +31,11 @@ def intelligence():
 @app.get("/api/agents")
 def agents(): return db.all("SELECT * FROM agents ORDER BY id")
 @app.post("/api/founder-goals")
-def founder_goal(body:Goal): return {"goal":TaskEngine(db).create_goal(body.goal,body.goal)}
+def founder_goal(body:Goal):
+    goal=TaskEngine(db).create_goal(body.goal,body.goal)
+    return {"goal":goal,"orchestration":CompanyOrchestrator(db).start_goal(goal["id"])}
+@app.post("/api/projects/{project_id}/advance")
+def advance_project(project_id:str): return CompanyOrchestrator(db).advance(project_id)
 @app.post("/api/research/run")
 def research_run(body:ResearchRequest): return cycle.run(body.question)
 @app.post("/api/experiments")
