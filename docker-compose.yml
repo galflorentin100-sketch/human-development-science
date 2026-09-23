@@ -1,0 +1,13 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - company_data:/data
+    environment:
+      COMPANY_OS_ENV: development
+      COMPANY_OS_DB: /data/company_os.db
+      COMPANY_OS_LOG_LEVEL: INFO
+volumes:
+  company_data:
