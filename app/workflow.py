@@ -18,7 +18,7 @@ class ResearchCycle:
             base={Permission.READ}
             role=a.role.lower()
             if role in {"ceo","coo","chief-scientist","cto","cpo","cfo","risk-officer","product-manager"}: base.add(Permission.WRITE)
-            if role in {"coo","cto","engineer","qa","experiment-designer"}: base.add(Permission.EXECUTE)
+            if role in {"coo","cto","engineer","qa","experiment-designer","researcher","skeptic","evidence-auditor","research-synthesizer","data-scientist","red-team"}: base.add(Permission.EXECUTE)
             for p in base:
                 self.db.execute("INSERT OR IGNORE INTO agent_permissions(agent_id,permission) VALUES (?,?)",(a.id,p.value))
     def run(self,question,max_iterations=10):
