@@ -14,3 +14,11 @@ def test_cycle_rejects_unbounded_iterations(tmp_path):
     try: cycle.run("bounded",11)
     except ValueError: return
     assert False
+
+
+def test_cycle_persists_evidence_and_findings(tmp_path):
+    cycle=ResearchCycle(Database(str(tmp_path/"evidence.db")))
+    result=cycle.run("Test evidence audit")
+    db=cycle.db
+    assert db.one("SELECT COUNT(*) AS n FROM evidence WHERE claim_id=?",(result["claims"][0]["id"],))["n"]==3
+    assert db.one("SELECT COUNT(*) AS n FROM findings WHERE project_id=?",(result["project"]["id"],))["n"]==1
