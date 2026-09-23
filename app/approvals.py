@@ -15,8 +15,8 @@ class ApprovalService:
     def get(self,i): return self.db.one("SELECT * FROM approvals WHERE id=?",(i,))
     def resolve(self,i,status,actor):
         s=status.value if isinstance(status,ApprovalStatus) else status
-        if s not in {x.value for x in ApprovalStatus}:
-            raise ValueError("invalid approval status")
+        if s not in {ApprovalStatus.APPROVED.value, ApprovalStatus.REJECTED.value, ApprovalStatus.CANCELLED.value}:
+            raise ValueError("approval can only resolve to APPROVED, REJECTED, or CANCELLED")
         row=self.get(i)
         if row is None:
             raise ApprovalRequired(i)
