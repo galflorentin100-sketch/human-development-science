@@ -18,3 +18,10 @@ Do not fabricate evidence or data. Separate established findings, preliminary ev
 
 ## Not production-ready
 Production PostgreSQL, authentication hardening, live source ingestion, external model providers, background workers, sandboxed tool execution and deployment hardening remain future work.
+
+
+## Operating loop
+Founder goals are orchestrated into projects and tasks. Tasks execute through permission checks, model-call audit logging, evaluation, failure capture, lessons, replanning, and decision gates. High-risk or low-confidence decisions can create pending human approvals.
+
+## Truth policy
+Unverified model output is never treated as scientific evidence. Evidence must be traceable; claims and findings should preserve uncertainty and review status. The current local provider is intentionally a safe placeholder and does not provide external scientific retrieval.
