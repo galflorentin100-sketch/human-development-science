@@ -12,6 +12,7 @@ from app.research import ResearchRepository
 from app.planner import AutonomousPlanner
 from app.orchestrator import CompanyOrchestrator
 from app.idempotency import IdempotencyService
+from app.evidence_pipeline import EvidencePipeline
 settings=Settings.load()
 db=Database(settings.database_path)
 cycle=ResearchCycle(db)
@@ -26,6 +27,8 @@ def health(): return {"status":"ok","service":"hds-company-os","environment":set
 def state(): return db.one("SELECT * FROM companies WHERE id='hds'")
 @app.get("/api/company-state/full")
 def full(): return {"company":db.one("SELECT * FROM companies WHERE id='hds'"),"goals":db.all("SELECT * FROM goals WHERE status='ACTIVE'"),"active_projects":db.all("SELECT * FROM projects WHERE status IN ('RUNNING','PLANNED')"),"active_tasks":db.all("SELECT * FROM tasks WHERE status IN ('PLANNED','ASSIGNED','RUNNING','BLOCKED')"),"agents":db.all("SELECT id,name,role,status,version,manager FROM agents"),"risks":db.all("SELECT * FROM risks WHERE status='OPEN'"),"opportunities":db.all("SELECT * FROM opportunities WHERE status='OPEN'"),"experiments":db.all("SELECT * FROM experiments WHERE status!='COMPLETED'"),"decisions":db.all("SELECT * FROM decisions ORDER BY created_at DESC LIMIT 10"),"failures":db.all("SELECT * FROM failures ORDER BY created_at DESC LIMIT 10"),"lessons":db.all("SELECT * FROM lessons ORDER BY created_at DESC LIMIT 10"),"approvals":db.all("SELECT * FROM approvals WHERE status='PENDING'")}
+@app.get("/api/evidence/{project_id}")
+def evidence(project_id:str): return {"claims":db.all("SELECT * FROM claims WHERE project_id=?",(project_id,)),"evidence":db.all("SELECT e.*,s.title,s.url FROM evidence e JOIN claims c ON c.id=e.claim_id JOIN sources s ON s.id=e.source_id WHERE c.project_id=?",(project_id,)),"reviews":db.all("SELECT er.* FROM evidence_reviews er JOIN evidence e ON e.id=er.evidence_id JOIN claims c ON c.id=e.claim_id WHERE c.project_id=?",(project_id,))}
 @app.get("/api/intelligence")
 def intelligence():
     s=IntelligenceService(db); return {"findings":s.findings(),"timeline":s.timeline(),"workforce":s.workforce(),"health":s.health(),"brief":FounderBriefService(db).build()}
