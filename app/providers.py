@@ -14,17 +14,29 @@ class ModelProvider(Protocol):
 class LocalProvider:
     def complete(self,request): return ModelResponse("LOCAL_PROVIDER: no external model configured. Treat this output as unverified.","local","none")
 class ProviderRouter:
-    def __init__(self,providers=None,retries=2): self.providers=providers or {"local":LocalProvider()}; self.retries=retries
+    TRANSIENT_ERRORS=(TimeoutError, ConnectionError)
+    def __init__(self,providers=None,retries=2):
+        self.providers=providers or {"local":LocalProvider()}
+        if not self.providers: raise ValueError("at least one provider is required")
+        if retries < 0: raise ValueError("retries must be non-negative")
+        self.retries=int(retries)
     def complete(self,request):
         last=None
-        for attempt in range(self.retries+1):
-            try: return next(iter(self.providers.values())).complete(request)
-            except Exception as exc:
-                last=exc
-                if attempt<self.retries:
-                    delay=min(2.0,0.1*(2**attempt))+uniform(0.0,0.05)
-                    sleep(delay)
-        raise last
+        for provider_name, provider in self.providers.items():
+            attempts=self.retries+1
+            for attempt in range(attempts):
+                try:
+                    return provider.complete(request)
+                except self.TRANSIENT_ERRORS as exc:
+                    last=exc
+                    if attempt < self.retries:
+                        delay=min(2.0,0.1*(2**attempt))+uniform(0.0,0.05)
+                        sleep(delay)
+                except Exception:
+                    raise
+        if last is not None:
+            raise last
+        raise RuntimeError("all model providers failed")
 class ObservableProvider:
     def __init__(self,provider,db): self.provider=provider; self.db=db
     def complete(self,request):
