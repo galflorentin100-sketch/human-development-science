@@ -11,6 +11,7 @@ from app.briefs import FounderBriefService
 from app.research import ResearchRepository
 from app.planner import AutonomousPlanner
 from app.orchestrator import CompanyOrchestrator
+from app.idempotency import IdempotencyService
 settings=Settings.load()
 db=Database(settings.database_path)
 cycle=ResearchCycle(db)
@@ -31,9 +32,11 @@ def intelligence():
 @app.get("/api/agents")
 def agents(): return db.all("SELECT * FROM agents ORDER BY id")
 @app.post("/api/founder-goals")
-def founder_goal(body:Goal):
-    goal=TaskEngine(db).create_goal(body.goal,body.goal)
-    return {"goal":goal,"orchestration":CompanyOrchestrator(db).start_goal(goal["id"])}
+def founder_goal(body:Goal, idempotency_key: str|None = None):
+    def operation():
+        goal=TaskEngine(db).create_goal(body.goal,body.goal)
+        return {"goal":goal,"orchestration":CompanyOrchestrator(db).start_goal(goal["id"])}
+    return IdempotencyService(db).run(idempotency_key,"founder","founder-goal",operation)
 @app.post("/api/projects/{project_id}/decide-next")
 def decide_next(project_id:str): return CompanyOrchestrator(db).decide_next(project_id)
 @app.post("/api/projects/{project_id}/execute-next")
