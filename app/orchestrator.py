@@ -32,6 +32,25 @@ class CompanyOrchestrator:
         self.db.execute("UPDATE tasks SET status='FAILED',updated_at=? WHERE id=?",(now(),task["id"]))
         replanned=self.planner.replan_after_failure(project_id,failure)
         return {"status":"FAILED","task":task,"evaluation":evaluation,"failure":failure,"replanned_tasks":replanned}
+    def run_autonomous(self,project_id,max_steps=25):
+        if max_steps>25: raise ValueError("autonomous loop is bounded to 25 steps")
+        history=[]
+        for step in range(max_steps):
+            decision=self.decide_next(project_id)
+            history.append({"step":step+1,"decision":decision})
+            if decision.get("action")=="EXECUTE_NEXT_TASK":
+                result=self.execute_next(project_id)
+                history.append({"step":step+1,"execution":result})
+                if result.get("status")=="FAILED":
+                    continue
+                continue
+            if decision.get("action_required"):
+                return {"status":"WAITING_FOR_APPROVAL","steps":len(history),"history":history}
+            pending=self.db.one("SELECT COUNT(*) AS n FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED','RUNNING','REVIEW','BLOCKED')",(project_id,))["n"]
+            if pending==0:
+                self.db.execute("UPDATE projects SET status='COMPLETED',updated_at=? WHERE id=?",(now(),project_id))
+                return {"status":"COMPLETED","steps":len(history),"history":history}
+        return {"status":"STEP_LIMIT_REACHED","steps":len(history),"history":history}
     def decide_next(self,project_id):
         project=self.db.one("SELECT * FROM projects WHERE id=?",(project_id,))
         if not project: raise ValueError("project not found")
