@@ -15,7 +15,11 @@ class ResearchCycle:
         self.db.execute("INSERT OR IGNORE INTO companies(id,name,mission,vision,core_principle,created_at) VALUES ('hds','Human Development Science',?,?,?,?)",(MISSION,VISION,"Truth before all; evidence over hype.",now()))
         for a in all_agents():
             self.db.execute("INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at,manager) VALUES (?,?,?,?,?,?,?,?,?,?)",(a.id,a.name,a.role,a.role,"[]","[]","1.0","IDLE",now(),a.manager))
-            for p in (Permission.READ,Permission.WRITE,Permission.EXECUTE):
+            base={Permission.READ}
+            role=a.role.lower()
+            if role in {"ceo","coo","chief-scientist","cto","cpo","cfo","risk-officer","product-manager"}: base.add(Permission.WRITE)
+            if role in {"coo","cto","engineer","qa","experiment-designer"}: base.add(Permission.EXECUTE)
+            for p in base:
                 self.db.execute("INSERT OR IGNORE INTO agent_permissions(agent_id,permission) VALUES (?,?)",(a.id,p.value))
     def run(self,question,max_iterations=10):
         if not question.strip(): raise ValueError("question is required")
