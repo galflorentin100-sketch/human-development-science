@@ -18,6 +18,15 @@ class EvidencePipeline:
         self.db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_at) VALUES (?,?,?,?,?,?,?)",(eid,claim_id,source_id,stance,excerpt,int(verified),now()))
         return self.db.one("SELECT * FROM evidence WHERE id=?",(eid,))
     def review(self,evidence_id,reviewer,verdict,rationale):
+        evidence=self.db.one("SELECT * FROM evidence WHERE id=?",(evidence_id,))
+        if not evidence: raise ValueError("evidence not found")
+        normalized=str(verdict).upper()
+        if normalized not in {"VERIFIED","REJECTED","UNCERTAIN"}:
+            raise ValueError("invalid evidence verdict")
+        if not rationale or not str(rationale).strip():
+            raise ValueError("review rationale is required")
         rid=str(uuid4())
-        self.db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES (?,?,?,?,?,?)",(rid,evidence_id,reviewer,verdict,rationale,now()))
+        self.db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES (?,?,?,?,?,?)",(rid,evidence_id,normalized,rationale,now()))
+        verified=1 if normalized=="VERIFIED" else 0
+        self.db.execute("UPDATE evidence SET verified=? WHERE id=?",(verified,evidence_id))
         return self.db.one("SELECT * FROM evidence_reviews WHERE id=?",(rid,))
