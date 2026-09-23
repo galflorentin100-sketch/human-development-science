@@ -65,7 +65,7 @@ class CompanyOrchestrator:
     def advance(self,project_id):
         project=self.db.one("SELECT * FROM projects WHERE id=?",(project_id,))
         if not project: raise ValueError("project not found")
-        pending=self.db.all("SELECT * FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED','RUNNING') ORDER BY priority DESC",(project_id,))
+        pending=self.db.all("SELECT * FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED','RUNNING','REVIEW','BLOCKED') ORDER BY priority DESC",(project_id,))
         if pending: return {"status":"TASKS_PENDING","next_task":pending[0],"remaining":len(pending)}
         self.db.execute("UPDATE projects SET status='COMPLETED',updated_at=? WHERE id=?",(now(),project_id))
         return {"status":"COMPLETED","project":self.db.one("SELECT * FROM projects WHERE id=?",(project_id,))}
