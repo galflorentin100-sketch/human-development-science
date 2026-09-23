@@ -17,6 +17,20 @@ class TaskEngine:
         if target!=current and target not in allowed.get(current,set()): raise ValueError(f"invalid task transition {current}->{target}")
         self.db.execute("UPDATE tasks SET status=?,updated_at=? WHERE id=?",(target,now(),i)); return self.get(i)
     def ready(self,i): return self.get(i)
+    def retry_or_escalate(self,task_id,reason):
+        task=self.get(task_id)
+        if not task: raise ValueError("task not found")
+        attempt=self.db.one("SELECT COALESCE(MAX(attempt_number),0) AS n FROM task_attempts WHERE task_id=?",(task_id,))["n"]
+        limit=int(task["retry_limit"] or 0)
+        next_attempt=attempt+1
+        if next_attempt<=limit:
+            self.db.execute("INSERT INTO task_attempts(id,task_id,attempt_number,outcome,error,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,next_attempt,"RETRY",reason,now()))
+            self.db.execute("INSERT INTO retry_events(id,task_id,attempt,reason,action,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,next_attempt,reason,"RETRY",now()))
+            self.db.execute("UPDATE tasks SET status='PLANNED',updated_at=? WHERE id=?",(now(),task_id))
+            return {"action":"RETRY","attempt":next_attempt,"limit":limit}
+        self.db.execute("UPDATE tasks SET status='FAILED',escalation_required=1,updated_at=? WHERE id=?",(now(),task_id))
+        self.db.execute("INSERT INTO retry_events(id,task_id,attempt,reason,action,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,next_attempt,reason,"ESCALATE",now()))
+        return {"action":"ESCALATE","attempt":next_attempt,"limit":limit}
     def record_attempt(self,task_id,outcome,error=None):
         row=self.db.one("SELECT COALESCE(MAX(attempt_number),0)+1 AS n FROM task_attempts WHERE task_id=?",(task_id,))
         attempt=row["n"]; self.db.execute("INSERT INTO task_attempts(id,task_id,attempt_number,outcome,error,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,attempt,outcome,error,now())); return self.db.one("SELECT * FROM task_attempts WHERE task_id=? AND attempt_number=?",(task_id,attempt))
