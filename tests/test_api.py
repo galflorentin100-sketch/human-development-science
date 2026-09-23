@@ -100,3 +100,23 @@ def test_autonomous_loop_is_bounded(tmp_path):
     result=CompanyOrchestrator(db).run_autonomous(project["id"],max_steps=2)
     assert result["steps"]<=2
     assert result["status"] in ("STEP_LIMIT_REACHED","WAITING_FOR_APPROVAL","COMPLETED")
+
+def test_task_enum_transition(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.tasks import TaskEngine
+    from app.models import TaskStatus
+    db=Database(str(tmp_path/"state.db")); ResearchCycle(db)
+    p=ResearchCycle(db).run("state")["project"]
+    t=TaskEngine(db).create_task("x","do x",p["id"],"coo")
+    assert TaskEngine(db).transition(t["id"],TaskStatus.ASSIGNED)["status"]=="ASSIGNED"
+
+def test_project_does_not_complete_with_blocked_task(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.orchestrator import CompanyOrchestrator
+    db=Database(str(tmp_path/"blocked.db")); cycle=ResearchCycle(db)
+    p=cycle.run("blocked")["project"]
+    db.execute("UPDATE tasks SET status='BLOCKED' WHERE project_id=?",(p["id"],))
+    result=CompanyOrchestrator(db).advance(p["id"])
+    assert result["status"]=="TASKS_PENDING"
