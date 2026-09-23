@@ -26,3 +26,10 @@ def test_intelligence():
     body=r.json()
     assert "health" in body
     assert "brief" in body
+
+def test_founder_goal_creates_project_and_tasks():
+    r=client.post("/api/founder-goals",json={"goal":"Test autonomous orchestration"})
+    assert r.status_code==200
+    body=r.json()
+    assert body["orchestration"]["project"]["status"]=="RUNNING"
+    assert len(body["orchestration"]["tasks"])==5
