@@ -55,8 +55,6 @@ def founder_goal(body:Goal, idempotency_key: str|None = None):
         return {"goal":goal,"orchestration":CompanyOrchestrator(db).start_goal(goal["id"])}
     return IdempotencyService(db).run(idempotency_key,"founder","founder-goal",operation)
 @app.post("/api/projects/{project_id}/autonomous-run")
-def autonomous_run(project_id:str): return CompanyOrchestrator(db).run_autonomous(project_id)
-@app.post("/api/projects/{project_id}/autonomous-run")
 def autonomous_run(project_id:str): return AutonomousLoop(db).run(project_id)
 @app.post("/api/projects/{project_id}/decide-next")
 def decide_next(project_id:str): return CompanyOrchestrator(db).decide_next(project_id)
