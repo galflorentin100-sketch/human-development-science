@@ -44,3 +44,20 @@ def test_planner_context_and_failure_replan(tmp_path):
     tasks=AutonomousPlanner(db).replan_after_failure(project["id"],failure)
     assert len(tasks)==2
     assert all(t["status"]=="PLANNED" for t in tasks)
+
+def test_decision_engine_requests_approval_when_confidence_low(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.decision_engine import DecisionEngine
+    db=Database(str(tmp_path/"decision.db")); ResearchCycle(db)
+    p=ResearchCycle(db).run("decision")["project"]
+    result=DecisionEngine(db).assess(p["id"],"High uncertainty decision",["A","B"],[],[],0.4,"Expected outcome")
+    assert result["action_required"] is True
+    assert result["approval"]["status"]=="PENDING"
+
+def test_founder_brief_counts_only_actionable_items(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.briefs import FounderBriefService
+    db=Database(str(tmp_path/"brief.db")); ResearchCycle(db)
+    assert FounderBriefService(db).build()["founder_action_required"]==0
