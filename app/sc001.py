@@ -31,6 +31,16 @@ class SC001Protocol:
             intervention="Goal definition + cue + implementation intention + friction reduction + graded practice + monitoring + review",
             control="Active control matched for contact and monitoring without the core self-regulation training sequence"
         )
+    def register(self,db,project_id):
+        protocol=self.draft()
+        gates=self.quality_gates(protocol)
+        if gates["status"]!="READY_FOR_REVIEW": raise ValueError("SC-001 protocol failed quality gates")
+        from app.research import ResearchRepository
+        repo=ResearchRepository(db)
+        hypothesis=repo.hypothesis(project_id,protocol.question)
+        experiment=repo.experiment(project_id,hypothesis["statement"],protocol.intervention)
+        db.audit("research.protocol_registered","experiment",experiment["id"],"experiment-designer",{"protocol_id":protocol.id,"quality_gates":gates},now(),str(uuid4()))
+        return {"protocol":protocol,"quality_gates":gates,"hypothesis":hypothesis,"experiment":experiment}
     def quality_gates(self,protocol:StudyProtocol):
         return {
             "falsifiable_question":bool(protocol.question),
