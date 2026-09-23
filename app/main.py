@@ -13,6 +13,7 @@ from app.planner import AutonomousPlanner
 from app.orchestrator import CompanyOrchestrator
 from app.idempotency import IdempotencyService
 from app.evidence_pipeline import EvidencePipeline
+from app.autonomous_loop import AutonomousLoop
 settings=Settings.load()
 db=Database(settings.database_path)
 cycle=ResearchCycle(db)
@@ -50,6 +51,8 @@ def founder_goal(body:Goal, idempotency_key: str|None = None):
     return IdempotencyService(db).run(idempotency_key,"founder","founder-goal",operation)
 @app.post("/api/projects/{project_id}/autonomous-run")
 def autonomous_run(project_id:str): return CompanyOrchestrator(db).run_autonomous(project_id)
+@app.post("/api/projects/{project_id}/autonomous-run")
+def autonomous_run(project_id:str): return AutonomousLoop(db).run(project_id)
 @app.post("/api/projects/{project_id}/decide-next")
 def decide_next(project_id:str): return CompanyOrchestrator(db).decide_next(project_id)
 @app.post("/api/projects/{project_id}/execute-next")
