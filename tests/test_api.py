@@ -90,3 +90,13 @@ def test_evidence_pipeline_tracks_hash_and_review(tmp_path):
     review=ep.review(evidence["id"],"auditor","ACCEPT","Traceable excerpt")
     assert parsed["content_hash"]
     assert review["verdict"]=="ACCEPT"
+
+def test_autonomous_loop_is_bounded(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.orchestrator import CompanyOrchestrator
+    db=Database(str(tmp_path/"auto.db")); cycle=ResearchCycle(db)
+    project=cycle.run("autonomy")["project"]
+    result=CompanyOrchestrator(db).run_autonomous(project["id"],max_steps=2)
+    assert result["steps"]<=2
+    assert result["status"] in ("STEP_LIMIT_REACHED","WAITING_FOR_APPROVAL","COMPLETED")
