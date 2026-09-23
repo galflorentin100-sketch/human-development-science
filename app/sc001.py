@@ -39,8 +39,9 @@ class SC001Protocol:
         repo=ResearchRepository(db)
         hypothesis=repo.hypothesis(project_id,protocol.question)
         experiment=repo.experiment(project_id,hypothesis["statement"],protocol.intervention)
+        study=repo.study(None,protocol.title,"Controlled pilot with baseline/post/follow-up","To be defined","No results recorded; study execution pending.")
         db.audit("research.protocol_registered","experiment",experiment["id"],"experiment-designer",{"protocol_id":protocol.id,"quality_gates":gates},now(),str(uuid4()))
-        return {"protocol":protocol,"quality_gates":gates,"hypothesis":hypothesis,"experiment":experiment}
+        return {"protocol":protocol,"quality_gates":gates,"hypothesis":hypothesis,"experiment":experiment,"study":study}
     def quality_gates(self,protocol:StudyProtocol):
         return {
             "falsifiable_question":bool(protocol.question),
