@@ -34,6 +34,8 @@ def agents(): return db.all("SELECT * FROM agents ORDER BY id")
 def founder_goal(body:Goal):
     goal=TaskEngine(db).create_goal(body.goal,body.goal)
     return {"goal":goal,"orchestration":CompanyOrchestrator(db).start_goal(goal["id"])}
+@app.post("/api/projects/{project_id}/decide-next")
+def decide_next(project_id:str): return CompanyOrchestrator(db).decide_next(project_id)
 @app.post("/api/projects/{project_id}/execute-next")
 def execute_next(project_id:str): return CompanyOrchestrator(db).execute_next(project_id)
 @app.post("/api/projects/{project_id}/advance")
