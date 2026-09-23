@@ -26,7 +26,7 @@ class EvidencePipeline:
         if not rationale or not str(rationale).strip():
             raise ValueError("review rationale is required")
         rid=str(uuid4())
-        self.db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES (?,?,?,?,?,?)",(rid,evidence_id,normalized,rationale,now()))
+        self.db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES (?,?,?,?,?,?)",(rid,evidence_id,reviewer,normalized,rationale,now()))
         verified=1 if normalized=="VERIFIED" else 0
         self.db.execute("UPDATE evidence SET verified=? WHERE id=?",(verified,evidence_id))
         return self.db.one("SELECT * FROM evidence_reviews WHERE id=?",(rid,))
