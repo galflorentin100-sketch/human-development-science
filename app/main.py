@@ -62,6 +62,10 @@ def decide_next(project_id:str): return CompanyOrchestrator(db).decide_next(proj
 def execute_next(project_id:str): return CompanyOrchestrator(db).execute_next(project_id)
 @app.post("/api/projects/{project_id}/advance")
 def advance_project(project_id:str): return CompanyOrchestrator(db).advance(project_id)
+@app.post("/api/sc001/register/{project_id}")
+def sc001_register(project_id:str):
+    if not db.one("SELECT 1 FROM projects WHERE id=?",(project_id,)): raise HTTPException(404,"project not found")
+    return SC001Protocol().register(db,project_id)
 @app.post("/api/research/run")
 def research_run(body:ResearchRequest): return cycle.run(body.question)
 @app.post("/api/experiments")
