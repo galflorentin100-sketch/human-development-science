@@ -29,9 +29,11 @@ class CompanyOrchestrator:
             self.db.execute("UPDATE tasks SET status='COMPLETED',updated_at=? WHERE id=?",(now(),task["id"]))
             return {"status":"COMPLETED","task":task,"evaluation":evaluation}
         failure=EvaluationService(self.db).record_failure(project_id,"agent_execution",task["success_criteria"],"Unverified output","Execution produced no independently verified result.","Require verification before completion.","Add evidence-backed evaluator or external model.")
-        self.db.execute("UPDATE tasks SET status='FAILED',updated_at=? WHERE id=?",(now(),task["id"]))
+        retry=self.tasks.retry_or_escalate(task["id"],"Evaluation did not verify the execution result.")
+        if retry["action"]=="RETRY":
+            return {"status":"RETRY_SCHEDULED","task":task,"evaluation":evaluation,"failure":failure,"retry":retry}
         replanned=self.planner.replan_after_failure(project_id,failure)
-        return {"status":"FAILED","task":task,"evaluation":evaluation,"failure":failure,"replanned_tasks":replanned}
+        return {"status":"FAILED","task":task,"evaluation":evaluation,"failure":failure,"retry":retry,"replanned_tasks":replanned}
     def run_autonomous(self,project_id,max_steps=25):
         if max_steps>25: raise ValueError("autonomous loop is bounded to 25 steps")
         history=[]
