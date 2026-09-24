@@ -42,11 +42,35 @@ class StudyExecution:
         i=str(uuid4())
         self.db.execute("INSERT INTO study_sessions(id,study_id,participant_id,phase,session_number,occurred_at,status) VALUES (?,?,?,?,?,?,?)",(i,study_id,participant_id,phase,int(session_number),now(),status))
         return self.db.one("SELECT * FROM study_sessions WHERE id=?",(i,))
-    def outcome(self,study_id,participant_id,outcome_name,value=None,unit=None,session_id=None,missing_reason=None):
+    def outcome(self,study_id,participant_id,outcome_name,value=None,unit=None,session_id=None,missing_reason=None,observation_type="TRAINING"):
         if value is None and not missing_reason: raise ValueError("missing outcome requires missing_reason")
+        if observation_type not in {"TRAINING","NEAR_TRANSFER","FAR_TRANSFER","REAL_WORLD","RETENTION"}: raise ValueError("invalid observation type")
+        participant=self.db.one("SELECT * FROM study_participants WHERE id=? AND study_id=?",(participant_id,study_id))
+        if not participant: raise ValueError("participant does not belong to study")
+        study=self.db.one("SELECT status FROM studies WHERE id=?",(study_id,))
+        if not study or study["status"] not in {"APPROVED","RUNNING"}: raise ValueError("study is not executable")
+        if participant["consent_status"]!="CONSENTED": raise ValueError("participant consent is not active")
+        if session_id and not self.db.one("SELECT 1 FROM study_sessions WHERE id=? AND study_id=? AND participant_id=?",(session_id,study_id,participant_id)): raise ValueError("session does not belong to participant")
+        if self.db.one("SELECT 1 FROM study_outcomes WHERE study_id=? AND participant_id=? AND outcome_name=? AND observation_type=? AND (session_id=? OR (session_id IS NULL AND ? IS NULL))",(study_id,participant_id,outcome_name,observation_type,session_id,session_id)): raise ValueError("duplicate observation")
         i=str(uuid4())
-        self.db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,recorded_at) VALUES (?,?,?,?,?,?,?,?,?)",(i,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,now()))
+        self.db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?)",(i,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,now()))
         return self.db.one("SELECT * FROM study_outcomes WHERE id=?",(i,))
+    def start(self,study_id):
+        study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
+        if not study: raise ValueError("study does not exist")
+        if study["status"]!="APPROVED": raise ValueError("founder approval required")
+        self.db.execute("UPDATE studies SET status='RUNNING' WHERE id=? AND status='APPROVED'",(study_id,))
+        return self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
+    def complete(self,study_id):
+        study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
+        if not study or study["status"]!="RUNNING": raise ValueError("study must be running")
+        required={"TRAINING","NEAR_TRANSFER","FAR_TRANSFER","REAL_WORLD","RETENTION"}
+        present={r["observation_type"] for r in self.db.all("SELECT DISTINCT observation_type FROM study_outcomes WHERE study_id=?",(study_id,))}
+        missing=required-present
+        if missing: raise ValueError("study cannot complete; missing observation types: "+",".join(sorted(missing)))
+        if not self.db.one("SELECT 1 FROM study_analysis_plans WHERE study_id=? AND frozen=1",(study_id,)): raise ValueError("study cannot complete without a frozen analysis plan")
+        self.db.execute("UPDATE studies SET status='COMPLETED' WHERE id=? AND status='RUNNING'",(study_id,))
+        return self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
     def adherence(self,study_id,participant_id,planned,completed,session_id=None,note=""):
         if planned < 0 or completed < 0 or completed > planned: raise ValueError("invalid adherence")
         i=str(uuid4())
