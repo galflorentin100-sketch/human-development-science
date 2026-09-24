@@ -15,7 +15,10 @@ class TaskEngine:
         allowed={"PLANNED":{"ASSIGNED","CANCELLED"},"ASSIGNED":{"RUNNING","CANCELLED"},"RUNNING":{"COMPLETED","FAILED","BLOCKED","REVIEW"},"REVIEW":{"COMPLETED","FAILED","BLOCKED"},"BLOCKED":{"PLANNED","CANCELLED"},"FAILED":{"PLANNED","CANCELLED"}}
         current=row["status"]; target=status.value if isinstance(status,TaskStatus) else status
         if target!=current and target not in allowed.get(current,set()): raise ValueError(f"invalid task transition {current}->{target}")
-        self.db.execute("UPDATE tasks SET status=?,updated_at=? WHERE id=?",(target,now(),i)); return self.get(i)
+        updated=self.db.execute("UPDATE tasks SET status=?,updated_at=? WHERE id=? AND status=?",(target,now(),i,current))
+        if getattr(updated,"rowcount",1) != 1:
+            raise ValueError("task transition lost due to concurrent state change")
+        return self.get(i)
     def ready(self,i): return self.get(i)
     def retry_or_escalate(self,task_id,reason):
         task=self.get(task_id)
