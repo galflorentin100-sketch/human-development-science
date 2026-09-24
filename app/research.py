@@ -22,6 +22,9 @@ class StudyExecution:
     VALID_ARMS={"INTERVENTION","CONTROL"}
     def __init__(self,db): self.db=db
     def participant(self,study_id,external_ref,consent_status="CONSENTED"):
+        study=self.db.one("SELECT status FROM studies WHERE id=?",(study_id,))
+        if not study: raise ValueError("study does not exist")
+        if study["status"] not in {"APPROVED","RUNNING"}: raise ValueError("study execution requires founder approval")
         if consent_status not in {"CONSENTED","WITHDRAWN","PENDING"}: raise ValueError("invalid consent status")
         i=str(uuid4())
         self.db.execute("INSERT OR IGNORE INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",(i,study_id,external_ref,consent_status,now()))
