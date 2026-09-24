@@ -8,7 +8,12 @@ class AuthService:
     def _seed_roles(self):
         roles=[("founder",["READ","WRITE","EXECUTE","PUBLISH","SPEND","DELETE","DEPLOY","CONTACT_EXTERNAL_PARTY","APPROVE"]),("operator",["READ","WRITE","EXECUTE"]),("reviewer",["READ","WRITE"])]
         for name,permissions in roles:
-            self.db.execute("INSERT OR IGNORE INTO roles(id,name,permissions) VALUES (?,?,?)",(name,name,json.dumps(permissions)))
+            row=self.db.one("SELECT id FROM roles WHERE name=?",(name,))
+            if row:
+                self.db.execute("UPDATE roles SET permissions=? WHERE id=?",(json.dumps(permissions),row["id"]))
+            else:
+                self.db.execute("INSERT INTO roles(id,name,permissions) VALUES (?,?,?)",(str(uuid4()),name,json.dumps(permissions)))
+
     def create_user(self,external_subject,email,role="founder"):
         uid=str(uuid4())
         self.db.execute("INSERT OR IGNORE INTO users(id,external_subject,email,created_at) VALUES (?,?,?,?)",(uid,external_subject,email,now()))
