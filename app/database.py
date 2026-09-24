@@ -129,6 +129,11 @@ class PostgreSQLDatabase:
     @contextmanager
     def connect(self):
         with self._psycopg.connect(self.url) as con: yield con
+    @contextmanager
+    def transaction(self):
+        with self._psycopg.connect(self.url) as con:
+            with con.transaction():
+                yield con
     @staticmethod
     def _sql(sql):
         sql=sql.replace("?","%s")
