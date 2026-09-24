@@ -57,6 +57,9 @@ def require_permission(principal: Principal, permission: str) -> None:
     if not principal.can(permission):
         raise HTTPException(status_code=403, detail=f"{permission} permission required")
 
+def require_read(principal: Principal) -> None:
+    require_permission(principal, "READ")
+
 def require_write(principal: Principal) -> None:
     require_permission(principal, "WRITE")
 
@@ -75,7 +78,8 @@ def ready():
     return {"status": "ready", "database": True, "agents": True}
 
 @app.get("/api/operations")
-def operations():
+def operations(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
     budget=db.one("SELECT * FROM budgets WHERE company_id='hds' AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1")
     return {
         "budget": budget,
@@ -99,19 +103,24 @@ def deep_health():
 @app.get("/api/company-state")
 def state(): return db.one("SELECT * FROM companies WHERE id='hds'")
 @app.get("/api/company-state/full")
-def full():
+def full(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
     return {"company": db.one("SELECT * FROM companies WHERE id='hds'"), "goals": db.all("SELECT * FROM goals WHERE status='ACTIVE'"), "active_projects": db.all("SELECT * FROM projects WHERE status IN ('RUNNING','PLANNED')"), "active_tasks": db.all("SELECT * FROM tasks WHERE status IN ('PLANNED','ASSIGNED','RUNNING','BLOCKED')"), "agents": db.all("SELECT id,name,role,status,version,manager FROM agents"), "risks": db.all("SELECT * FROM risks WHERE status='OPEN'"), "opportunities": db.all("SELECT * FROM opportunities WHERE status='OPEN'"), "experiments": db.all("SELECT * FROM experiments WHERE status!='COMPLETED'"), "decisions": db.all("SELECT * FROM decisions ORDER BY created_at DESC LIMIT 10"), "failures": db.all("SELECT * FROM failures ORDER BY created_at DESC LIMIT 10"), "lessons": db.all("SELECT * FROM lessons ORDER BY created_at DESC LIMIT 10"), "approvals": db.all("SELECT * FROM approvals WHERE status='PENDING'")}
 @app.get("/api/sc001/protocol")
-def sc001_protocol():
+def sc001_protocol(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
     p = SC001Protocol().draft(); return {"protocol": p.__dict__, "quality_gates": SC001Protocol().quality_gates(p)}
 @app.get("/api/evidence/{project_id}")
-def evidence(project_id: str):
+def evidence(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
     return {"claims": db.all("SELECT * FROM claims WHERE project_id=?", (project_id,)), "evidence": db.all("SELECT e.*,s.title,s.url FROM evidence e JOIN claims c ON c.id=e.claim_id JOIN sources s ON s.id=e.source_id WHERE c.project_id=?", (project_id,)), "reviews": db.all("SELECT er.* FROM evidence_reviews er JOIN evidence e ON e.id=er.evidence_id JOIN claims c ON c.id=e.claim_id WHERE c.project_id=?", (project_id,))}
 @app.get("/api/intelligence")
-def intelligence():
+def intelligence(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
     s = IntelligenceService(db); return {"findings": s.findings(), "timeline": s.timeline(), "workforce": s.workforce(), "health": s.health(), "brief": FounderBriefService(db).build()}
 @app.get("/api/agents")
-def agents(): return db.all("SELECT * FROM agents ORDER BY id")
+def agents(principal: Principal = Depends(principal_from_header)):
+    require_read(principal) return db.all("SELECT * FROM agents ORDER BY id")
 
 @app.post("/api/founder-goals")
 def founder_goal(body: Goal, principal: Principal = Depends(principal_from_header), idempotency_key: str | None = None):
