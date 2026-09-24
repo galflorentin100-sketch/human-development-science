@@ -6,12 +6,13 @@ from app.database import Database
 from app.models import CompanyMessage,now
 from app.permissions import Permission,PermissionService
 from app.providers import ModelProvider,LocalProvider,ModelRequest,ObservableProvider
+from app.cost_controls import CostControl
 @dataclass(frozen=True)
 class ExecutionResult:
     message:CompanyMessage; verified:bool; cost_metadata:dict; error:str|None=None
 class AgentExecutor:
     def __init__(self,db:Database,provider:ModelProvider|None=None,permissions:PermissionService|None=None):
-        self.db=db; self.permissions=permissions or PermissionService(db); self.provider=ObservableProvider(provider or LocalProvider(),db)
+        self.db=db; self.permissions=permissions or PermissionService(db); self.provider=ObservableProvider(provider or LocalProvider(),db); self.costs=CostControl(db)
     def execute(self,agent_id,task_id,task_input,context,required_permission=Permission.EXECUTE):
         self.permissions.check(agent_id,required_permission,"task:"+task_id)
         task=self.db.one("SELECT * FROM tasks WHERE id=?",(task_id,))
@@ -29,7 +30,11 @@ class AgentExecutor:
         self.db.execute("UPDATE tasks SET status='RUNNING',updated_at=? WHERE id=?",(now(),task_id))
         run_id=str(uuid4()); started=now(); error=None
         try:
-            response=self.provider.complete(ModelRequest("agent-task",json.dumps({"input":task_input,"context":context}),"local-safe",str(uuid4())))
+            correlation_id=str(uuid4())
+            response=self.provider.complete(ModelRequest("agent-task",json.dumps({"input":task_input,"context":context}),"local-safe",correlation_id))
+            if response.estimated_cost and response.estimated_cost > 0:
+                self.costs.authorize(response.estimated_cost)
+                self.costs.record(correlation_id,response.estimated_cost,response.provider,response.model,"agent-task",agent_id,metadata={"task_id":task_id})
             message=CompanyMessage.create(agent_id,"coo","task_result",task_id,{"result":response.content},0.0,[],["Model output is unverified."],["Verify evidence before use."])
             cost={"provider":response.provider,"model":response.model,"input_tokens":response.input_tokens,"output_tokens":response.output_tokens,"estimated_cost":response.estimated_cost}
         except Exception as exc:
