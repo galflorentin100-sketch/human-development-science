@@ -108,7 +108,7 @@ CREATE INDEX IF NOT EXISTS idx_findings_project_created ON findings(project_id,c
 CREATE TABLE IF NOT EXISTS evidence_sources (id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES sources(id), state TEXT NOT NULL, content_hash TEXT, fetched_at TEXT, parsed_at TEXT, rejection_reason TEXT, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS evidence_reviews (id TEXT PRIMARY KEY, evidence_id TEXT NOT NULL REFERENCES evidence(id), reviewer TEXT NOT NULL, verdict TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS retry_events (id TEXT PRIMARY KEY, task_id TEXT REFERENCES tasks(id), attempt INTEGER NOT NULL, reason TEXT, action TEXT NOT NULL, created_at TEXT NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_retry_task ON retry_events(task_id,attempt);"""
+CREATE INDEX IF NOT EXISTS idx_retry_task ON retry_events(task_id,attempt);"""\nPHASE4_SCHEMA = """CREATE TABLE IF NOT EXISTS budgets (id TEXT PRIMARY KEY, company_id TEXT NOT NULL REFERENCES companies(id), limit_amount REAL NOT NULL CHECK(limit_amount >= 0), spent_amount REAL NOT NULL DEFAULT 0 CHECK(spent_amount >= 0), currency TEXT NOT NULL DEFAULT 'USD', period TEXT NOT NULL DEFAULT 'LIFETIME', status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);\nCREATE TABLE IF NOT EXISTS cost_events (id TEXT PRIMARY KEY, budget_id TEXT NOT NULL REFERENCES budgets(id), correlation_id TEXT NOT NULL UNIQUE, actor TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, purpose TEXT NOT NULL, amount REAL NOT NULL CHECK(amount >= 0), currency TEXT NOT NULL, status TEXT NOT NULL, metadata TEXT NOT NULL, created_at TEXT NOT NULL);\nCREATE INDEX IF NOT EXISTS idx_cost_events_budget_created ON cost_events(budget_id,created_at);\nCREATE TABLE IF NOT EXISTS autonomy_iterations (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), iteration_number INTEGER NOT NULL, status TEXT NOT NULL, action TEXT NOT NULL, outcome TEXT NOT NULL, failure_count INTEGER NOT NULL DEFAULT 0, escalated INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);\n"""\n
 _PHASE3_COLUMNS={"approvals":{"reason":"TEXT","evidence":"TEXT NOT NULL DEFAULT '[]'","expected_outcome":"TEXT","expires_at":"TEXT","approved_by":"TEXT","resolved_at":"TEXT","correlation_id":"TEXT"},"sources":{"state":"TEXT NOT NULL DEFAULT 'DISCOVERED'","fetched_at":"TEXT","parsed_at":"TEXT","content_hash":"TEXT","rejection_reason":"TEXT"},"claims":{"updated_at":"TEXT","interpretation":"TEXT","review_required":"INTEGER NOT NULL DEFAULT 0"},"studies":{"status":"TEXT NOT NULL DEFAULT 'APPROVED'","protocol_snapshot":"TEXT","protocol_hash":"TEXT","approval_id":"TEXT"}}
 def _migrate_phase3(self):
     with self.connect() as con:
@@ -118,8 +118,8 @@ def _migrate_phase3(self):
             for name,definition in columns.items():
                 if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
         con.executescript(PHASE3_SCHEMA)
-Database.migrate=_migrate_phase3
-class DatabaseConfigurationError(RuntimeError): pass
+Database.migrate=_migrate_phase4
+\ndef _migrate_phase4(self):\n    with self.connect() as con:\n        con.executescript(SCHEMA); _add_phase2_columns(con); con.executescript(PHASE2_SCHEMA)\n        for table,columns in _PHASE3_COLUMNS.items():\n            existing={row[1] for row in con.execute(f"PRAGMA table_info({table})")}\n            for name,definition in columns.items():\n                if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")\n        con.executescript(PHASE3_SCHEMA); con.executescript(PHASE4_SCHEMA)\nDatabase.migrate=_migrate_phase4\nclass DatabaseConfigurationError(RuntimeError): pass
 class PostgreSQLDatabase:
     def __init__(self,url):
         self.url=url
