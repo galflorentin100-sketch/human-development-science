@@ -102,7 +102,9 @@ def deep_health(principal: Principal = Depends(principal_from_header)):
     return {"status":"ok" if all(checks.values()) else "degraded","checks":checks}
 
 @app.get("/api/company-state")
-def state(): return db.one("SELECT * FROM companies WHERE id='hds'")
+def state(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    return db.one("SELECT * FROM companies WHERE id='hds'")
 @app.get("/api/company-state/full")
 def full(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
@@ -134,16 +136,16 @@ def founder_goal(body: Goal, principal: Principal = Depends(principal_from_heade
 
 @app.post("/api/projects/{project_id}/autonomous-run")
 def autonomous_run(project_id: str, principal: Principal = Depends(principal_from_header)):
-    require_write(principal); return AutonomousLoop(db).run(project_id)
+    require_permission(principal, "EXECUTE"); return AutonomousLoop(db).run(project_id)
 @app.post("/api/projects/{project_id}/decide-next")
 def decide_next(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal); return CompanyOrchestrator(db).decide_next(project_id)
 @app.post("/api/projects/{project_id}/execute-next")
 def execute_next(project_id: str, principal: Principal = Depends(principal_from_header)):
-    require_write(principal); return CompanyOrchestrator(db).execute_next(project_id)
+    require_permission(principal, "EXECUTE"); return CompanyOrchestrator(db).execute_next(project_id)
 @app.post("/api/projects/{project_id}/advance")
 def advance_project(project_id: str, principal: Principal = Depends(principal_from_header)):
-    require_write(principal); return CompanyOrchestrator(db).advance(project_id)
+    require_permission(principal, "EXECUTE"); return CompanyOrchestrator(db).advance(project_id)
 @app.post("/api/approvals/{approval_id}/resolve")
 def resolve_approval(approval_id: str, status: str, principal: Principal = Depends(principal_from_header)):
     if principal.role != "founder" or not principal.can("APPROVE"):
@@ -177,7 +179,7 @@ def study_outcome(body: StudyOutcomeRequest, principal: Principal = Depends(prin
     require_write(principal); return StudyExecution(db).outcome(body.study_id, body.participant_id, body.outcome_name, body.value, body.unit, body.session_id, body.missing_reason, body.observation_type)
 @app.post("/api/studies/{study_id}/start")
 def study_start(study_id: str, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_permission(principal, "EXECUTE")
     return StudyExecution(db).start(study_id)
 
 @app.post("/api/studies/{study_id}/complete")
