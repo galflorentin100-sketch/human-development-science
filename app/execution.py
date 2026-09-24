@@ -13,7 +13,7 @@ class ExecutionResult:
 class AgentExecutor:
     def __init__(self,db:Database,provider:ModelProvider|None=None,permissions:PermissionService|None=None):
         self.db=db; self.permissions=permissions or PermissionService(db); self.provider=ObservableProvider(provider or LocalProvider(),db); self.costs=CostControl(db)
-    def execute(self,agent_id,task_id,task_input,context,required_permission=Permission.EXECUTE):
+    def execute(self,agent_id,task_id,task_input,context,required_permission=Permission.EXECUTE,claimed=False):
         self.permissions.check(agent_id,required_permission,"task:"+task_id)
         task=self.db.one("SELECT * FROM tasks WHERE id=?",(task_id,))
         if task is None: raise ValueError("task does not exist")
@@ -26,11 +26,16 @@ class AgentExecutor:
                 raise ApprovalRequired(f"approval required for {action}")
             ApprovalService(self.db).require(approval_id)
         for p in json.loads(task["required_permissions"] or "[]"): self.permissions.check(agent_id,Permission(p),"task:"+task_id)
-        if task["status"] in ("COMPLETED","CANCELLED"): return ExecutionResult(CompanyMessage.create(agent_id,"coo","task_result",task_id,{"result":"already terminal"},0.0,[],[],[]),True,{},None)
-        with self.db.transaction() as con:
-            claimed = con.execute("UPDATE tasks SET status='RUNNING',updated_at=? WHERE id=? AND status IN ('PLANNED','ASSIGNED')",(now(),task_id))
-            if getattr(claimed, "rowcount", 1) != 1:
-                raise RuntimeError("task claim lost")
+        if task["status"] in ("COMPLETED","CANCELLED"):
+            return ExecutionResult(CompanyMessage.create(agent_id,"coo","task_result",task_id,{"result":"already terminal"},0.0,[],[],[]),True,{},None)
+        if claimed:
+            if task["status"] != "RUNNING":
+                raise RuntimeError("claimed task is not RUNNING")
+        else:
+            with self.db.transaction() as con:
+                claimed_row=con.execute("UPDATE tasks SET status='RUNNING',updated_at=? WHERE id=? AND status IN ('PLANNED','ASSIGNED')",(now(),task_id))
+                if getattr(claimed_row, "rowcount", 1) != 1:
+                    raise RuntimeError("task claim lost")
         run_id=str(uuid4()); started=now(); error=None
         try:
             correlation_id=str(uuid4())
@@ -56,5 +61,7 @@ class AgentExecutor:
         status="FAILED" if error else "REVIEW"
         self.db.execute("INSERT INTO agent_runs(id,agent_id,task_id,status,input_payload,output_payload,started_at,completed_at,confidence,evidence_refs,uncertainties,cost_metadata,error,verified) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(run_id,agent_id,task_id,status,json.dumps({"input":task_input,"context":context}),json.dumps(message.to_dict()),started,now(),0.0,"[]",json.dumps(message.uncertainties),json.dumps(cost),error,0))
         self.db.audit("agent.execution","agent_run",run_id,agent_id,{"task_id":task_id,"success":error is None,"verified":False},now(),str(uuid4()))
-        self.db.execute("UPDATE tasks SET status=?,updated_at=? WHERE id=?",("FAILED" if error else "REVIEW",now(),task_id))
+        updated=self.db.execute("UPDATE tasks SET status=?,updated_at=? WHERE id=? AND status='RUNNING'",("FAILED" if error else "REVIEW",now(),task_id))
+        if getattr(updated,"rowcount",1) != 1:
+            raise RuntimeError("task state changed during execution")
         return ExecutionResult(message,False,cost,error)
