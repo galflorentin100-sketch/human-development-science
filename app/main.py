@@ -76,6 +76,28 @@ def ready():
         raise HTTPException(status_code=503, detail="service not ready") from exc
     return {"status": "ready", "database": True, "agents": True}
 
+@app.get("/api/operations")
+def operations():
+    budget=db.one("SELECT * FROM budgets WHERE company_id='hds' AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1")
+    return {
+        "budget": budget,
+        "autonomy": db.all("SELECT * FROM autonomy_iterations ORDER BY created_at DESC LIMIT 25"),
+        "costs": db.all("SELECT * FROM cost_events ORDER BY created_at DESC LIMIT 25"),
+        "model_calls": db.all("SELECT * FROM model_calls ORDER BY created_at DESC LIMIT 25"),
+    }
+
+@app.get("/api/health/deep")
+def deep_health():
+    checks={}
+    try:
+        checks["database"]=db.one("SELECT 1 AS ok")["ok"]==1
+        checks["agents"]=db.one("SELECT COUNT(*) AS n FROM agents")["n"]>=1
+        checks["migrations"]=True
+        checks["budget_control"]=db.one("SELECT COUNT(*) AS n FROM budgets") is not None
+    except Exception:
+        checks["migrations"]=False
+    return {"status":"ok" if all(checks.values()) else "degraded","checks":checks}
+
 @app.get("/api/company-state")
 def state(): return db.one("SELECT * FROM companies WHERE id='hds'")
 @app.get("/api/company-state/full")
