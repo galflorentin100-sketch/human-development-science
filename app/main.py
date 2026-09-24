@@ -44,7 +44,7 @@ class StudyOutcomeRequest(BaseModel):
 def principal_from_header(x_external_subject: str | None = Header(default=None)) -> Principal:
     if not x_external_subject:
         if settings.environment != "production":
-            return Principal("local-development", "founder")
+            return Principal("local-development", "founder", {"READ","WRITE","EXECUTE","PUBLISH","SPEND","DELETE","DEPLOY","CONTACT_EXTERNAL_PARTY","APPROVE"})
         raise HTTPException(status_code=401, detail="authentication required")
     try:
         return auth.authorize(x_external_subject)
