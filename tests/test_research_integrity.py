@@ -45,6 +45,8 @@ def test_experiment_result_is_single(tmp_path):
 
 def test_evidence_reviewer_must_be_independent_and_unique(tmp_path):
     db=make_db(tmp_path)
+    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",("c","C","m","v","p","2026-01-01"))
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",("a","A","r","m","[]","[]","1","ACTIVE","2026-01-01"))
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",("p","c","o","RUNNING","a","2026-01-01"))
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",("c1","p","claim","FACT","PRIMARY",0.8,"OPEN","2026-01-01"))
     db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",("src","source","https://example.com","PAPER","",""))
