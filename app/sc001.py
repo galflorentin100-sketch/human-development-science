@@ -21,6 +21,12 @@ class StudyProtocol:
     retention_timepoints:tuple[str,...]
     intervention:str
     control:str
+    population:str
+    inclusion_criteria:str
+    exclusion_criteria:str
+    sample_size_target:int
+    allocation:str
+    analysis_plan:str
     status:str="DRAFT"
 class SC001Protocol:
     def draft(self):
@@ -32,7 +38,13 @@ class SC001Protocol:
             transfer_outcomes=(Outcome("initiation_latency","Time from planned cue to action start","baseline/post/follow-up","seconds"),Outcome("recovery_after_interruption","Successful return to planned action after interruption","baseline/post/follow-up","proportion"),Outcome("real_world_goal_execution","Completion of independently chosen target behaviors","baseline/post/follow-up","proportion")),
             retention_timepoints=("4-week post","8-week follow-up","12-week follow-up"),
             intervention="Goal definition + cue + implementation intention + friction reduction + graded practice + monitoring + review",
-            control="Active control matched for contact and monitoring without the core self-regulation training sequence"
+            control="Active control matched for contact and monitoring without the core self-regulation training sequence",
+            population="Adults able to complete the study procedures.",
+            inclusion_criteria="Consented adult participant able to complete baseline, post, transfer and follow-up assessments.",
+            exclusion_criteria="Any circumstance that prevents informed consent or safe completion of study procedures.",
+            sample_size_target=60,
+            allocation="Randomized intervention/control allocation.",
+            analysis_plan="Primary: goal execution rate; secondary: transfer and retention outcomes; report missingness explicitly."
         )
     def register(self,db,project_id):
         protocol=self.draft()
@@ -45,6 +57,7 @@ class SC001Protocol:
         study=repo.study(None,protocol.title,"Controlled pilot with baseline/post/follow-up","To be defined","No results recorded; study execution pending.")
         snapshot=json.dumps(asdict(protocol),sort_keys=True)
         digest=hashlib.sha256(snapshot.encode("utf-8")).hexdigest()
+        db.execute("INSERT INTO study_protocol_versions(id,study_id,version,snapshot,content_hash,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),study["id"],1,snapshot,digest,now()))
         approval=ApprovalService(db).request(action="SC001:STUDY:"+study["id"],requested_by="study-designer",reason="Founder approval is required before participant data collection or study execution.",risk_level="HIGH",context={"study_id":study["id"],"protocol_id":protocol.id,"protocol_hash":digest},correlation_id=protocol.id)
         db.execute("UPDATE studies SET status=?,protocol_snapshot=?,protocol_hash=?,approval_id=? WHERE id=?",("PENDING_APPROVAL",snapshot,digest,approval["id"],study["id"]))
         db.audit("research.protocol_registered","study",study["id"],"experiment-designer",{"protocol_id":protocol.id,"quality_gates":gates,"protocol_hash":digest,"approval_id":approval["id"]},now(),str(uuid4()))
