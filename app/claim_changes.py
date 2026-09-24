@@ -21,6 +21,8 @@ class ClaimChangeService:
             if not correlation_id: raise ValueError("correlation_id required for high-impact scientific claim changes")
             approval=self.db.one("SELECT * FROM approvals WHERE correlation_id=? AND status='APPROVED' ORDER BY resolved_at DESC LIMIT 1",(correlation_id,))
             if not approval: raise ValueError("unexpired founder approval required")
+            if approval["action"] != "SCIENTIFIC_CLAIM_CHANGE":
+                raise ValueError("approval is not scoped to scientific claim changes")
             from datetime import datetime,timezone
             if approval["expires_at"] and datetime.fromisoformat(approval["expires_at"])<=datetime.now(timezone.utc): raise ValueError("founder approval expired")
         revision_id=str(uuid4()); ts=now()
