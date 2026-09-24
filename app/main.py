@@ -51,16 +51,14 @@ def principal_from_header(x_external_subject: str | None = Header(default=None))
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
-def require_write(principal: Principal) -> None:
+def require_permission(principal: Principal, permission: str) -> None:
     if principal.user_id == "local-development" and settings.environment != "production":
         return
-    row = db.one("SELECT external_subject FROM users WHERE id=?", (principal.user_id,))
-    if not row:
-        raise HTTPException(status_code=403, detail="WRITE permission required")
-    try:
-        auth.authorize(row["external_subject"], "WRITE")
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail="WRITE permission required") from exc
+    if not principal.can(permission):
+        raise HTTPException(status_code=403, detail=f"{permission} permission required")
+
+def require_write(principal: Principal) -> None:
+    require_permission(principal, "WRITE")
 
 @app.get("/health")
 def health():
@@ -137,7 +135,7 @@ def advance_project(project_id: str, principal: Principal = Depends(principal_fr
     require_write(principal); return CompanyOrchestrator(db).advance(project_id)
 @app.post("/api/approvals/{approval_id}/resolve")
 def resolve_approval(approval_id: str, status: str, principal: Principal = Depends(principal_from_header)):
-    if principal.role != "founder":
+    if principal.role != "founder" or not principal.can("APPROVE"):
         raise HTTPException(status_code=403, detail="founder approval required")
     require_write(principal)
     from app.approvals import ApprovalService, ApprovalStatus, ApprovalRequired
