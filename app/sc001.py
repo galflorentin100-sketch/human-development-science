@@ -1,6 +1,9 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from uuid import uuid4
+import hashlib
+import json
+from app.approvals import ApprovalService
 from app.models import now
 @dataclass(frozen=True)
 class Outcome:
@@ -40,8 +43,12 @@ class SC001Protocol:
         hypothesis=repo.hypothesis(project_id,protocol.question)
         experiment=repo.experiment(project_id,hypothesis["statement"],protocol.intervention)
         study=repo.study(None,protocol.title,"Controlled pilot with baseline/post/follow-up","To be defined","No results recorded; study execution pending.")
-        db.audit("research.protocol_registered","experiment",experiment["id"],"experiment-designer",{"protocol_id":protocol.id,"quality_gates":gates},now(),str(uuid4()))
-        return {"protocol":protocol,"quality_gates":gates,"hypothesis":hypothesis,"experiment":experiment,"study":study}
+        snapshot=json.dumps(asdict(protocol),sort_keys=True)
+        digest=hashlib.sha256(snapshot.encode("utf-8")).hexdigest()
+        approval=ApprovalService(db).request(action="SC001:STUDY:"+study["id"],requested_by="study-designer",reason="Founder approval is required before participant data collection or study execution.",risk_level="HIGH",context={"study_id":study["id"],"protocol_id":protocol.id,"protocol_hash":digest},correlation_id=protocol.id)
+        db.execute("UPDATE studies SET status=?,protocol_snapshot=?,protocol_hash=?,approval_id=? WHERE id=?",("PENDING_APPROVAL",snapshot,digest,approval["id"],study["id"]))
+        db.audit("research.protocol_registered","study",study["id"],"experiment-designer",{"protocol_id":protocol.id,"quality_gates":gates,"protocol_hash":digest,"approval_id":approval["id"]},now(),str(uuid4()))
+        return {"protocol":protocol,"quality_gates":gates,"hypothesis":hypothesis,"experiment":experiment,"study":db.one("SELECT * FROM studies WHERE id=?",(study["id"],)),"approval":approval}
     def quality_gates(self,protocol:StudyProtocol):
         return {
             "falsifiable_question":bool(protocol.question),
