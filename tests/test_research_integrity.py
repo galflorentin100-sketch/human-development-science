@@ -70,3 +70,17 @@ def test_evidence_excerpt_has_provenance_hash(tmp_path):
     db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?)",("es2","src2","PARSED","hash","now","now","now"))
     ev=EvidencePipeline(db).attach("c2","src2","excerpt",actor="alice")
     assert ev["excerpt_hash"]==hashlib.sha256(b"excerpt").hexdigest()
+
+
+def test_conflicting_evidence_reviews_do_not_remain_verified(tmp_path):
+    db=make_db(tmp_path)
+    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",("c3","C","m","v","p","2026-01-01"))
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",("a3","A","r","m","[]","[]","1","ACTIVE","2026-01-01"))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",("p3","c3","o","RUNNING","a3","2026-01-01"))
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",("c3","p3","claim","FACT","PRIMARY",0.8,"OPEN","2026-01-01"))
+    db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",("src3","source","https://example.net","PAPER","",""))
+    db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?)",("es3","src3","PARSED","hash","now","now","now"))
+    pipe=EvidencePipeline(db); ev=pipe.attach("c3","src3","excerpt",actor="alice")
+    pipe.review(ev["id"],"bob","VERIFIED","supports")
+    pipe.review(ev["id"],"carol","REJECTED","contradictory")
+    assert db.one("SELECT verified FROM evidence WHERE id=?",(ev["id"],))["verified"]==0
