@@ -11,10 +11,13 @@ class ScientificRegistry:
         if not name or not str(name).strip(): raise ValueError("construct name is required")
         if not definition or not str(definition).strip(): raise ValueError("construct definition is required")
         if int(version) < 1: raise ValueError("construct version must be positive")
-        existing=self.db.one("SELECT 1 FROM scientific_constructs WHERE project_id IS ? AND name=? AND version=?",(project_id,name,int(version)))
+        existing=self.db.one("SELECT 1 FROM scientific_constructs WHERE (project_id=? OR (project_id IS NULL AND ? IS NULL)) AND name=? AND version=?",(project_id,project_id,name,int(version)))
         if existing: raise ValueError("construct version already exists")
         i=str(uuid4())
-        self.db.execute("INSERT INTO scientific_constructs(id,project_id,name,definition,construct_type,status,version,created_at) VALUES (?,?,?,?,?,?,?,?)",(i,project_id,name,definition,construct_type,status,int(version),now()))
+        with self.db.transaction() as con:
+            con.execute("INSERT INTO scientific_constructs(id,project_id,name,definition,construct_type,status,version,created_at) VALUES (?,?,?,?,?,?,?,?)",(i,project_id,name,definition,construct_type,status,int(version),now()))
+            version_id=str(uuid4())
+            con.execute("INSERT INTO construct_versions(id,construct_id,version,definition,operational_scope,change_reason,created_at) VALUES (?,?,?,?,?,?,?)",(version_id,i,int(version),definition,"Initial operational scope not yet specified","initial definition",now()))
         return self.db.one("SELECT * FROM scientific_constructs WHERE id=?",(i,))
 
     def measure(self, construct_id, name, operational_definition, method, unit=None, reliability_note="", validity_note="", status="DRAFT"):
