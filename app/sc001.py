@@ -75,5 +75,5 @@ class SC001Protocol:
             "sample_size_defined":protocol.sample_size_target>0,
             "allocation_defined":bool(protocol.allocation),
             "analysis_plan_defined":bool(protocol.analysis_plan),
-            "status":"READY_FOR_REVIEW" if all(v for k,v in {k:v for k,v in locals().items() if k.endswith("_defined")}.items()) else "BLOCKED"
+            "status":"READY_FOR_REVIEW" if all([bool(protocol.question),bool(protocol.primary_outcome.definition),len(protocol.transfer_outcomes)>=1,len(protocol.retention_timepoints)>=1,bool(protocol.control),bool(protocol.population),bool(protocol.inclusion_criteria),bool(protocol.exclusion_criteria),protocol.sample_size_target>0,bool(protocol.allocation),bool(protocol.analysis_plan)]) else "BLOCKED"
         }
