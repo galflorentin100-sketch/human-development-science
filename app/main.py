@@ -184,7 +184,7 @@ def study_start(study_id: str, principal: Principal = Depends(principal_from_hea
 
 @app.post("/api/studies/{study_id}/complete")
 def study_complete(study_id: str, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_permission(principal, "EXECUTE")
     return StudyExecution(db).complete(study_id)
 
 @app.post("/api/experiments")
