@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS evidence_sources (id TEXT PRIMARY KEY, source_id TEXT
 CREATE TABLE IF NOT EXISTS evidence_reviews (id TEXT PRIMARY KEY, evidence_id TEXT NOT NULL REFERENCES evidence(id), reviewer TEXT NOT NULL, verdict TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS retry_events (id TEXT PRIMARY KEY, task_id TEXT REFERENCES tasks(id), attempt INTEGER NOT NULL, reason TEXT, action TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_retry_task ON retry_events(task_id,attempt);"""
-PHASE5_SCHEMA = """CREATE TABLE IF NOT EXISTS study_protocol_versions (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), version INTEGER NOT NULL, snapshot TEXT NOT NULL, content_hash TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(study_id,version)); CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id);"""
+PHASE5_SCHEMA = """CREATE TABLE IF NOT EXISTS study_protocol_versions (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), version INTEGER NOT NULL, snapshot TEXT NOT NULL, content_hash TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(study_id,version)); """
 PHASE4_SCHEMA = """CREATE TABLE IF NOT EXISTS budgets (id TEXT PRIMARY KEY, company_id TEXT NOT NULL REFERENCES companies(id), limit_amount REAL NOT NULL CHECK(limit_amount >= 0), spent_amount REAL NOT NULL DEFAULT 0 CHECK(spent_amount >= 0), currency TEXT NOT NULL DEFAULT 'USD', period TEXT NOT NULL DEFAULT 'LIFETIME', status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS cost_events (id TEXT PRIMARY KEY, budget_id TEXT NOT NULL REFERENCES budgets(id), correlation_id TEXT NOT NULL UNIQUE, actor TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, purpose TEXT NOT NULL, amount REAL NOT NULL CHECK(amount >= 0), currency TEXT NOT NULL, status TEXT NOT NULL, metadata TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_cost_events_budget_created ON cost_events(budget_id,created_at);
@@ -138,6 +138,7 @@ def _migrate_phase4(self):
         if "observation_type" not in existing:
             con.execute("ALTER TABLE study_outcomes ADD COLUMN observation_type TEXT NOT NULL DEFAULT 'TRAINING'")
         con.executescript(PHASE3_SCHEMA); con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA)
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
 Database.migrate=_migrate_phase4
 class DatabaseConfigurationError(RuntimeError): pass
 class PostgreSQLDatabase:
@@ -180,6 +181,7 @@ class PostgreSQLDatabase:
                 existing={row[0] for row in con.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=%s",(table,)).fetchall()}
                 for name,definition in columns.items():
                     if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
 def database_from_settings(settings):
     if settings.database_url:
         if not settings.database_url.startswith(("postgresql://","postgres://")): raise DatabaseConfigurationError("DATABASE_URL must be a PostgreSQL URL")
