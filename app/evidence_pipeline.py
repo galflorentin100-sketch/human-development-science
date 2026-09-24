@@ -5,7 +5,7 @@ class EvidencePipeline:
     def __init__(self,db): self.db=db
     def register_source(self,title,url,authors="",year=None,source_type="PAPER"):
         sid=str(uuid4())
-        self.db.execute("INSERT OR IGNORE INTO sources(id,title,url,authors,publication_year,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?,?,?)",(sid,title,url,authors,year,source_type,None,"Discovered source; content not verified until reviewed."))
+        self.db.execute("INSERT OR IGNORE INTO sources(id,title,url,authors,publication_year,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?,?,?)",(sid,title,url,authors,year,source_type,"","Discovered source; content not verified until reviewed."))
         row=self.db.one("SELECT * FROM sources WHERE url=?",(url,))
         return row
     def ingest_text(self,source_id,text):
