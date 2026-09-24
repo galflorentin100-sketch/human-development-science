@@ -16,6 +16,8 @@ from app.orchestrator import CompanyOrchestrator
 from app.idempotency import IdempotencyService
 from app.autonomous_loop import AutonomousLoop
 from app.sc001 import SC001Protocol
+from app.science import ScientificRegistry
+from app.scientific_ai import ScientificAIGuard
 
 settings = Settings.load()
 db = database_from_settings(settings)
@@ -36,6 +38,12 @@ class ResearchRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
 class ExperimentRequest(BaseModel):
     project_id: str; hypothesis: str = Field(min_length=1); design: str = Field(min_length=1)
+class ConstructRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=300); definition: str = Field(min_length=1, max_length=5000); construct_type: str = "CAPABILITY"; project_id: str | None = None
+class MeasureRequest(BaseModel):
+    construct_id: str; name: str = Field(min_length=1); operational_definition: str = Field(min_length=1); method: str = Field(min_length=1); unit: str | None = None; reliability_note: str = ""; validity_note: str = ""
+class InterventionRequest(BaseModel):
+    name: str = Field(min_length=1); rationale: str = Field(min_length=1); mechanism: str = Field(min_length=1); evidence_level: str; dosage: str = Field(min_length=1); population: str = Field(min_length=1); target_construct_id: str | None = None
 class StudyParticipantRequest(BaseModel):
     study_id: str; external_ref: str = Field(min_length=1, max_length=200); consent_status: str = "CONSENTED"
 class StudyOutcomeRequest(BaseModel):
@@ -168,6 +176,26 @@ def sc001_register(project_id: str, principal: Principal = Depends(principal_fro
     require_write(principal)
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)): raise HTTPException(404, "project not found")
     return SC001Protocol().register(db, project_id)
+@app.post("/api/science/constructs")
+def science_construct(body: ConstructRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    return ScientificRegistry(db).construct(body.name, body.definition, body.construct_type, body.project_id)
+
+@app.post("/api/science/measures")
+def science_measure(body: MeasureRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    return ScientificRegistry(db).measure(body.construct_id, body.name, body.operational_definition, body.method, body.unit, body.reliability_note, body.validity_note)
+
+@app.post("/api/science/interventions")
+def science_intervention(body: InterventionRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    return ScientificRegistry(db).intervention(body.name, body.rationale, body.mechanism, body.evidence_level, body.dosage, body.population, body.target_construct_id)
+
+@app.get("/api/science/ai-constraints")
+def science_ai_constraints(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    return {"constraints": ScientificAIGuard().prompt_constraints()}
+
 @app.post("/api/research/run")
 def research_run(body: ResearchRequest, principal: Principal = Depends(principal_from_header)):
     require_permission(principal, "EXECUTE"); return cycle.run(body.question)
