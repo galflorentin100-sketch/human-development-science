@@ -86,10 +86,10 @@ def test_evidence_pipeline_tracks_hash_and_review(tmp_path):
     ep=EvidencePipeline(db)
     src=ep.register_source("Test paper","https://example.org/test-paper")
     parsed=ep.ingest_text(src["id"],"verified text")
-    evidence=ep.attach(claim["id"],src["id"],"verified text",verified=True)
-    review=ep.review(evidence["id"],"auditor","ACCEPT","Traceable excerpt")
+    evidence=ep.attach(claim["id"],src["id"],"verified text",verified=False)
+    review=ep.review(evidence["id"],"auditor","VERIFIED","Traceable excerpt")
     assert parsed["content_hash"]
-    assert review["verdict"]=="ACCEPT"
+    assert review["verdict"]=="VERIFIED"
 
 def test_autonomous_loop_is_bounded(tmp_path):
     from app.database import Database
