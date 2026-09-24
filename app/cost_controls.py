@@ -1,0 +1,56 @@
+from __future__ import annotations
+import json
+from uuid import uuid4
+from app.models import now
+
+class BudgetExceeded(Exception):
+    pass
+
+class BudgetRequired(Exception):
+    pass
+
+class CostControl:
+    def __init__(self, db):
+        self.db = db
+
+    def active_budget(self, company_id="hds"):
+        return self.db.one("SELECT * FROM budgets WHERE company_id=? AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1",(company_id,))
+
+    def authorize(self, estimated_cost, company_id="hds"):
+        if estimated_cost < 0:
+            raise ValueError("estimated_cost cannot be negative")
+        budget=self.active_budget(company_id)
+        if not budget:
+            raise BudgetRequired("model/API spend is blocked until an active budget exists")
+        remaining=float(budget["limit_amount"])-float(budget["spent_amount"])
+        if estimated_cost > remaining:
+            raise BudgetExceeded("requested spend exceeds remaining budget")
+        return {"budget_id":budget["id"],"remaining":remaining}
+
+    def record(self, correlation_id, amount, provider, model, purpose, actor="system", company_id="hds", metadata=None):
+        if amount < 0: raise ValueError("amount cannot be negative")
+        budget=self.active_budget(company_id)
+        if not budget: raise BudgetRequired("no active budget")
+        with self.db.transaction() as con:
+            existing=con.execute("SELECT * FROM cost_events WHERE correlation_id=?",(correlation_id,)).fetchone()
+            if existing:
+                return dict(existing)
+            row=con.execute("SELECT * FROM budgets WHERE id=? AND status='ACTIVE'",(budget["id"],)).fetchone()
+            remaining=float(row["limit_amount"])-float(row["spent_amount"])
+            if amount > remaining: raise BudgetExceeded("cost would exceed budget")
+            event_id=str(uuid4())
+            con.execute("INSERT INTO cost_events(id,budget_id,correlation_id,actor,provider,model,purpose,amount,currency,status,metadata,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (event_id,row["id"],correlation_id,actor,provider,model,purpose,amount,row["currency"],"RECORDED",json.dumps(metadata or {}),now()))
+            con.execute("UPDATE budgets SET spent_amount=spent_amount+?,updated_at=? WHERE id=?",(amount,now(),row["id"]))
+            return dict(con.execute("SELECT * FROM cost_events WHERE id=?",(event_id,)).fetchone())
+
+    def set_budget(self, limit_amount, company_id="hds", currency="USD", period="LIFETIME"):
+        if limit_amount < 0: raise ValueError("limit_amount cannot be negative")
+        existing=self.active_budget(company_id)
+        if existing:
+            self.db.execute("UPDATE budgets SET limit_amount=?,updated_at=? WHERE id=?",(limit_amount,now(),existing["id"]))
+            return self.db.one("SELECT * FROM budgets WHERE id=?",(existing["id"],))
+        budget_id=str(uuid4())
+        self.db.execute("INSERT INTO budgets(id,company_id,limit_amount,spent_amount,currency,period,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                         (budget_id,company_id,limit_amount,0,currency,period,"ACTIVE",now(),now()))
+        return self.db.one("SELECT * FROM budgets WHERE id=?",(budget_id,))
