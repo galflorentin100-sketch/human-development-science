@@ -62,7 +62,7 @@ class CostControl:
         with self.db.transaction() as con:
             cur=con.execute("SELECT * FROM cost_events WHERE correlation_id=?",(correlation_id,))
             row=cur.fetchone()
-            if row is None: return self.record(correlation_id,actual_amount,provider,model,purpose,actor,company_id,metadata)
+            if row is None: raise ValueError("cannot settle an unreserved correlation_id")
             r=self._row_dict(cur,row)
             if r["status"]!="RESERVED": return r
             delta=float(actual_amount)-float(r["amount"])
