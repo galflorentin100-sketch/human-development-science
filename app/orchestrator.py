@@ -27,15 +27,16 @@ class CompanyOrchestrator:
                 return {"status":"NO_EXECUTABLE_TASK"}
             task=dict(row) if hasattr(row,"keys") else dict(zip([d.name for d in cur.description],row))
             claimed=con.execute("UPDATE tasks SET status='RUNNING',updated_at=? WHERE id=? AND status IN ('PLANNED','ASSIGNED')",(now(),task["id"]))
-            if claimed.rowcount != 1:
+            if getattr(claimed,"rowcount",1) != 1:
                 return {"status":"TASK_CLAIM_LOST"}
-        result=AgentExecutor(self.db).execute(task["assigned_agent_id"],task["id"],{"title":task["title"]},{"project_id":project_id,"success_criteria":task["success_criteria"]})
+        result=AgentExecutor(self.db).execute(task["assigned_agent_id"],task["id"],{"title":task["title"]},{"project_id":project_id,"success_criteria":task["success_criteria"]},claimed=True)
         run=self.db.one("SELECT id FROM agent_runs WHERE task_id=? ORDER BY started_at DESC LIMIT 1",(task["id"],))
         if not run:
             self.tasks.retry_or_escalate(task["id"],"Execution completed without an agent run record.")
             return {"status":"EXECUTION_RECORD_MISSING","task":task}
+        evaluation=EvaluationService(self.db).evaluate_run(run["id"],task["success_criteria"])
         if evaluation["passed"]:
-            updated=self.db.execute("UPDATE tasks SET status='COMPLETED',updated_at=? WHERE id=? AND status='RUNNING'",(now(),task["id"]))
+            updated=self.db.execute("UPDATE tasks SET status='COMPLETED',updated_at=? WHERE id=? AND status='REVIEW'",(now(),task["id"]))
             if getattr(updated,"rowcount",1) != 1:
                 return {"status":"TASK_STATE_CHANGED","task":task,"evaluation":evaluation}
             return {"status":"COMPLETED","task":task,"evaluation":evaluation}
