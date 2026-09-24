@@ -69,5 +69,11 @@ class SC001Protocol:
             "transfer_defined":len(protocol.transfer_outcomes)>=1,
             "retention_defined":len(protocol.retention_timepoints)>=1,
             "control_defined":bool(protocol.control),
+            "population_defined":bool(protocol.population),
+            "inclusion_defined":bool(protocol.inclusion_criteria),
+            "exclusion_defined":bool(protocol.exclusion_criteria),
+            "sample_size_defined":protocol.sample_size_target>0,
+            "allocation_defined":bool(protocol.allocation),
+            "analysis_plan_defined":bool(protocol.analysis_plan),
             "status":"READY_FOR_REVIEW"
         }
