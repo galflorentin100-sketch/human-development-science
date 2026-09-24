@@ -120,7 +120,11 @@ def resolve_approval(approval_id: str, status: str, principal: Principal = Depen
     require_write(principal)
     from app.approvals import ApprovalService, ApprovalStatus, ApprovalRequired
     try:
-        return ApprovalService(db).resolve(approval_id, ApprovalStatus(status), principal.user_id)
+        resolved = ApprovalService(db).resolve(approval_id, ApprovalStatus(status), principal.user_id)
+        if status == "APPROVED" and resolved["action"].startswith("SC001:STUDY:"):
+            study_id = resolved["action"].split(":", 2)[2]
+            db.execute("UPDATE studies SET status='APPROVED' WHERE id=? AND approval_id=?", (study_id, approval_id))
+        return resolved
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ApprovalRequired as exc:
