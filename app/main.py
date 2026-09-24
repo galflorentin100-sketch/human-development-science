@@ -120,7 +120,8 @@ def intelligence(principal: Principal = Depends(principal_from_header)):
     s = IntelligenceService(db); return {"findings": s.findings(), "timeline": s.timeline(), "workforce": s.workforce(), "health": s.health(), "brief": FounderBriefService(db).build()}
 @app.get("/api/agents")
 def agents(principal: Principal = Depends(principal_from_header)):
-    require_read(principal) return db.all("SELECT * FROM agents ORDER BY id")
+    require_read(principal)
+    return db.all("SELECT * FROM agents ORDER BY id")
 
 @app.post("/api/founder-goals")
 def founder_goal(body: Goal, principal: Principal = Depends(principal_from_header), idempotency_key: str | None = None):
