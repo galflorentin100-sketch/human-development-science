@@ -134,6 +134,9 @@ def _migrate_phase4(self):
             existing={row[1] for row in con.execute(f"PRAGMA table_info({table})")}
             for name,definition in columns.items():
                 if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+        existing={row[1] for row in con.execute("PRAGMA table_info(study_outcomes)")}
+        if "observation_type" not in existing:
+            con.execute("ALTER TABLE study_outcomes ADD COLUMN observation_type TEXT NOT NULL DEFAULT 'TRAINING'")
         con.executescript(PHASE3_SCHEMA); con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA)
 Database.migrate=_migrate_phase4
 class DatabaseConfigurationError(RuntimeError): pass
