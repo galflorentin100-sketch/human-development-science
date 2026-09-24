@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS evidence_sources (id TEXT PRIMARY KEY, source_id TEXT
 CREATE TABLE IF NOT EXISTS evidence_reviews (id TEXT PRIMARY KEY, evidence_id TEXT NOT NULL REFERENCES evidence(id), reviewer TEXT NOT NULL, verdict TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS retry_events (id TEXT PRIMARY KEY, task_id TEXT REFERENCES tasks(id), attempt INTEGER NOT NULL, reason TEXT, action TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_retry_task ON retry_events(task_id,attempt);"""
-_PHASE3_COLUMNS={"approvals":{"reason":"TEXT","evidence":"TEXT NOT NULL DEFAULT '[]'","expected_outcome":"TEXT","expires_at":"TEXT","approved_by":"TEXT","resolved_at":"TEXT","correlation_id":"TEXT"},"sources":{"state":"TEXT NOT NULL DEFAULT 'DISCOVERED'","fetched_at":"TEXT","parsed_at":"TEXT","content_hash":"TEXT","rejection_reason":"TEXT"},"claims":{"updated_at":"TEXT","interpretation":"TEXT","review_required":"INTEGER NOT NULL DEFAULT 0"}}
+_PHASE3_COLUMNS={"approvals":{"reason":"TEXT","evidence":"TEXT NOT NULL DEFAULT '[]'","expected_outcome":"TEXT","expires_at":"TEXT","approved_by":"TEXT","resolved_at":"TEXT","correlation_id":"TEXT"},"sources":{"state":"TEXT NOT NULL DEFAULT 'DISCOVERED'","fetched_at":"TEXT","parsed_at":"TEXT","content_hash":"TEXT","rejection_reason":"TEXT"},"claims":{"updated_at":"TEXT","interpretation":"TEXT","review_required":"INTEGER NOT NULL DEFAULT 0"},"studies":{"status":"TEXT NOT NULL DEFAULT 'APPROVED'","protocol_snapshot":"TEXT","protocol_hash":"TEXT","approval_id":"TEXT"}}
 def _migrate_phase3(self):
     with self.connect() as con:
         con.executescript(SCHEMA); _add_phase2_columns(con); con.executescript(PHASE2_SCHEMA)
