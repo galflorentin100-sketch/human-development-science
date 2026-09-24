@@ -20,8 +20,15 @@ class CompanyOrchestrator:
         self.db.audit("company.goal_started","goal",goal_id,"ceo",{"project_id":project_id,"task_count":len(tasks)},now(),str(uuid4()))
         return {"goal":goal,"project":self.db.one("SELECT * FROM projects WHERE id=?",(project_id,)),"tasks":tasks}
     def execute_next(self,project_id):
-        task=self.db.one("SELECT * FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED') ORDER BY priority DESC LIMIT 1",(project_id,))
-        if not task: return {"status":"NO_EXECUTABLE_TASK"}
+        with self.db.transaction() as con:
+            cur=con.execute("SELECT * FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED') ORDER BY priority DESC LIMIT 1",(project_id,))
+            row=cur.fetchone()
+            if row is None:
+                return {"status":"NO_EXECUTABLE_TASK"}
+            task=dict(row) if hasattr(row,"keys") else dict(zip([d.name for d in cur.description],row))
+            claimed=con.execute("UPDATE tasks SET status='RUNNING',updated_at=? WHERE id=? AND status IN ('PLANNED','ASSIGNED')",(now(),task["id"]))
+            if claimed.rowcount != 1:
+                return {"status":"TASK_CLAIM_LOST"}
         result=AgentExecutor(self.db).execute(task["assigned_agent_id"],task["id"],{"title":task["title"]},{"project_id":project_id,"success_criteria":task["success_criteria"]})
         run=self.db.one("SELECT id FROM agent_runs WHERE task_id=? ORDER BY started_at DESC LIMIT 1",(task["id"],))
         evaluation=EvaluationService(self.db).evaluate_run(run["id"],task["success_criteria"])
