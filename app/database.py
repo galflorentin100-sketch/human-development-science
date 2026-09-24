@@ -176,7 +176,7 @@ class PostgreSQLDatabase:
         for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA): statements.extend(s.strip() for s in schema.split(";") if s.strip() and not s.strip().startswith("PRAGMA"))
         with self.connect() as con:
             for statement in statements: con.execute(self._sql(statement))
-            for table,columns in {**_PHASE2_COLUMNS,**_PHASE3_COLUMNS}.items():
+            for table,columns in {**_PHASE2_COLUMNS,**_PHASE3_COLUMNS,**{'study_outcomes':{'observation_type':"TEXT NOT NULL DEFAULT 'TRAINING'"}}}.items():
                 existing={row[0] for row in con.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=%s",(table,)).fetchall()}
                 for name,definition in columns.items():
                     if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
