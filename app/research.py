@@ -59,7 +59,9 @@ class StudyExecution:
         study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
         if not study: raise ValueError("study does not exist")
         if study["status"]!="APPROVED": raise ValueError("founder approval required")
-        self.db.execute("UPDATE studies SET status='RUNNING' WHERE id=? AND status='APPROVED'",(study_id,))
+        updated=self.db.execute("UPDATE studies SET status='RUNNING' WHERE id=? AND status='APPROVED'",(study_id,))
+        if getattr(updated,"rowcount",1) != 1:
+            raise ValueError("study start lost due to concurrent state change")
         return self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
     def complete(self,study_id):
         study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
