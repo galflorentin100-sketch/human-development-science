@@ -23,8 +23,10 @@ class EvidencePipeline:
         source=self.db.one("SELECT * FROM sources WHERE id=?",(source_id,))
         claim=self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
         if not source or not claim: raise ValueError("claim or source not found")
-        if verified and not self.db.one("SELECT 1 FROM evidence_sources WHERE source_id=? AND state='PARSED' ORDER BY parsed_at DESC LIMIT 1",(source_id,)):
-            raise ValueError("cannot mark evidence verified before source content is parsed")
+        if verified:
+            raise ValueError("evidence verification is reviewer-controlled; attach as unverified and use review() to verify")
+        if not self.db.one("SELECT 1 FROM evidence_sources WHERE source_id=? AND state='PARSED' ORDER BY parsed_at DESC LIMIT 1",(source_id,)):
+            raise ValueError("cannot attach evidence before source content is parsed")
         eid=str(uuid4())
         self.db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_at) VALUES (?,?,?,?,?,?,?)",(eid,claim_id,source_id,stance,excerpt,int(verified),now()))
         return self.db.one("SELECT * FROM evidence WHERE id=?",(eid,))
