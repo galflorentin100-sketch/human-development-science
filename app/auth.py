@@ -2,7 +2,12 @@ from uuid import uuid4
 import json
 from app.models import now
 class Principal:
-    def __init__(self,user_id,role="founder"): self.user_id=user_id; self.role=role
+    def __init__(self,user_id,role="founder",permissions=None):
+        self.user_id=user_id
+        self.role=role
+        self.permissions=set(permissions or [])
+    def can(self,permission):
+        return permission in self.permissions
 class AuthService:
     def __init__(self,db): self.db=db; self._seed_roles()
     def _seed_roles(self):
