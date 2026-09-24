@@ -23,7 +23,9 @@ class AuthService:
         uid=str(uuid4())
         self.db.execute("INSERT OR IGNORE INTO users(id,external_subject,email,created_at) VALUES (?,?,?,?)",(uid,external_subject,email,now()))
         user=self.db.one("SELECT * FROM users WHERE external_subject=?",(external_subject,))
-        self.db.execute("INSERT OR IGNORE INTO company_memberships(company_id,user_id,role_id,status,created_at) VALUES ('hds',?,?,'ACTIVE',?)",(user["id"],role,now()))
+        role_row=self.db.one("SELECT id FROM roles WHERE name=?",(role,))
+        if not role_row: raise ValueError("unknown role")
+        self.db.execute("INSERT OR IGNORE INTO company_memberships(company_id,user_id,role_id,status,created_at) VALUES ('hds',?,?,'ACTIVE',?)",(user["id"],role_row["id"],now()))
         return user
     def authorize(self,external_subject,required_permission=None):
         user=self.db.one("SELECT * FROM users WHERE external_subject=?",(external_subject,))
