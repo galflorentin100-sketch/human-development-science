@@ -84,3 +84,8 @@ def test_conflicting_evidence_reviews_do_not_remain_verified(tmp_path):
     pipe.review(ev["id"],"bob","VERIFIED","supports")
     pipe.review(ev["id"],"carol","REJECTED","contradictory")
     assert db.one("SELECT verified FROM evidence WHERE id=?",(ev["id"],))["verified"]==0
+
+def test_randomization_has_database_unique_constraint(tmp_path):
+    db=make_db(tmp_path)
+    indexes=db.all("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_study_assignment_participant'")
+    assert indexes
