@@ -138,7 +138,7 @@ def _migrate_phase4(self):
         existing={row[1] for row in con.execute("PRAGMA table_info(study_outcomes)")}
         if "observation_type" not in existing:
             con.execute("ALTER TABLE study_outcomes ADD COLUMN observation_type TEXT NOT NULL DEFAULT 'TRAINING'")
-        con.executescript(PHASE3_SCHEMA); con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA)
+        con.executescript(PHASE3_SCHEMA); con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA); con.executescript(PHASE6_SCHEMA)
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
 Database.migrate=_migrate_phase4
 class DatabaseConfigurationError(RuntimeError): pass
@@ -175,7 +175,7 @@ class PostgreSQLDatabase:
     def audit(self,event_type,entity_type,entity_id,actor,payload,created_at,audit_id): self.execute("INSERT INTO audit_logs VALUES (?, ?, ?, ?, ?, ?, ?)",(audit_id,event_type,entity_type,entity_id,actor,json.dumps(payload),created_at))
     def migrate(self):
         statements=[]
-        for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA): statements.extend(s.strip() for s in schema.split(";") if s.strip() and not s.strip().startswith("PRAGMA"))
+        for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA,PHASE6_SCHEMA): statements.extend(s.strip() for s in schema.split(";") if s.strip() and not s.strip().startswith("PRAGMA"))
         with self.connect() as con:
             for statement in statements: con.execute(self._sql(statement))
             for table,columns in {**_PHASE2_COLUMNS,**_PHASE3_COLUMNS,**{'study_outcomes':{'observation_type':"TEXT NOT NULL DEFAULT 'TRAINING'"},"idempotency_keys":{"status":"TEXT NOT NULL DEFAULT 'COMPLETED'","claim_token":"TEXT","lease_expires_at":"TEXT"}}}.items():
@@ -189,3 +189,9 @@ def database_from_settings(settings):
         return PostgreSQLDatabase(settings.database_url)
     if settings.environment=="production": raise DatabaseConfigurationError("production database configuration is required")
     return Database(settings.database_path)
+
+PHASE6_SCHEMA = """CREATE TABLE IF NOT EXISTS scientific_constructs (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), name TEXT NOT NULL, definition TEXT NOT NULL, construct_type TEXT NOT NULL, status TEXT NOT NULL, version INTEGER NOT NULL, created_at TEXT NOT NULL, UNIQUE(project_id,name,version));
+CREATE TABLE IF NOT EXISTS scientific_measures (id TEXT PRIMARY KEY, construct_id TEXT NOT NULL REFERENCES scientific_constructs(id), name TEXT NOT NULL, operational_definition TEXT NOT NULL, method TEXT NOT NULL, unit TEXT, reliability_note TEXT NOT NULL, validity_note TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS interventions (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, target_construct_id TEXT REFERENCES scientific_constructs(id), rationale TEXT NOT NULL, mechanism TEXT NOT NULL, evidence_level TEXT NOT NULL, dosage TEXT NOT NULL, population TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS intervention_evidence (id TEXT PRIMARY KEY, intervention_id TEXT NOT NULL REFERENCES interventions(id), evidence_kind TEXT NOT NULL, evidence_ref TEXT NOT NULL, notes TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(intervention_id,evidence_kind,evidence_ref));
+CREATE TABLE IF NOT EXISTS construct_versions (id TEXT PRIMARY KEY, construct_id TEXT NOT NULL REFERENCES scientific_constructs(id), version INTEGER NOT NULL, definition TEXT NOT NULL, operational_scope TEXT NOT NULL, change_reason TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(construct_id,version));"""
