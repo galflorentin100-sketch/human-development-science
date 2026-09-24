@@ -11,7 +11,17 @@ class ResearchRepository:
     def experiment(self,project_id,hypothesis,design,status="PLANNED"):
         i=str(uuid4()); self.db.execute("INSERT INTO experiments(id,project_id,hypothesis,status,design,created_at) VALUES (?,?,?,?,?,?)",(i,project_id,hypothesis,status,design,now())); return self.db.one("SELECT * FROM experiments WHERE id=?",(i,))
     def result(self,experiment_id,outcome,interpretation):
-        i=str(uuid4()); self.db.execute("INSERT INTO experiment_results(id,experiment_id,outcome,interpretation,created_at) VALUES (?,?,?,?,?)",(i,experiment_id,outcome,interpretation,now())); self.db.execute("UPDATE experiments SET result=?,status='COMPLETED' WHERE id=?",(interpretation,experiment_id)); return self.db.one("SELECT * FROM experiment_results WHERE id=?",(i,))
+        experiment=self.db.one("SELECT * FROM experiments WHERE id=?",(experiment_id,))
+        if not experiment: raise ValueError("experiment does not exist")
+        if experiment["status"]=="COMPLETED": raise ValueError("experiment already has a result")
+        with self.db.transaction() as con:
+            if con.execute("SELECT 1 FROM experiment_results WHERE experiment_id=? LIMIT 1",(experiment_id,)).fetchone():
+                raise ValueError("experiment already has a result")
+            i=str(uuid4())
+            con.execute("INSERT INTO experiment_results(id,experiment_id,outcome,interpretation,created_at) VALUES (?,?,?,?,?)",(i,experiment_id,outcome,interpretation,now()))
+            updated=con.execute("UPDATE experiments SET result=?,status='COMPLETED' WHERE id=? AND status!='COMPLETED'",(interpretation,experiment_id))
+            if getattr(updated,"rowcount",1) != 1: raise ValueError("experiment completion lost due to concurrent state change")
+        return self.db.one("SELECT * FROM experiment_results WHERE id=?",(i,))
     def study(self,source_id,title,design,population,findings):
         i=str(uuid4()); self.db.execute("INSERT INTO studies(id,source_id,title,design,population,findings,created_at) VALUES (?,?,?,?,?,?,?)",(i,source_id,title,design,population,findings,now())); return self.db.one("SELECT * FROM studies WHERE id=?",(i,))
     def knowledge(self,project_id,kind,content,provenance):
