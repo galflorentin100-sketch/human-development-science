@@ -59,9 +59,10 @@ class StudyExecution:
         study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
         if not study: raise ValueError("study does not exist")
         if study["status"]!="APPROVED": raise ValueError("founder approval required")
-        updated=self.db.execute("UPDATE studies SET status='RUNNING' WHERE id=? AND status='APPROVED'",(study_id,))
-        if getattr(updated,"rowcount",1) != 1:
-            raise ValueError("study start lost due to concurrent state change")
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE studies SET status='RUNNING' WHERE id=? AND status='APPROVED'",(study_id,))
+            if getattr(updated,"rowcount",1) != 1:
+                raise ValueError("study start lost due to concurrent state change")
         return self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
     def complete(self,study_id):
         study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
@@ -71,7 +72,10 @@ class StudyExecution:
         missing=required-present
         if missing: raise ValueError("study cannot complete; missing observation types: "+",".join(sorted(missing)))
         if not self.db.one("SELECT 1 FROM study_analysis_plans WHERE study_id=? AND frozen=1",(study_id,)): raise ValueError("study cannot complete without a frozen analysis plan")
-        self.db.execute("UPDATE studies SET status='COMPLETED' WHERE id=? AND status='RUNNING'",(study_id,))
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE studies SET status='COMPLETED' WHERE id=? AND status='RUNNING'",(study_id,))
+            if getattr(updated,"rowcount",1) != 1:
+                raise ValueError("study completion lost due to concurrent state change")
         return self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
     def adherence(self,study_id,participant_id,planned,completed,session_id=None,note=""):
         if planned < 0 or completed < 0 or completed > planned: raise ValueError("invalid adherence")
