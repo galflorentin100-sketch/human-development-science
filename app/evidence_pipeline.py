@@ -14,6 +14,12 @@ class EvidencePipeline:
         self.db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,fetched_at,parsed_at,created_at) VALUES (?,?,?, ?,?,?,?)",(eid,source_id,"PARSED",digest,now(),now(),now()))
         return self.db.one("SELECT * FROM evidence_sources WHERE id=?",(eid,))
     def attach(self,claim_id,source_id,excerpt,stance="SUPPORTS",verified=False):
+        if stance not in {"SUPPORTS","CONTRADICTS","NEUTRAL"}: raise ValueError("invalid evidence stance")
+        source=self.db.one("SELECT * FROM sources WHERE id=?",(source_id,))
+        claim=self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
+        if not source or not claim: raise ValueError("claim or source not found")
+        if verified and not self.db.one("SELECT 1 FROM evidence_sources WHERE source_id=? AND state='PARSED' ORDER BY parsed_at DESC LIMIT 1",(source_id,)):
+            raise ValueError("cannot mark evidence verified before source content is parsed")
         eid=str(uuid4())
         self.db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_at) VALUES (?,?,?,?,?,?,?)",(eid,claim_id,source_id,stance,excerpt,int(verified),now()))
         return self.db.one("SELECT * FROM evidence WHERE id=?",(eid,))
