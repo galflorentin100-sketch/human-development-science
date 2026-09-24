@@ -57,3 +57,16 @@ def test_evidence_reviewer_must_be_independent_and_unique(tmp_path):
     pipe.review(ev["id"],"bob","VERIFIED","independent review")
     try: pipe.review(ev["id"],"bob","VERIFIED","duplicate review"); assert False
     except ValueError as exc: assert "already reviewed" in str(exc)
+
+
+def test_evidence_excerpt_has_provenance_hash(tmp_path):
+    import hashlib
+    db=make_db(tmp_path)
+    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",("c2","C","m","v","p","2026-01-01"))
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",("a2","A","r","m","[]","[]","1","ACTIVE","2026-01-01"))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",("p2","c2","o","RUNNING","a2","2026-01-01"))
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",("c2","p2","claim","FACT","PRIMARY",0.8,"OPEN","2026-01-01"))
+    db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",("src2","source","https://example.org","PAPER","",""))
+    db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?)",("es2","src2","PARSED","hash","now","now","now"))
+    ev=EvidencePipeline(db).attach("c2","src2","excerpt",actor="alice")
+    assert ev["excerpt_hash"]==hashlib.sha256(b"excerpt").hexdigest()
