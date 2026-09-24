@@ -23,6 +23,8 @@ class CostControl:
         return self.db.one("SELECT * FROM budgets WHERE company_id=? AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1",(company_id,))
 
     def authorize(self, estimated_cost, company_id="hds"):
+        if not isinstance(estimated_cost, (int, float)):
+            raise ValueError("estimated_cost must be numeric")
         if estimated_cost < 0:
             raise ValueError("estimated_cost cannot be negative")
         budget=self.active_budget(company_id)
@@ -34,6 +36,8 @@ class CostControl:
         return {"budget_id":budget["id"],"remaining":remaining}
 
     def record(self, correlation_id, amount, provider, model, purpose, actor="system", company_id="hds", metadata=None):
+        if not correlation_id: raise ValueError("correlation_id is required")
+        if not isinstance(amount, (int, float)): raise ValueError("amount must be numeric")
         if amount < 0: raise ValueError("amount cannot be negative")
         budget=self.active_budget(company_id)
         if not budget: raise BudgetRequired("no active budget")
