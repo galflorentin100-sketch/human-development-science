@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS experiment_results (id TEXT PRIMARY KEY, experiment_i
 CREATE TABLE IF NOT EXISTS study_participants (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), external_ref TEXT NOT NULL, consent_status TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(study_id,external_ref));
 CREATE TABLE IF NOT EXISTS study_assignments (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), participant_id TEXT NOT NULL REFERENCES study_participants(id), arm TEXT NOT NULL, assigned_at TEXT NOT NULL, method TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS study_sessions (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), participant_id TEXT NOT NULL REFERENCES study_participants(id), phase TEXT NOT NULL, session_number INTEGER NOT NULL, occurred_at TEXT NOT NULL, status TEXT NOT NULL, UNIQUE(study_id,participant_id,phase,session_number));
-CREATE TABLE IF NOT EXISTS study_outcomes (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), participant_id TEXT NOT NULL REFERENCES study_participants(id), session_id TEXT REFERENCES study_sessions(id), outcome_name TEXT NOT NULL, value REAL, unit TEXT, missing_reason TEXT, recorded_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS study_outcomes (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), participant_id TEXT NOT NULL REFERENCES study_participants(id), session_id TEXT REFERENCES study_sessions(id), outcome_name TEXT NOT NULL, value REAL, unit TEXT, missing_reason TEXT, observation_type TEXT NOT NULL DEFAULT 'TRAINING', recorded_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS study_adherence (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), participant_id TEXT NOT NULL REFERENCES study_participants(id), session_id TEXT REFERENCES study_sessions(id), planned INTEGER NOT NULL, completed INTEGER NOT NULL, adherence_note TEXT, recorded_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS study_analysis_plans (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), version INTEGER NOT NULL, analysis_spec TEXT NOT NULL, frozen INTEGER NOT NULL DEFAULT 0, frozen_at TEXT, created_at TEXT NOT NULL, UNIQUE(study_id,version));
 CREATE TABLE IF NOT EXISTS study_analysis_results (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), analysis_plan_id TEXT NOT NULL REFERENCES study_analysis_plans(id), outcome_name TEXT NOT NULL, n_total INTEGER NOT NULL, n_observed INTEGER NOT NULL, estimate REAL, uncertainty TEXT, missing_data_note TEXT, interpretation TEXT NOT NULL, created_at TEXT NOT NULL);
@@ -109,6 +109,7 @@ CREATE TABLE IF NOT EXISTS evidence_sources (id TEXT PRIMARY KEY, source_id TEXT
 CREATE TABLE IF NOT EXISTS evidence_reviews (id TEXT PRIMARY KEY, evidence_id TEXT NOT NULL REFERENCES evidence(id), reviewer TEXT NOT NULL, verdict TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS retry_events (id TEXT PRIMARY KEY, task_id TEXT REFERENCES tasks(id), attempt INTEGER NOT NULL, reason TEXT, action TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_retry_task ON retry_events(task_id,attempt);"""
+PHASE5_SCHEMA = """CREATE TABLE IF NOT EXISTS study_protocol_versions (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), version INTEGER NOT NULL, snapshot TEXT NOT NULL, content_hash TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(study_id,version)); CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id);"""
 PHASE4_SCHEMA = """CREATE TABLE IF NOT EXISTS budgets (id TEXT PRIMARY KEY, company_id TEXT NOT NULL REFERENCES companies(id), limit_amount REAL NOT NULL CHECK(limit_amount >= 0), spent_amount REAL NOT NULL DEFAULT 0 CHECK(spent_amount >= 0), currency TEXT NOT NULL DEFAULT 'USD', period TEXT NOT NULL DEFAULT 'LIFETIME', status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS cost_events (id TEXT PRIMARY KEY, budget_id TEXT NOT NULL REFERENCES budgets(id), correlation_id TEXT NOT NULL UNIQUE, actor TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, purpose TEXT NOT NULL, amount REAL NOT NULL CHECK(amount >= 0), currency TEXT NOT NULL, status TEXT NOT NULL, metadata TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_cost_events_budget_created ON cost_events(budget_id,created_at);
@@ -133,7 +134,7 @@ def _migrate_phase4(self):
             existing={row[1] for row in con.execute(f"PRAGMA table_info({table})")}
             for name,definition in columns.items():
                 if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
-        con.executescript(PHASE3_SCHEMA); con.executescript(PHASE4_SCHEMA)
+        con.executescript(PHASE3_SCHEMA); con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA)
 Database.migrate=_migrate_phase4
 class DatabaseConfigurationError(RuntimeError): pass
 class PostgreSQLDatabase:
@@ -169,7 +170,7 @@ class PostgreSQLDatabase:
     def audit(self,event_type,entity_type,entity_id,actor,payload,created_at,audit_id): self.execute("INSERT INTO audit_logs VALUES (?, ?, ?, ?, ?, ?, ?)",(audit_id,event_type,entity_type,entity_id,actor,json.dumps(payload),created_at))
     def migrate(self):
         statements=[]
-        for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE4_SCHEMA): statements.extend(s.strip() for s in schema.split(";") if s.strip() and not s.strip().startswith("PRAGMA"))
+        for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA): statements.extend(s.strip() for s in schema.split(";") if s.strip() and not s.strip().startswith("PRAGMA"))
         with self.connect() as con:
             for statement in statements: con.execute(self._sql(statement))
             for table,columns in {**_PHASE2_COLUMNS,**_PHASE3_COLUMNS}.items():
