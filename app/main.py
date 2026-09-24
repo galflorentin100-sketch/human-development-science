@@ -89,7 +89,8 @@ def operations(principal: Principal = Depends(principal_from_header)):
     }
 
 @app.get("/api/health/deep")
-def deep_health():
+def deep_health(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
     checks={}
     try:
         checks["database"]=db.one("SELECT 1 AS ok")["ok"]==1
