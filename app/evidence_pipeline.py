@@ -18,7 +18,7 @@ class EvidencePipeline:
         eid=str(uuid4())
         self.db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,fetched_at,parsed_at,created_at) VALUES (?,?,?, ?,?,?,?)",(eid,source_id,"PARSED",digest,now(),now(),now()))
         return self.db.one("SELECT * FROM evidence_sources WHERE id=?",(eid,))
-    def attach(self,claim_id,source_id,excerpt,stance="SUPPORTS",verified=False):
+    def attach(self,claim_id,source_id,excerpt,stance="SUPPORTS",verified=False,actor="system"):
         if stance not in {"SUPPORTS","CONTRADICTS","NEUTRAL"}: raise ValueError("invalid evidence stance")
         source=self.db.one("SELECT * FROM sources WHERE id=?",(source_id,))
         claim=self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
@@ -28,7 +28,7 @@ class EvidencePipeline:
         if not self.db.one("SELECT 1 FROM evidence_sources WHERE source_id=? AND state='PARSED' ORDER BY parsed_at DESC LIMIT 1",(source_id,)):
             raise ValueError("cannot attach evidence before source content is parsed")
         eid=str(uuid4())
-        self.db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_at) VALUES (?,?,?,?,?,?,?)",(eid,claim_id,source_id,stance,excerpt,int(verified),now()))
+        self.db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)",(eid,claim_id,source_id,stance,excerpt,int(verified),actor,now()))
         return self.db.one("SELECT * FROM evidence WHERE id=?",(eid,))
     def review(self,evidence_id,reviewer,verdict,rationale):
         evidence=self.db.one("SELECT * FROM evidence WHERE id=?",(evidence_id,))
@@ -38,6 +38,10 @@ class EvidencePipeline:
             raise ValueError("invalid evidence verdict")
         if not rationale or not str(rationale).strip():
             raise ValueError("review rationale is required")
+        if evidence.get("created_by") not in (None, "", "system") and reviewer == evidence["created_by"]:
+            raise ValueError("reviewer must be independent from the evidence creator")
+        if self.db.one("SELECT 1 FROM evidence_reviews WHERE evidence_id=? AND reviewer=?",(evidence_id,reviewer)):
+            raise ValueError("reviewer has already reviewed this evidence")
         rid=str(uuid4())
         self.db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES (?,?,?,?,?,?)",(rid,evidence_id,reviewer,normalized,rationale,now()))
         verified=1 if normalized=="VERIFIED" else 0
