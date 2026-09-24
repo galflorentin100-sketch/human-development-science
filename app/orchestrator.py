@@ -31,9 +31,13 @@ class CompanyOrchestrator:
                 return {"status":"TASK_CLAIM_LOST"}
         result=AgentExecutor(self.db).execute(task["assigned_agent_id"],task["id"],{"title":task["title"]},{"project_id":project_id,"success_criteria":task["success_criteria"]})
         run=self.db.one("SELECT id FROM agent_runs WHERE task_id=? ORDER BY started_at DESC LIMIT 1",(task["id"],))
-        evaluation=EvaluationService(self.db).evaluate_run(run["id"],task["success_criteria"])
+        if not run:
+            self.tasks.retry_or_escalate(task["id"],"Execution completed without an agent run record.")
+            return {"status":"EXECUTION_RECORD_MISSING","task":task}
         if evaluation["passed"]:
-            self.db.execute("UPDATE tasks SET status='COMPLETED',updated_at=? WHERE id=?",(now(),task["id"]))
+            updated=self.db.execute("UPDATE tasks SET status='COMPLETED',updated_at=? WHERE id=? AND status='RUNNING'",(now(),task["id"]))
+            if getattr(updated,"rowcount",1) != 1:
+                return {"status":"TASK_STATE_CHANGED","task":task,"evaluation":evaluation}
             return {"status":"COMPLETED","task":task,"evaluation":evaluation}
         failure=EvaluationService(self.db).record_failure(project_id,"agent_execution",task["success_criteria"],"Unverified output","Execution produced no independently verified result.","Require verification before completion.","Add evidence-backed evaluator or external model.")
         retry=self.tasks.retry_or_escalate(task["id"],"Evaluation did not verify the execution result.")
@@ -57,7 +61,9 @@ class CompanyOrchestrator:
                 return {"status":"WAITING_FOR_APPROVAL","steps":len(history),"history":history}
             pending=self.db.one("SELECT COUNT(*) AS n FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED','RUNNING','REVIEW','BLOCKED')",(project_id,))["n"]
             if pending==0:
-                self.db.execute("UPDATE projects SET status='COMPLETED',updated_at=? WHERE id=?",(now(),project_id))
+                updated=self.db.execute("UPDATE projects SET status='COMPLETED',updated_at=? WHERE id=? AND status='RUNNING'",(now(),project_id))
+                if getattr(updated,"rowcount",1) != 1:
+                    return {"status":"PROJECT_STATE_CHANGED","steps":len(history),"history":history}
                 return {"status":"COMPLETED","steps":len(history),"history":history}
         return {"status":"STEP_LIMIT_REACHED","steps":len(history),"history":history}
     def decide_next(self,project_id):
@@ -65,16 +71,21 @@ class CompanyOrchestrator:
         if not project: raise ValueError("project not found")
         failures=self.db.all("SELECT lesson FROM failures WHERE project_id=? ORDER BY created_at DESC LIMIT 5",(project_id,))
         claims=self.db.all("SELECT statement,classification,confidence FROM claims WHERE project_id=? ORDER BY created_at DESC LIMIT 10",(project_id,))
-        pending=self.db.all("SELECT title,status FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED','RUNNING','REVIEW')",(project_id,))
+        pending=self.db.all("SELECT title,status FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED')",(project_id,))
+        blocked=self.db.one("SELECT COUNT(*) AS n FROM tasks WHERE project_id=? AND status IN ('RUNNING','REVIEW','BLOCKED')",(project_id,))
         if failures:
             return DecisionEngine(self.db).assess(project_id,"Investigate and correct the latest failure",["Retry immediately","Run corrective validation"],claims,failures,0.65,"Resolve the failure and demonstrate corrected behavior",owner="ceo",risk_level="MEDIUM")
         if pending:
             return {"action":"EXECUTE_NEXT_TASK","task":pending[0],"reason":"There is actionable work remaining."}
+        if blocked["n"]:
+            return {"action_required":True,"reason":"Tasks are still RUNNING, in REVIEW, or BLOCKED; autonomous execution must wait for a state transition."}
         return DecisionEngine(self.db).assess(project_id,"Close project after evidence review",["Continue research","Close project"],claims,[],0.8,"Close only after required evidence and validation are complete",owner="ceo",risk_level="MEDIUM")
     def advance(self,project_id):
         project=self.db.one("SELECT * FROM projects WHERE id=?",(project_id,))
         if not project: raise ValueError("project not found")
         pending=self.db.all("SELECT * FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED','RUNNING','REVIEW','BLOCKED') ORDER BY priority DESC",(project_id,))
         if pending: return {"status":"TASKS_PENDING","next_task":pending[0],"remaining":len(pending)}
-        self.db.execute("UPDATE projects SET status='COMPLETED',updated_at=? WHERE id=?",(now(),project_id))
+        updated=self.db.execute("UPDATE projects SET status='COMPLETED',updated_at=? WHERE id=? AND status='RUNNING'",(now(),project_id))
+        if getattr(updated,"rowcount",1) != 1:
+            return {"status":"PROJECT_STATE_CHANGED","project":self.db.one("SELECT * FROM projects WHERE id=?",(project_id,))}
         return {"status":"COMPLETED","project":self.db.one("SELECT * FROM projects WHERE id=?",(project_id,))}
