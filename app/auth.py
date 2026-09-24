@@ -19,14 +19,18 @@ class AuthService:
             else:
                 self.db.execute("INSERT INTO roles(id,name,permissions) VALUES (?,?,?)",(str(uuid4()),name,json.dumps(permissions)))
 
-    def create_user(self,external_subject,email,role="founder"):
-        uid=str(uuid4())
-        self.db.execute("INSERT OR IGNORE INTO users(id,external_subject,email,created_at) VALUES (?,?,?,?)",(uid,external_subject,email,now()))
-        user=self.db.one("SELECT * FROM users WHERE external_subject=?",(external_subject,))
+    def create_user(self,external_subject,email,role="operator"):
+        if role not in {"founder","operator","reviewer"}: raise ValueError("unknown role")
         role_row=self.db.one("SELECT id FROM roles WHERE name=?",(role,))
-        if not role_row: raise ValueError("unknown role")
-        self.db.execute("INSERT OR IGNORE INTO company_memberships(company_id,user_id,role_id,status,created_at) VALUES ('hds',?,?,'ACTIVE',?)",(user["id"],role_row["id"],now()))
-        return user
+        existing=self.db.one("SELECT * FROM users WHERE external_subject=?",(external_subject,))
+        if existing:
+            if existing["email"] != email: raise ValueError("external subject already exists with a different email")
+            return existing
+        uid=str(uuid4())
+        with self.db.transaction() as con:
+            con.execute("INSERT INTO users(id,external_subject,email,created_at) VALUES (?,?,?,?)",(uid,external_subject,email,now()))
+            con.execute("INSERT INTO company_memberships(company_id,user_id,role_id,status,created_at) VALUES ('hds',?,?,'ACTIVE',?)",(uid,role_row["id"],now()))
+        return self.db.one("SELECT * FROM users WHERE id=?",(uid,))
     def authorize(self,external_subject,required_permission=None):
         user=self.db.one("SELECT * FROM users WHERE external_subject=?",(external_subject,))
         if not user: raise PermissionError("unknown principal")
