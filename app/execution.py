@@ -31,10 +31,13 @@ class AgentExecutor:
         run_id=str(uuid4()); started=now(); error=None
         try:
             correlation_id=str(uuid4())
-            response=self.provider.complete(ModelRequest("agent-task",json.dumps({"input":task_input,"context":context}),"local-safe",correlation_id))
+            request=ModelRequest("agent-task",json.dumps({"input":task_input,"context":context}),"local-safe",correlation_id)
+            preflight_cost=self.provider.preflight(request)
+            if preflight_cost > 0:
+                self.costs.authorize(preflight_cost)
+            response=self.provider.complete(request)
             if response.estimated_cost and response.estimated_cost > 0:
-                self.costs.authorize(response.estimated_cost)
-                self.costs.record(correlation_id,response.estimated_cost,response.provider,response.model,"agent-task",agent_id,metadata={"task_id":task_id})
+                self.costs.record(correlation_id,response.estimated_cost,response.provider,response.model,"agent-task",agent_id,metadata={"task_id":task_id,"preflight_cost":preflight_cost})
             message=CompanyMessage.create(agent_id,"coo","task_result",task_id,{"result":response.content},0.0,[],["Model output is unverified."],["Verify evidence before use."])
             cost={"provider":response.provider,"model":response.model,"input_tokens":response.input_tokens,"output_tokens":response.output_tokens,"estimated_cost":response.estimated_cost}
         except Exception as exc:
