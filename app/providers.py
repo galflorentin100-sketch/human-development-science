@@ -11,7 +11,9 @@ class ModelRequest: task:str; prompt:str; safety_profile:str="local-safe"; reque
 class ModelResponse: content:str; provider:str; model:str; input_tokens:int=0; output_tokens:int=0; estimated_cost:float=0.0
 class ModelProvider(Protocol):
     def complete(self,request:ModelRequest)->ModelResponse: ...
+    def estimate_cost(self,request:ModelRequest)->float: ...
 class LocalProvider:
+    def estimate_cost(self,request): return 0.0
     def complete(self,request): return ModelResponse("LOCAL_PROVIDER: no external model configured. Treat this output as unverified.","local","none")
 class ProviderRouter:
     TRANSIENT_ERRORS=(TimeoutError, ConnectionError)
@@ -39,6 +41,13 @@ class ProviderRouter:
         raise RuntimeError("all model providers failed")
 class ObservableProvider:
     def __init__(self,provider,db): self.provider=provider; self.db=db
+    def preflight(self,request):
+        provider_name=getattr(self.provider,"name",self.provider.__class__.__name__).lower()
+        if provider_name in {"local","localprovider"}: return 0.0
+        estimator=getattr(self.provider,"estimate_cost",None)
+        if estimator is None: raise RuntimeError("external provider must implement estimate_cost; spend is blocked by default")
+        return float(estimator(request))
+
     def complete(self,request):
         started=perf_counter(); correlation=request.request_id or str(uuid4()); error=None
         try:
