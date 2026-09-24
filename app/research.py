@@ -77,6 +77,11 @@ class StudyExecution:
         self.db.execute("INSERT INTO study_adherence(id,study_id,participant_id,session_id,planned,completed,adherence_note,recorded_at) VALUES (?,?,?,?,?,?,?,?)",(i,study_id,participant_id,session_id,int(planned),int(completed),note,now()))
         return self.db.one("SELECT * FROM study_adherence WHERE id=?",(i,))
     def freeze_analysis_plan(self,study_id,analysis_spec,version=1):
+        if not analysis_spec or not str(analysis_spec).strip(): raise ValueError("analysis_spec is required")
+        existing=self.db.one("SELECT * FROM study_analysis_plans WHERE study_id=? AND version=?",(study_id,int(version)))
+        if existing: raise ValueError("analysis plan version already exists")
+        frozen=self.db.one("SELECT 1 FROM study_analysis_plans WHERE study_id=? AND frozen=1",(study_id,))
+        if frozen and int(version) <= int(self.db.one("SELECT MAX(version) AS v FROM study_analysis_plans WHERE study_id=?",(study_id,))["v"]): raise ValueError("analysis plan version must increase after a frozen plan")
         digest=hashlib.sha256(analysis_spec.encode("utf-8")).hexdigest()
         payload=json.dumps({"spec":analysis_spec,"sha256":digest},sort_keys=True)
         i=str(uuid4())
