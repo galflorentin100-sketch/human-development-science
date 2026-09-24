@@ -39,7 +39,7 @@ class ExperimentRequest(BaseModel):
 class StudyParticipantRequest(BaseModel):
     study_id: str; external_ref: str = Field(min_length=1, max_length=200); consent_status: str = "CONSENTED"
 class StudyOutcomeRequest(BaseModel):
-    study_id: str; participant_id: str; outcome_name: str = Field(min_length=1); value: float | None = None; unit: str | None = None; session_id: str | None = None; missing_reason: str | None = None
+    study_id: str; participant_id: str; outcome_name: str = Field(min_length=1); value: float | None = None; unit: str | None = None; session_id: str | None = None; missing_reason: str | None = None; observation_type: str = "TRAINING"
 
 def principal_from_header(x_external_subject: str | None = Header(default=None)) -> Principal:
     if not x_external_subject:
@@ -163,7 +163,17 @@ def study_participant(body: StudyParticipantRequest, principal: Principal = Depe
     require_write(principal); return StudyExecution(db).participant(body.study_id, body.external_ref, body.consent_status)
 @app.post("/api/studies/outcomes")
 def study_outcome(body: StudyOutcomeRequest, principal: Principal = Depends(principal_from_header)):
-    require_write(principal); return StudyExecution(db).outcome(body.study_id, body.participant_id, body.outcome_name, body.value, body.unit, body.session_id, body.missing_reason)
+    require_write(principal); return StudyExecution(db).outcome(body.study_id, body.participant_id, body.outcome_name, body.value, body.unit, body.session_id, body.missing_reason, body.observation_type)
+@app.post("/api/studies/{study_id}/start")
+def study_start(study_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    return StudyExecution(db).start(study_id)
+
+@app.post("/api/studies/{study_id}/complete")
+def study_complete(study_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    return StudyExecution(db).complete(study_id)
+
 @app.post("/api/experiments")
 def create_experiment(body: ExperimentRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
