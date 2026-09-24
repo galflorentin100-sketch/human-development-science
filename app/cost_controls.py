@@ -13,6 +13,12 @@ class CostControl:
     def __init__(self, db):
         self.db = db
 
+    @staticmethod
+    def _row_dict(cursor,row):
+        if row is None: return None
+        if hasattr(row,"keys"): return dict(row)
+        return dict(zip([d.name for d in cursor.description],row))
+
     def active_budget(self, company_id="hds"):
         return self.db.one("SELECT * FROM budgets WHERE company_id=? AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1",(company_id,))
 
@@ -32,17 +38,22 @@ class CostControl:
         budget=self.active_budget(company_id)
         if not budget: raise BudgetRequired("no active budget")
         with self.db.transaction() as con:
-            existing=con.execute("SELECT * FROM cost_events WHERE correlation_id=?",(correlation_id,)).fetchone()
+            cur=con.execute("SELECT * FROM cost_events WHERE correlation_id=?",(correlation_id,))
+            existing=cur.fetchone()
             if existing:
-                return dict(existing)
-            row=con.execute("SELECT * FROM budgets WHERE id=? AND status='ACTIVE'",(budget["id"],)).fetchone()
-            remaining=float(row["limit_amount"])-float(row["spent_amount"])
+                return self._row_dict(cur,existing)
+            cur=con.execute("SELECT * FROM budgets WHERE id=? AND status='ACTIVE'",(budget["id"],))
+            row=cur.fetchone()
+            if row is None: raise BudgetRequired("active budget disappeared before cost recording")
+            row_dict=self._row_dict(cur,row)
+            remaining=float(row_dict["limit_amount"])-float(row_dict["spent_amount"])
             if amount > remaining: raise BudgetExceeded("cost would exceed budget")
             event_id=str(uuid4())
             con.execute("INSERT INTO cost_events(id,budget_id,correlation_id,actor,provider,model,purpose,amount,currency,status,metadata,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                         (event_id,row["id"],correlation_id,actor,provider,model,purpose,amount,row["currency"],"RECORDED",json.dumps(metadata or {}),now()))
             con.execute("UPDATE budgets SET spent_amount=spent_amount+?,updated_at=? WHERE id=?",(amount,now(),row["id"]))
-            return dict(con.execute("SELECT * FROM cost_events WHERE id=?",(event_id,)).fetchone())
+            cur=con.execute("SELECT * FROM cost_events WHERE id=?",(event_id,))
+            return self._row_dict(cur,cur.fetchone())
 
     def set_budget(self, limit_amount, company_id="hds", currency="USD", period="LIFETIME"):
         if limit_amount < 0: raise ValueError("limit_amount cannot be negative")
