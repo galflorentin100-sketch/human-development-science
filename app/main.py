@@ -170,7 +170,7 @@ def sc001_register(project_id: str, principal: Principal = Depends(principal_fro
     return SC001Protocol().register(db, project_id)
 @app.post("/api/research/run")
 def research_run(body: ResearchRequest, principal: Principal = Depends(principal_from_header)):
-    require_write(principal); return cycle.run(body.question)
+    require_permission(principal, "EXECUTE"); return cycle.run(body.question)
 @app.post("/api/studies/participants")
 def study_participant(body: StudyParticipantRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal); return StudyExecution(db).participant(body.study_id, body.external_ref, body.consent_status)
