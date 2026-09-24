@@ -11,6 +11,7 @@ class IdempotencyService:
         with cls._locks_guard:
             return cls._locks.setdefault(key,Lock())
     def run(self,key,actor,operation,fn,ttl_hours=24):
+        if ttl_hours <= 0: raise ValueError("ttl_hours must be positive")
         if not key: return fn()
         lock=self._lock_for(key)
         with lock:
