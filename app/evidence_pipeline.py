@@ -5,11 +5,16 @@ class EvidencePipeline:
     def __init__(self,db): self.db=db
     def register_source(self,title,url,authors="",year=None,source_type="PAPER"):
         sid=str(uuid4())
-        self.db.execute("INSERT OR IGNORE INTO sources(id,title,url,authors,publication_year,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?,?,?)",(sid,title,url,authors,year,source_type,now(),"Discovered source; content not verified until reviewed."))
+        self.db.execute("INSERT OR IGNORE INTO sources(id,title,url,authors,publication_year,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?,?,?)",(sid,title,url,authors,year,source_type,None,"Discovered source; content not verified until reviewed."))
         row=self.db.one("SELECT * FROM sources WHERE url=?",(url,))
         return row
     def ingest_text(self,source_id,text):
+        if not self.db.one("SELECT 1 FROM sources WHERE id=?",(source_id,)):
+            raise ValueError("source not found")
         digest=hashlib.sha256(text.encode("utf-8")).hexdigest()
+        existing=self.db.one("SELECT * FROM evidence_sources WHERE source_id=? AND content_hash=? ORDER BY created_at DESC LIMIT 1",(source_id,digest))
+        if existing:
+            return existing
         eid=str(uuid4())
         self.db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,fetched_at,parsed_at,created_at) VALUES (?,?,?, ?,?,?,?)",(eid,source_id,"PARSED",digest,now(),now(),now()))
         return self.db.one("SELECT * FROM evidence_sources WHERE id=?",(eid,))
