@@ -28,7 +28,8 @@ class EvidencePipeline:
         if not self.db.one("SELECT 1 FROM evidence_sources WHERE source_id=? AND state='PARSED' ORDER BY parsed_at DESC LIMIT 1",(source_id,)):
             raise ValueError("cannot attach evidence before source content is parsed")
         eid=str(uuid4())
-        self.db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)",(eid,claim_id,source_id,stance,excerpt,int(verified),actor,now()))
+        excerpt_hash=hashlib.sha256(excerpt.encode("utf-8")).hexdigest()
+        self.db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(eid,claim_id,source_id,stance,excerpt,int(verified),actor,excerpt_hash,now()))
         return self.db.one("SELECT * FROM evidence WHERE id=?",(eid,))
     def review(self,evidence_id,reviewer,verdict,rationale):
         evidence=self.db.one("SELECT * FROM evidence WHERE id=?",(evidence_id,))
