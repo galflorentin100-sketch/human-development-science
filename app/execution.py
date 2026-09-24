@@ -27,7 +27,10 @@ class AgentExecutor:
             ApprovalService(self.db).require(approval_id)
         for p in json.loads(task["required_permissions"] or "[]"): self.permissions.check(agent_id,Permission(p),"task:"+task_id)
         if task["status"] in ("COMPLETED","CANCELLED"): return ExecutionResult(CompanyMessage.create(agent_id,"coo","task_result",task_id,{"result":"already terminal"},0.0,[],[],[]),True,{},None)
-        self.db.execute("UPDATE tasks SET status='RUNNING',updated_at=? WHERE id=?",(now(),task_id))
+        with self.db.transaction() as con:
+            claimed = con.execute("UPDATE tasks SET status='RUNNING',updated_at=? WHERE id=? AND status IN ('PLANNED','ASSIGNED')",(now(),task_id))
+            if getattr(claimed, "rowcount", 1) != 1:
+                raise RuntimeError("task claim lost")
         run_id=str(uuid4()); started=now(); error=None
         try:
             correlation_id=str(uuid4())
