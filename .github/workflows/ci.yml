@@ -13,4 +13,4 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      - run: python -m pytest -q
+      - run: python -m compileall -q app scripts tests\n      - run: python scripts/migrate.py\n      - run: python -m pytest -q\n      - run: git diff --check
