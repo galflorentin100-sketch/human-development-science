@@ -22,4 +22,4 @@ class AuthService:
         if not membership: raise PermissionError("inactive membership")
         if required_permission and required_permission not in json.loads(membership["permissions"]): raise PermissionError("permission denied")
         role=self.db.one("SELECT r.name FROM company_memberships m JOIN roles r ON r.id=m.role_id WHERE m.company_id='hds' AND m.user_id=?",(user["id"],))["name"]
-        return Principal(user["id"],role)
+        return Principal(user["id"],role,json.loads(membership["permissions"]))
