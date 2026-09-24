@@ -21,19 +21,28 @@ class TaskEngine:
         return self.get(i)
     def ready(self,i): return self.get(i)
     def retry_or_escalate(self,task_id,reason):
-        task=self.get(task_id)
-        if not task: raise ValueError("task not found")
-        attempt=self.db.one("SELECT COALESCE(MAX(attempt_number),0) AS n FROM task_attempts WHERE task_id=?",(task_id,))["n"]
-        limit=int(task["retry_limit"] or 0)
-        next_attempt=attempt+1
-        if next_attempt<=limit:
-            self.db.execute("INSERT INTO task_attempts(id,task_id,attempt_number,outcome,error,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,next_attempt,"RETRY",reason,now()))
-            self.db.execute("INSERT INTO retry_events(id,task_id,attempt,reason,action,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,next_attempt,reason,"RETRY",now()))
-            self.db.execute("UPDATE tasks SET status='PLANNED',updated_at=? WHERE id=?",(now(),task_id))
-            return {"action":"RETRY","attempt":next_attempt,"limit":limit}
-        self.db.execute("UPDATE tasks SET status='FAILED',escalation_required=1,updated_at=? WHERE id=?",(now(),task_id))
-        self.db.execute("INSERT INTO retry_events(id,task_id,attempt,reason,action,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,next_attempt,reason,"ESCALATE",now()))
-        return {"action":"ESCALATE","attempt":next_attempt,"limit":limit}
+        if not reason or not str(reason).strip(): raise ValueError("retry reason is required")
+        with self.db.transaction() as con:
+            cur=con.execute("SELECT * FROM tasks WHERE id=?",(task_id,))
+            row=cur.fetchone()
+            if row is None: raise ValueError("task not found")
+            task=dict(row) if hasattr(row,"keys") else dict(zip([d.name for d in cur.description],row))
+            current=task["status"]
+            if current not in {"RUNNING","REVIEW"}:
+                raise ValueError(f"task is not retryable from {current}")
+            count=int(task.get("retry_count") or 0)
+            limit=int(task["retry_limit"] or 0)
+            next_attempt=count+1
+            if next_attempt<=limit:
+                updated=con.execute("UPDATE tasks SET status='PLANNED',retry_count=?,updated_at=? WHERE id=? AND status IN ('RUNNING','REVIEW') AND retry_count=?",(next_attempt,now(),task_id,count))
+                if getattr(updated,"rowcount",1)!=1: raise ValueError("retry state changed concurrently")
+                con.execute("INSERT INTO task_attempts(id,task_id,attempt_number,outcome,error,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,next_attempt,"RETRY",reason,now()))
+                con.execute("INSERT INTO retry_events(id,task_id,attempt,reason,action,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,next_attempt,reason,"RETRY",now()))
+                return {"action":"RETRY","attempt":next_attempt,"limit":limit}
+            updated=con.execute("UPDATE tasks SET status='FAILED',retry_count=?,escalation_required=1,updated_at=? WHERE id=? AND status IN ('RUNNING','REVIEW') AND retry_count=?",(next_attempt,now(),task_id,count))
+            if getattr(updated,"rowcount",1)!=1: raise ValueError("escalation state changed concurrently")
+            con.execute("INSERT INTO retry_events(id,task_id,attempt,reason,action,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,next_attempt,reason,"ESCALATE",now()))
+            return {"action":"ESCALATE","attempt":next_attempt,"limit":limit}
     def record_attempt(self,task_id,outcome,error=None):
         row=self.db.one("SELECT COALESCE(MAX(attempt_number),0)+1 AS n FROM task_attempts WHERE task_id=?",(task_id,))
         attempt=row["n"]; self.db.execute("INSERT INTO task_attempts(id,task_id,attempt_number,outcome,error,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,attempt,outcome,error,now())); return self.db.one("SELECT * FROM task_attempts WHERE task_id=? AND attempt_number=?",(task_id,attempt))
