@@ -51,7 +51,7 @@ class CostControl:
             event_id=str(uuid4())
             con.execute("INSERT INTO cost_events(id,budget_id,correlation_id,actor,provider,model,purpose,amount,currency,status,metadata,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                         (event_id,row["id"],correlation_id,actor,provider,model,purpose,amount,row["currency"],"RECORDED",json.dumps(metadata or {}),now()))
-            con.execute("UPDATE budgets SET spent_amount=spent_amount+?,updated_at=? WHERE id=?",(amount,now(),row["id"]))
+            con.execute("UPDATE budgets SET spent_amount=spent_amount+?,updated_at=? WHERE id=?",(amount,now(),row_dict["id"]))
             cur=con.execute("SELECT * FROM cost_events WHERE id=?",(event_id,))
             return self._row_dict(cur,cur.fetchone())
 
