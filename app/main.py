@@ -139,7 +139,7 @@ def autonomous_run(project_id: str, principal: Principal = Depends(principal_fro
     require_permission(principal, "EXECUTE"); return AutonomousLoop(db).run(project_id)
 @app.post("/api/projects/{project_id}/decide-next")
 def decide_next(project_id: str, principal: Principal = Depends(principal_from_header)):
-    require_write(principal); return CompanyOrchestrator(db).decide_next(project_id)
+    require_permission(principal, "EXECUTE"); return CompanyOrchestrator(db).decide_next(project_id)
 @app.post("/api/projects/{project_id}/execute-next")
 def execute_next(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_permission(principal, "EXECUTE"); return CompanyOrchestrator(db).execute_next(project_id)
