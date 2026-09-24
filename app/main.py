@@ -19,6 +19,7 @@ from app.sc001 import SC001Protocol
 
 settings = Settings.load()
 db = database_from_settings(settings)
+db.migrate()
 auth = AuthService(db)
 cycle = ResearchCycle(db)
 
@@ -112,6 +113,19 @@ def execute_next(project_id: str, principal: Principal = Depends(principal_from_
 @app.post("/api/projects/{project_id}/advance")
 def advance_project(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal); return CompanyOrchestrator(db).advance(project_id)
+@app.post("/api/approvals/{approval_id}/resolve")
+def resolve_approval(approval_id: str, status: str, principal: Principal = Depends(principal_from_header)):
+    if principal.role != "founder":
+        raise HTTPException(status_code=403, detail="founder approval required")
+    require_write(principal)
+    from app.approvals import ApprovalService, ApprovalStatus, ApprovalRequired
+    try:
+        return ApprovalService(db).resolve(approval_id, ApprovalStatus(status), principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ApprovalRequired as exc:
+        raise HTTPException(status_code=409, detail="approval is not pending or has expired") from exc
+
 @app.post("/api/sc001/register/{project_id}")
 def sc001_register(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
