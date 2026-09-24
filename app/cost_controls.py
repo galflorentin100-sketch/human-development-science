@@ -43,7 +43,9 @@ class CostControl:
             cur=con.execute("SELECT * FROM cost_events WHERE correlation_id=?",(correlation_id,))
             existing=cur.fetchone()
             if existing: return self._row_dict(cur,existing)
-            budget=self.db.one("SELECT * FROM budgets WHERE company_id=? AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1",(company_id,))
+            cur=con.execute("SELECT * FROM budgets WHERE company_id=? AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1",(company_id,))
+            budget_row=cur.fetchone()
+            budget=self._row_dict(cur,budget_row) if budget_row is not None else None
             if not budget: raise BudgetRequired("no active budget")
             cur=con.execute("SELECT * FROM budgets WHERE id=? AND status='ACTIVE'",(budget["id"],))
             row=cur.fetchone()
