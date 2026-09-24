@@ -31,8 +31,13 @@ class ApprovalService:
             con.execute("INSERT INTO approval_events(id,approval_id,actor,action,payload,created_at) VALUES (?,?,?,?,?,?)",(event_id,i,actor,s,"{}",resolved_at))
         return self.get(i)
     def _expire(self,row,actor="system"):
-        self.db.execute("UPDATE approvals SET status=?,resolved_at=? WHERE id=?",(ApprovalStatus.EXPIRED.value,now(),row["id"]))
-        self.db.execute("INSERT INTO approval_events(id,approval_id,actor,action,payload,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),row["id"],actor,"EXPIRED","{}",now()))
+        resolved_at=now()
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE approvals SET status=?,resolved_at=? WHERE id=? AND status='PENDING'",(ApprovalStatus.EXPIRED.value,resolved_at,row["id"]))
+            if getattr(updated,"rowcount",1) != 1:
+                return self.get(row["id"])
+            con.execute("INSERT INTO approval_events(id,approval_id,actor,action,payload,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),row["id"],actor,"EXPIRED","{}",resolved_at))
+        return self.get(row["id"])
     def require(self,i,correlation_id=None):
         row=self.get(i)
         if row is None: raise ApprovalRequired(i)
