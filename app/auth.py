@@ -6,7 +6,7 @@ class Principal:
 class AuthService:
     def __init__(self,db): self.db=db; self._seed_roles()
     def _seed_roles(self):
-        roles=[("founder",["READ","WRITE","EXECUTE","PUBLISH","SPEND","DELETE","DEPLOY","CONTACT_EXTERNAL_PARTY"]),("operator",["READ","WRITE","EXECUTE"]),("reviewer",["READ","WRITE"])]
+        roles=[("founder",["READ","WRITE","EXECUTE","PUBLISH","SPEND","DELETE","DEPLOY","CONTACT_EXTERNAL_PARTY","APPROVE"]),("operator",["READ","WRITE","EXECUTE"]),("reviewer",["READ","WRITE"])]
         for name,permissions in roles:
             self.db.execute("INSERT OR IGNORE INTO roles(id,name,permissions) VALUES (?,?,?)",(name,name,json.dumps(permissions)))
     def create_user(self,external_subject,email,role="founder"):
