@@ -34,14 +34,22 @@ class AgentExecutor:
             request=ModelRequest("agent-task",json.dumps({"input":task_input,"context":context}),"local-safe",correlation_id)
             preflight_cost=self.provider.preflight(request)
             if preflight_cost > 0:
-                self.costs.authorize(preflight_cost)
+                self.costs.reserve(correlation_id,preflight_cost,"preflight","estimated","agent-task",agent_id,metadata={"task_id":task_id})
             response=self.provider.complete(request)
-            if response.estimated_cost and response.estimated_cost > 0:
+            if preflight_cost > 0:
+                self.costs.settle(correlation_id,float(response.estimated_cost or 0),response.provider,response.model,"agent-task",agent_id,metadata={"task_id":task_id,"preflight_cost":preflight_cost})
+            elif response.estimated_cost and response.estimated_cost > 0:
                 self.costs.record(correlation_id,response.estimated_cost,response.provider,response.model,"agent-task",agent_id,metadata={"task_id":task_id,"preflight_cost":preflight_cost})
             message=CompanyMessage.create(agent_id,"coo","task_result",task_id,{"result":response.content},0.0,[],["Model output is unverified."],["Verify evidence before use."])
             cost={"provider":response.provider,"model":response.model,"input_tokens":response.input_tokens,"output_tokens":response.output_tokens,"estimated_cost":response.estimated_cost}
         except Exception as exc:
-            error=str(exc); message=CompanyMessage.create(agent_id,"coo","task_error",task_id,{},0.0,[],[error],["Retry or escalate."]); cost={}
+            error=str(exc)
+            try:
+                if "correlation_id" in locals() and preflight_cost > 0:
+                    self.costs.release(correlation_id)
+            except Exception:
+                pass
+            message=CompanyMessage.create(agent_id,"coo","task_error",task_id,{},0.0,[],[error],["Retry or escalate."]); cost={}
         status="FAILED" if error else "REVIEW"
         self.db.execute("INSERT INTO agent_runs(id,agent_id,task_id,status,input_payload,output_payload,started_at,completed_at,confidence,evidence_refs,uncertainties,cost_metadata,error,verified) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(run_id,agent_id,task_id,status,json.dumps({"input":task_input,"context":context}),json.dumps(message.to_dict()),started,now(),0.0,"[]",json.dumps(message.uncertainties),json.dumps(cost),error,0))
         self.db.audit("agent.execution","agent_run",run_id,agent_id,{"task_id":task_id,"success":error is None,"verified":False},now(),str(uuid4()))
