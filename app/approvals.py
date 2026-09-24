@@ -22,8 +22,13 @@ class ApprovalService:
         if row is None or row["status"]!="PENDING": raise ApprovalRequired(i)
         if row["expires_at"] and datetime.fromisoformat(row["expires_at"])<=datetime.now(timezone.utc):
             self._expire(row,actor); raise ApprovalRequired(i)
-        self.db.execute("UPDATE approvals SET status=?,approved_by=?,resolved_at=? WHERE id=?",(s,actor,now(),i))
-        self.db.execute("INSERT INTO approval_events(id,approval_id,actor,action,payload,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),i,actor,s,"{}",now()))
+        resolved_at=now()
+        event_id=str(uuid4())
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE approvals SET status=?,approved_by=?,resolved_at=? WHERE id=? AND status='PENDING'",(s,actor,resolved_at,i))
+            if getattr(updated,"rowcount",1) != 1:
+                raise ApprovalRequired(i)
+            con.execute("INSERT INTO approval_events(id,approval_id,actor,action,payload,created_at) VALUES (?,?,?,?,?,?)",(event_id,i,actor,s,"{}",resolved_at))
         return self.get(i)
     def _expire(self,row,actor="system"):
         self.db.execute("UPDATE approvals SET status=?,resolved_at=? WHERE id=?",(ApprovalStatus.EXPIRED.value,now(),row["id"]))
