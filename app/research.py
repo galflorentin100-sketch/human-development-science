@@ -26,19 +26,35 @@ class StudyExecution:
         if not study: raise ValueError("study does not exist")
         if study["status"] not in {"APPROVED","RUNNING"}: raise ValueError("study execution requires founder approval")
         if consent_status not in {"CONSENTED","WITHDRAWN","PENDING"}: raise ValueError("invalid consent status")
+        existing=self.db.one("SELECT * FROM study_participants WHERE study_id=? AND external_ref=?",(study_id,external_ref))
+        if existing:
+            if existing["consent_status"] != consent_status:
+                raise ValueError("participant already exists with a different consent status")
+            return existing
         i=str(uuid4())
-        self.db.execute("INSERT OR IGNORE INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",(i,study_id,external_ref,consent_status,now()))
-        return self.db.one("SELECT * FROM study_participants WHERE study_id=? AND external_ref=?",(study_id,external_ref))
+        with self.db.transaction() as con:
+            race=con.execute("SELECT * FROM study_participants WHERE study_id=? AND external_ref=?",(study_id,external_ref)).fetchone()
+            if race:
+                if race["consent_status"] != consent_status: raise ValueError("participant already exists with a different consent status")
+                return dict(race)
+            con.execute("INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",(i,study_id,external_ref,consent_status,now()))
+        return self.db.one("SELECT * FROM study_participants WHERE id=?",(i,))
     def randomize(self,study_id,participant_id,arms=("INTERVENTION","CONTROL"),seed=None):
         if not arms or any(a not in self.VALID_ARMS for a in arms): raise ValueError("invalid study arms")
-        if self.db.one("SELECT 1 FROM study_assignments WHERE study_id=? AND participant_id=?",(study_id,participant_id)): raise ValueError("participant already assigned")
+        participant=self.db.one("SELECT * FROM study_participants WHERE id=? AND study_id=?",(participant_id,study_id))
+        if not participant: raise ValueError("participant does not belong to study")
         rng=random.Random(seed) if seed is not None else random.SystemRandom()
         arm=rng.choice(tuple(arms))
         i=str(uuid4())
-        self.db.execute("INSERT INTO study_assignments(id,study_id,participant_id,arm,assigned_at,method) VALUES (?,?,?,?,?,?)",(i,study_id,participant_id,arm,now(),"random_choice"))
+        with self.db.transaction() as con:
+            if con.execute("SELECT 1 FROM study_assignments WHERE study_id=? AND participant_id=?",(study_id,participant_id)).fetchone():
+                raise ValueError("participant already assigned")
+            con.execute("INSERT INTO study_assignments(id,study_id,participant_id,arm,assigned_at,method) VALUES (?,?,?,?,?,?)",(i,study_id,participant_id,arm,now(),"random_choice"))
         return self.db.one("SELECT * FROM study_assignments WHERE id=?",(i,))
     def session(self,study_id,participant_id,phase,session_number,status="COMPLETED"):
         if phase not in self.VALID_PHASES: raise ValueError("invalid study phase")
+        if not self.db.one("SELECT 1 FROM study_participants WHERE id=? AND study_id=?",(participant_id,study_id)):
+            raise ValueError("participant does not belong to study")
         i=str(uuid4())
         self.db.execute("INSERT INTO study_sessions(id,study_id,participant_id,phase,session_number,occurred_at,status) VALUES (?,?,?,?,?,?,?)",(i,study_id,participant_id,phase,int(session_number),now(),status))
         return self.db.one("SELECT * FROM study_sessions WHERE id=?",(i,))
