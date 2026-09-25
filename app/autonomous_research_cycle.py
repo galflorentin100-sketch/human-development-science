@@ -33,7 +33,7 @@ class AutonomousResearchCycle:
                 "INTEGRITY_SCAN",
                 priority="CRITICAL"))
         for item in contradictions:
-            proposed.append(queue.propose(
+            proposed.append(self._propose_once(queue,
                 project_id,
                 "Review contradictory evidence",
                 item["description"],
@@ -41,7 +41,7 @@ class AutonomousResearchCycle:
                 evidence_refs=(item["evidence_a"],item["evidence_b"]),
                 priority="CRITICAL"))
         if not proposed and integrity["integrity"]=="PASS" and not contradictions:
-            proposed.append(queue.propose(
+            proposed.append(self._propose_once(queue,
                 project_id,
                 "Identify the next testable research question",
                 "No blocking integrity or contradiction issue was detected.",
