@@ -29,19 +29,28 @@ class DecisionCenter:
                 items.append({"type":"AGENT_OUTPUT","id":r["id"],"priority":"HIGH",
                               "title":f"Review accepted agent output {r['id']}",
                               "reason":"Accepted output is eligible for candidate-finding creation; human decision remains required."})
+        for r in self.db.all("SELECT * FROM research_findings WHERE project_id=? AND status='CANDIDATE' ORDER BY created_at DESC",(project_id,)):
+            items.append({"type":"FINDING","id":r["id"],"priority":"HIGH",
+                          "title":r["statement"],"reason":"Candidate finding requires independent scientific review."})
+        for r in self.db.all("SELECT * FROM research_findings WHERE project_id=? AND status='ACCEPTED' ORDER BY reviewed_at DESC",(project_id,)):
+            revision=self.db.one("SELECT id,status FROM claim_revisions cr JOIN claims c ON c.id=cr.claim_id WHERE c.project_id=? AND cr.evidence_refs LIKE ? LIMIT 1",(project_id,"%"+r["id"]+"%"))
+            if not revision:
+                items.append({"type":"ACCEPTED_FINDING","id":r["id"],"priority":"NORMAL",
+                              "title":r["statement"],"reason":"Accepted finding can inform a claim revision; explicit claim selection and human approval are required."})
         for item in items:
             item["next_action"]={
                 "RESEARCH":"delegate_research",
                 "CONTRADICTION":"delegate_skeptic_review",
                 "IMPACT":"review_impact",
                 "AGENT_OUTPUT":"create_candidate_finding",
+                "FINDING":"review_finding","ACCEPTED_FINDING":"propose_claim_revision",
                 "EXPERIMENT":"delegate_experiment_design",
                 "INTEGRITY":"delegate_evidence_audit",
             }.get(item["type"],"review")
-            item["requires_founder_approval"]=item["type"] in {"CONTRADICTION","IMPACT","AGENT_OUTPUT"}
+            item["requires_founder_approval"]=item["type"] in {"CONTRADICTION","IMPACT","AGENT_OUTPUT","FINDING","ACCEPTED_FINDING"}
             item["agent_role"]={
                 "RESEARCH":"researcher","CONTRADICTION":"skeptic","IMPACT":"knowledge-manager",
-                "AGENT_OUTPUT":"knowledge-manager","EXPERIMENT":"experiment-designer",
+                "AGENT_OUTPUT":"knowledge-manager","FINDING":"evidence-auditor","ACCEPTED_FINDING":"founder-advisor","EXPERIMENT":"experiment-designer",
                 "INTEGRITY":"evidence-auditor"
             }.get(item["type"],"founder-advisor")
         return items
