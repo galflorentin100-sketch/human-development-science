@@ -984,6 +984,15 @@ def submit_agent_output(agent_run_id: str, project_id: str | None = None, princi
     from app.agent_output_gate import AgentOutputGate
     return AgentOutputGate(db).submit(agent_run_id, project_id)
 
+@app.post("/api/science/agent-output/{review_id}/candidate-finding")
+def create_candidate_finding_from_output(review_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.knowledge_update_proposer import KnowledgeUpdateProposer
+    try:
+        return KnowledgeUpdateProposer(db).propose_from_output(review_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
 @app.get("/api/science/agent-output/{project_id}")
 def list_agent_outputs(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
