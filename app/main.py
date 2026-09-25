@@ -308,7 +308,13 @@ def create_training_protocol(body: dict, principal: Principal = Depends(principa
         body["project_id"],body["name"],body["mechanism_hypothesis"],body["challenge_domain"],
         body["dosage"],body["progression_rule"],body["transfer_target"],body["retention_target"],
         body["safety_constraints"],body.get("evidence_level","UNTESTED"),body.get("target_construct_id"),
-        body.get("status","DRAFT"),body.get("version",1))
+        body.get("status","DRAFT"),body.get("version",1),body.get("source_claim_id"),body.get("intervention_id"))
+
+@app.post("/api/science/training-protocols/{protocol_id}/basis")
+def link_training_protocol_basis(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.training import TrainingProtocolService
+    return TrainingProtocolService(db).link_basis(protocol_id,body.get("source_claim_id"),body.get("intervention_id"))
 
 @app.post("/api/science/training-protocols/{protocol_id}/evidence")
 def attach_training_protocol_evidence(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
