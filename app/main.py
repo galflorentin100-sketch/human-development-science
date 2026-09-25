@@ -422,6 +422,12 @@ def organization_self_audit_actions(principal: Principal = Depends(principal_fro
     from app.audit_action_planner import AuditActionPlanner
     return AuditActionPlanner(db).plan()
 
+@app.get("/api/organization/next-work")
+def organization_next_work(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_research import AutonomousResearchPlanner
+    return AutonomousResearchPlanner(db).next_work()
+
 @app.get("/api/organization/lab-board")
 def organization_lab_board(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
