@@ -61,7 +61,7 @@ class KnowledgeUpdateProposer:
             raise ValueError("rationale is required")
         revision=ClaimRevisionService(self.db).propose(
             claim_id,new_statement,new_status,rationale,evidence_refs,
-            actor="knowledge-update-proposer")
+            actor="knowledge-update-proposer", source_finding_id=finding_id)
         self.db.audit("scientific.claim_revision_proposed","claim_revision",revision["id"],
                       "knowledge-update-proposer",{"finding_id":finding_id},now(),str(uuid4()))
         return revision
