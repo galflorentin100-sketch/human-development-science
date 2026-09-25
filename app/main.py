@@ -843,3 +843,27 @@ def scientific_impact_reviews(project_id: str, status: str = None, principal: Pr
     require_read(principal)
     from app.knowledge_impact_engine import KnowledgeImpactEngine
     return KnowledgeImpactEngine(db).list(project_id, status)
+
+
+@app.get("/api/founder/{project_id}/decisions")
+def founder_decisions(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
+        raise HTTPException(404, "project not found")
+    from app.decision_center import DecisionCenter
+    return DecisionCenter(db).list(project_id)
+
+@app.get("/api/founder/approvals")
+def founder_approvals(principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    from app.decision_center import DecisionCenter
+    return DecisionCenter(db).approvals()
+
+@app.post("/api/founder/approvals/{approval_id}/{status}")
+def resolve_founder_approval(approval_id: str, status: str, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    from app.approvals import ApprovalService
+    try:
+        return ApprovalService(db).resolve(approval_id, status.upper(), principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
