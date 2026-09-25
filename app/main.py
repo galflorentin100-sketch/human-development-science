@@ -20,6 +20,7 @@ from app.science import ScientificRegistry
 from app.scientific_ai import ScientificAIGuard
 from app.measurement import MeasurementRegistry
 from app.claim_state import ClaimStateService
+from app.scientific_analysis import ScientificAnalysisEngine
 
 settings = Settings.load()
 db = database_from_settings(settings)
@@ -178,6 +179,11 @@ def sc001_register(project_id: str, principal: Principal = Depends(principal_fro
     require_write(principal)
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)): raise HTTPException(404, "project not found")
     return SC001Protocol().register(db, project_id)
+@app.post("/api/studies/{study_id}/analysis/{analysis_plan_id}")
+def analyze_study(study_id: str, analysis_plan_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    return ScientificAnalysisEngine(db).analyze(study_id, analysis_plan_id, body["outcome_name"])
+
 @app.post("/api/science/claims/{claim_id}/transition")
 def transition_claim(claim_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
