@@ -179,7 +179,25 @@ def sc001_register(project_id: str, principal: Principal = Depends(principal_fro
     require_write(principal)
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)): raise HTTPException(404, "project not found")
     return SC001Protocol().register(db, project_id)
-@app.get("/api/studies/{study_id}/analysis/{analysis_plan_id}/audit")
+class InterpretationRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=10000)
+    evidence_refs: list[str] = []
+    causal_design: bool = False
+    retention_observed: bool = False
+    transfer_observed: bool = False
+
+@app.post("/api/science/interpretation/validate")
+def validate_scientific_interpretation(req: InterpretationRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    return ScientificAIGuard().validate_interpretation(
+        req.text,
+        evidence_refs=tuple(req.evidence_refs),
+        causal_design=req.causal_design,
+        retention_observed=req.retention_observed,
+        transfer_observed=req.transfer_observed,
+    ).__dict__
+
+
 def study_analysis_audit(study_id: str, analysis_plan_id: str, outcome_name: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     return ScientificAnalysisEngine(db).analysis_audit(study_id, analysis_plan_id, outcome_name)
