@@ -11,6 +11,14 @@ class ExperimentEngine:
         self._ensure()
 
     def _ensure(self):
+        self.db.execute("""CREATE TABLE IF NOT EXISTS hds_experiment_results (
+            id TEXT PRIMARY KEY,
+            experiment_id TEXT NOT NULL,
+            outcome TEXT NOT NULL,
+            interpretation TEXT NOT NULL,
+            evidence_refs TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL
+        )""")
         self.db.execute("""CREATE TABLE IF NOT EXISTS hds_experiments (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -77,6 +85,28 @@ class ExperimentEngine:
             (now(), experiment_id),
         )
         return self.get(experiment_id)
+
+    def record_result(self, experiment_id, outcome, interpretation, evidence_refs=()):
+        row=self.get(experiment_id)
+        if not row:
+            raise ValueError("experiment not found")
+        if row["status"] not in {"RUNNING","COMPLETED"}:
+            raise ValueError("experiment result requires a RUNNING or COMPLETED experiment")
+        if not str(outcome or "").strip() or not str(interpretation or "").strip():
+            raise ValueError("outcome and interpretation are required")
+        if self.db.one("SELECT id FROM hds_experiment_results WHERE experiment_id=?",(experiment_id,)):
+            raise ValueError("experiment already has a result")
+        i=str(uuid4())
+        self.db.execute(
+            "INSERT INTO hds_experiment_results(id,experiment_id,outcome,interpretation,evidence_refs,created_at) VALUES (?,?,?,?,?,?)",
+            (i,experiment_id,outcome,interpretation,json.dumps(list(evidence_refs),sort_keys=True),now()),
+        )
+        from app.knowledge_graph import KnowledgeDependencyGraph
+        KnowledgeDependencyGraph(self.db).sync_project(row["project_id"])
+        return self.db.one("SELECT * FROM hds_experiment_results WHERE id=?",(i,))
+
+    def result(self, experiment_id):
+        return self.db.one("SELECT * FROM hds_experiment_results WHERE experiment_id=?",(experiment_id,))
 
     def complete(self, experiment_id):
         row = self.get(experiment_id)
