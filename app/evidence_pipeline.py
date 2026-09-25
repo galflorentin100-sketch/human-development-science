@@ -59,4 +59,5 @@ class EvidencePipeline:
         else:
             verified=1 if normalized=="VERIFIED" else 0
         self.db.execute("UPDATE evidence SET verified=? WHERE id=?",(verified,evidence_id))
+        return self.db.one("SELECT * FROM evidence WHERE id=?",(evidence_id,))
         return self.db.one("SELECT * FROM evidence_reviews WHERE id=?",(rid,))
