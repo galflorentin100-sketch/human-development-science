@@ -6,7 +6,7 @@ can produce a finding proposal, but claims require the existing revision gate.
 import json, hashlib
 from uuid import uuid4
 from app.models import now
-from app.research_findings import ResearchFindingService
+from app.research import ResearchFindingService
 
 class KnowledgeUpdateProposer:
     def __init__(self,db): self.db=db
@@ -43,8 +43,9 @@ class KnowledgeUpdateProposer:
 
     def propose_claim_revision(self,finding_id,claim_id,new_statement,new_status,rationale,evidence_refs=()):
         from app.claim_revision import ClaimRevisionService
-        finding=self.db.one("SELECT * FROM findings WHERE id=?",(finding_id,))
+        finding=self.db.one("SELECT * FROM research_findings WHERE id=?",(finding_id,))
         if not finding: raise ValueError("finding not found")
+        if finding["status"]!="ACCEPTED": raise ValueError("finding must be ACCEPTED before proposing a claim revision")
         if finding["review_required"] and not str(rationale or "").strip():
             raise ValueError("rationale is required")
         revision=ClaimRevisionService(self.db).propose(
