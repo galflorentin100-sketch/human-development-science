@@ -828,3 +828,18 @@ def science_orchestrate(project_id: str, body: dict = None, principal: Principal
         raise HTTPException(404, "project not found")
     from app.scientific_orchestrator import ScientificOrchestrator
     return ScientificOrchestrator(db).cycle(project_id, (body or {}).get("protocol_ids", ()))
+
+
+@app.post("/api/science/impact/{project_id}/{source_type}/{source_id}")
+def scientific_impact(project_id: str, source_type: str, source_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
+        raise HTTPException(404, "project not found")
+    from app.knowledge_impact_engine import KnowledgeImpactEngine
+    return KnowledgeImpactEngine(db).propagate(project_id, source_type, source_id)
+
+@app.get("/api/science/impact/{project_id}")
+def scientific_impact_reviews(project_id: str, status: str = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.knowledge_impact_engine import KnowledgeImpactEngine
+    return KnowledgeImpactEngine(db).list(project_id, status)
