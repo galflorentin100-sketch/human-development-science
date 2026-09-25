@@ -449,3 +449,109 @@ Inspect before editing. Reuse existing services/schema. Add tests for positive a
 
 ### Definition of done
 A feature is not done because its happy path works. It must work end-to-end, reject invalid states, resist bypasses, preserve provenance, produce auditable changes, expose uncertainty, have positive and negative tests, integrate with the existing architecture, and never silently change scientific truth.
+
+
+## Canonical Agent Handoff — 2026-09-25
+
+This section is the explicit handoff contract for Claude or any future coding agent continuing HDS.
+
+### Mission lock
+Do not reinterpret HDS. Preserve the project as a scientific organization first and a practical human-development/training system second. The purpose is to discover, test, measure and operationalize methods for developing human capabilities, with transfer and retention treated as empirical questions.
+
+Canonical loop:
+Research → construct → operationalize → measure → evidence → hypothesis → intervention → training → outcome data → transfer → retention → replication/review → protocol → improved training → new research.
+
+### Never do these things
+- Never fabricate scientific evidence, citations, statistics, participants, measurements, results, or missing data.
+- Never turn an LLM-generated statement into a FACT merely because it sounds plausible.
+- Never silently change a Claim, Intervention, Training Protocol, Knowledge Version, or scientific conclusion.
+- Never weaken a scientific gate to make a test, demo, dashboard, autonomous loop, or product flow pass.
+- Never treat provenance as proof of efficacy.
+- Never treat a supported Claim as proof that a particular Intervention or Training Protocol works.
+- Never infer real-world transfer from laboratory improvement.
+- Never infer durability from short-term improvement.
+- Never treat discomfort, suffering, fatigue, combat, physical hardship, military-style training, or repetition as inherently developmental. These are research questions unless supported by appropriate evidence.
+- Never claim tests or CI are green unless they were actually executed and verified.
+
+### Required behavior when asked to continue
+When the user says continue / תמשיך, do not stop at suggestions if implementation can safely proceed.
+
+Use this operating loop:
+1. Inspect the current branch and recent commits.
+2. Inspect the relevant code, schema, and tests.
+3. Find the highest-value unfinished item in the current roadmap.
+4. Check whether earlier implementation has regressions before extending it.
+5. Implement a complete coherent slice.
+6. Add positive, negative, conflict, and bypass tests.
+7. Run the strongest available tests.
+8. Fix failures instead of merely reporting them.
+9. Review the resulting architecture for duplicated or bypassed governance.
+10. Commit the coherent change.
+11. Continue to the next safe unfinished item rather than stopping after scaffolding.
+
+Ask the user only when a genuinely blocking scientific/product decision cannot be resolved from the existing project contract. Do not ask which small implementation task to choose when the roadmap already determines it.
+
+### Current branch
+Continue primarily from: hds-scientific-provenance
+Do not reset this branch or start a replacement architecture unless explicitly instructed.
+
+### Highest-priority completion sequence
+
+P0 — Scientific integrity and integration
+1. Full end-to-end integration tests: Evidence → Review → Finding → Claim → Intervention → Training → Sessions → Measurement → Transfer → Retention → Analysis → Knowledge update.
+2. Harden Evidence Resolution semantics. In particular, VERIFIED + UNCERTAIN must never resolve as clean VERIFIED; VERIFIED + REJECTED must remain CONFLICTED.
+3. Ensure every supported state is impossible without the evidence required by its lifecycle gate.
+4. Ensure every bypass path is covered by tests.
+
+P1 — Knowledge integrity
+5. Complete Claim → Knowledge Version lifecycle.
+6. Preserve immutable/versioned history and evidence snapshots.
+7. Complete downstream dependency propagation: Evidence → Finding → Claim → Intervention → Training → Organizational Decision.
+8. Make stale/conflicted knowledge generate review work without silently changing scientific state.
+
+P1 — Human research integrity
+9. Safety/adverse-event gates for training.
+10. Consent, withdrawal, participant references, protocol deviations, missingness and privacy boundaries.
+11. Complete preregistered analysis execution and audit coverage.
+
+P1 — Autonomous organization
+12. Connect scientific maintenance detection to bounded research-task creation.
+13. Let autonomous agents propose and execute authorized work, but never authorize evidence, scientific truth, publication, spending, or unsafe training by themselves.
+14. Preserve permissions, approvals, cost controls, idempotency, audit logs and scientific gates.
+
+P2 — Scientific AI
+15. Make AI outputs structured around statement, classification, evidence references, uncertainty, alternatives and next test.
+16. Ensure LLM output cannot bypass scientific state machines.
+
+P2 — Training OS
+17. Turn validated protocols into executable sessions.
+18. Add progression/adaptation only as explicit hypotheses.
+19. Measure adherence, performance, fatigue, transfer and retention.
+20. Close the loop from human outcome data back into research and protocol revision.
+
+### Scientific state invariant
+AI may discover, reason, synthesize, propose, plan, experiment and recommend research. AI may not declare scientific truth by itself.
+
+Scientific state must come from explicit governance, evidence resolution, measurement, authorized lifecycle transitions, provenance and auditability.
+
+### What success looks like
+HDS should eventually be able to answer, for every important training method:
+- What human capability is being targeted?
+- How is that capability operationally defined?
+- What mechanism is hypothesized?
+- What evidence supports the mechanism?
+- What evidence supports the intervention?
+- What is still uncertain?
+- What exact training protocol is being used?
+- What was actually delivered?
+- What changed in the target outcome?
+- Did it transfer to another context?
+- Did it persist over time?
+- What contradictory evidence exists?
+- What would cause HDS to change its mind?
+- Which current protocols or decisions depend on this knowledge?
+
+If the system cannot answer these questions, build the missing measurement/provenance/governance mechanism rather than inventing an answer.
+
+### Final instruction
+Preserve the mission. Preserve the scientific firewall. Preserve the provenance. Improve the system. Test everything. Keep uncertainty explicit. Continue implementation until the current stage is genuinely complete.
