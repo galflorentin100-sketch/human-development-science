@@ -867,3 +867,12 @@ def resolve_founder_approval(approval_id: str, status: str, principal: Principal
         return ApprovalService(db).resolve(approval_id, status.upper(), principal.user_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/science/delegate/{project_id}")
+def delegate_scientific_work(project_id: str, limit: int = 5, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
+        raise HTTPException(404, "project not found")
+    from app.agent_delegation import AgentDelegation
+    return {"project_id":project_id,"tasks":AgentDelegation(db).delegate_pending(project_id,limit)}
