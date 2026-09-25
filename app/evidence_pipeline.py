@@ -37,9 +37,9 @@ class EvidencePipeline:
         reviews=self.db.all("SELECT verdict FROM evidence_reviews WHERE evidence_id=?",(evidence_id,))
         verdicts={str(r["verdict"]).upper() for r in reviews}
         if "VERIFIED" in verdicts and "REJECTED" in verdicts: state="CONFLICTED"
+        elif "UNCERTAIN" in verdicts: state="UNCERTAIN"
         elif "VERIFIED" in verdicts: state="VERIFIED"
         elif "REJECTED" in verdicts: state="REJECTED"
-        elif "UNCERTAIN" in verdicts: state="UNCERTAIN"
         else: state="UNREVIEWED"
         return {"evidence_id":evidence_id,"claim_id":evidence["claim_id"],"state":state,"review_count":len(reviews),
                 "source_id":evidence["source_id"],"stance":evidence["stance"],"excerpt_hash":evidence["excerpt_hash"]}

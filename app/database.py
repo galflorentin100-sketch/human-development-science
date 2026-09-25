@@ -19,6 +19,36 @@ CREATE TABLE IF NOT EXISTS research_questions (id TEXT PRIMARY KEY, project_id T
 CREATE TABLE IF NOT EXISTS agent_runs (id TEXT PRIMARY KEY, agent_id TEXT NOT NULL REFERENCES agents(id), task_id TEXT REFERENCES tasks(id), status TEXT NOT NULL, input_payload TEXT NOT NULL, output_payload TEXT NOT NULL, started_at TEXT NOT NULL, completed_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS evaluations (id TEXT PRIMARY KEY, agent_run_id TEXT NOT NULL REFERENCES agent_runs(id), evaluator TEXT NOT NULL, passed INTEGER NOT NULL, score REAL NOT NULL, details TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, actor TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS maintenance_work (
+ id TEXT PRIMARY KEY,
+ kind TEXT NOT NULL,
+ entity_type TEXT NOT NULL,
+ entity_id TEXT NOT NULL,
+ title TEXT NOT NULL,
+ reason TEXT NOT NULL,
+ success_criteria TEXT NOT NULL,
+ status TEXT NOT NULL,
+ approval_id TEXT,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_maintenance_work_status ON maintenance_work(status);
+CREATE INDEX IF NOT EXISTS idx_maintenance_work_entity ON maintenance_work(entity_type,entity_id,status);
+CREATE TABLE IF NOT EXISTS knowledge_freshness (
+ id TEXT PRIMARY KEY,
+ entity_type TEXT NOT NULL,
+ entity_id TEXT NOT NULL,
+ review_interval_days INTEGER NOT NULL,
+ last_validated_at TEXT NOT NULL,
+ next_review_at TEXT NOT NULL,
+ status TEXT NOT NULL,
+ owner TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ UNIQUE(entity_type,entity_id)
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_freshness_review ON knowledge_freshness(next_review_at,status);
+CREATE TABLE IF NOT EXISTS improvement_proposals (id TEXT PRIMARY KEY, title TEXT NOT NULL, area TEXT NOT NULL, hypothesis TEXT NOT NULL, success_metric TEXT NOT NULL, status TEXT NOT NULL, owner TEXT NOT NULL, experiment_design TEXT, baseline_note TEXT, experiment_result TEXT, outcome_note TEXT, evidence_ref TEXT, adopted_by TEXT, adoption_rationale TEXT, retired_by TEXT, retirement_rationale TEXT, created_at TEXT NOT NULL, updated_at TEXT);
 CREATE TABLE IF NOT EXISTS founder_briefs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), content TEXT NOT NULL, action_required INTEGER NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS failures (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), stage TEXT NOT NULL, expected_result TEXT NOT NULL, actual_result TEXT NOT NULL, root_cause TEXT NOT NULL, lesson TEXT NOT NULL, created_at TEXT NOT NULL);
 """
@@ -187,6 +217,9 @@ def _migrate_phase4(self):
         if "observation_type" not in existing:
             con.execute("ALTER TABLE study_outcomes ADD COLUMN observation_type TEXT NOT NULL DEFAULT 'TRAINING'")
         con.executescript(PHASE3_SCHEMA); con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA); con.executescript(PHASE6_SCHEMA)
+        existing={row[1] for row in con.execute("PRAGMA table_info(training_protocols)")}
+        for name,definition in {"source_claim_id":"TEXT REFERENCES claims(id)","intervention_id":"TEXT REFERENCES interventions(id)"}.items():
+            if name not in existing: con.execute(f"ALTER TABLE training_protocols ADD COLUMN {name} {definition}")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id)
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_measure_binding ON study_measure_bindings(study_id,measure_id,observation_type,timepoint)")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_measure_binding ON study_measure_bindings(study_id,measure_id,observation_type,timepoint)")
@@ -226,7 +259,7 @@ class PostgreSQLDatabase:
     def audit(self,event_type,entity_type,entity_id,actor,payload,created_at,audit_id): self.execute("INSERT INTO audit_logs VALUES (?, ?, ?, ?, ?, ?, ?)",(audit_id,event_type,entity_type,entity_id,actor,json.dumps(payload),created_at))
     def migrate(self):
         statements=[]
-        for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA,PHASE6_SCHEMA): statements.extend(s.strip() for s in schema.split(";") if s.strip() and not s.strip().startswith("PRAGMA"))
+        for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA,PHASE6_SCHEMA,PHASE7_SCHEMA): statements.extend(s.strip() for s in schema.split(";") if s.strip() and not s.strip().startswith("PRAGMA"))
         with self.connect() as con:
             for statement in statements: con.execute(self._sql(statement))
             for table,columns in {**_PHASE2_COLUMNS,**_PHASE3_COLUMNS,**{'study_outcomes':{'observation_type':"TEXT NOT NULL DEFAULT 'TRAINING'"},"idempotency_keys":{"status":"TEXT NOT NULL DEFAULT 'COMPLETED'","claim_token":"TEXT","lease_expires_at":"TEXT"}}}.items():
@@ -241,6 +274,27 @@ def database_from_settings(settings):
     if settings.environment=="production": raise DatabaseConfigurationError("production database configuration is required")
     return Database(settings.database_path)
 
+PHASE7_SCHEMA = """CREATE TABLE IF NOT EXISTS improvement_proposals (
+ id TEXT PRIMARY KEY,
+ title TEXT NOT NULL,
+ area TEXT NOT NULL,
+ hypothesis TEXT NOT NULL,
+ success_metric TEXT NOT NULL,
+ status TEXT NOT NULL,
+ owner TEXT NOT NULL,
+ experiment_design TEXT,
+ baseline_note TEXT,
+ experiment_result TEXT,
+ outcome_note TEXT,
+ evidence_ref TEXT,
+ adopted_by TEXT,
+ adoption_rationale TEXT,
+ retired_by TEXT,
+ retirement_rationale TEXT,
+ created_at TEXT NOT NULL,
+ updated_at TEXT
+);"""
+
 PHASE6_SCHEMA = """CREATE TABLE IF NOT EXISTS scientific_constructs (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), name TEXT NOT NULL, definition TEXT NOT NULL, construct_type TEXT NOT NULL, status TEXT NOT NULL, version INTEGER NOT NULL, created_at TEXT NOT NULL, UNIQUE(project_id,name,version));
 CREATE TABLE IF NOT EXISTS scientific_measures (id TEXT PRIMARY KEY, construct_id TEXT NOT NULL REFERENCES scientific_constructs(id), name TEXT NOT NULL, operational_definition TEXT NOT NULL, method TEXT NOT NULL, unit TEXT, reliability_note TEXT NOT NULL, validity_note TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS training_protocols (
@@ -248,6 +302,8 @@ CREATE TABLE IF NOT EXISTS training_protocols (
  project_id TEXT NOT NULL REFERENCES projects(id),
  name TEXT NOT NULL,
  target_construct_id TEXT REFERENCES scientific_constructs(id),
+ source_claim_id TEXT REFERENCES claims(id),
+ intervention_id TEXT REFERENCES interventions(id),
  mechanism_hypothesis TEXT NOT NULL,
  challenge_domain TEXT NOT NULL,
  dosage TEXT NOT NULL,

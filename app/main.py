@@ -74,6 +74,13 @@ def require_read(principal: Principal) -> None:
 def require_write(principal: Principal) -> None:
     require_permission(principal, "WRITE")
 
+
+def require_execute(principal: Principal) -> None:
+    require_permission(principal, "EXECUTE")
+
+def require_approve(principal: Principal) -> None:
+    require_permission(principal, "APPROVE")
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "hds-company-os", "environment": settings.environment}
@@ -87,6 +94,12 @@ def ready():
     except Exception as exc:
         raise HTTPException(status_code=503, detail="service not ready") from exc
     return {"status": "ready", "database": True, "agents": True}
+
+@app.get("/api/science/system-health")
+def science_system_health(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.scientific_system_health import ScientificSystemHealth
+    return ScientificSystemHealth(db).snapshot()
 
 @app.get("/api/operations")
 def operations(principal: Principal = Depends(principal_from_header)):
@@ -132,6 +145,42 @@ def evidence(project_id: str, principal: Principal = Depends(principal_from_head
 def intelligence(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     s = IntelligenceService(db); return {"findings": s.findings(), "timeline": s.timeline(), "workforce": s.workforce(), "health": s.health(), "brief": FounderBriefService(db).build()}
+@app.post("/api/improvement/proposals")
+def create_improvement_proposal(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).propose(body["title"],body["area"],body["hypothesis"],body["success_metric"],principal.user_id,body.get("evidence_ref"))
+
+@app.post("/api/improvement/proposals/{proposal_id}/experiment")
+def start_improvement_experiment(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).start_experiment(proposal_id,body["experiment_design"],body["baseline_note"],principal.user_id)
+
+@app.post("/api/improvement/proposals/{proposal_id}/result")
+def record_improvement_result(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).record_result(proposal_id,body["result"],body["outcome_note"],body.get("evidence_ref"))
+
+@app.post("/api/improvement/proposals/{proposal_id}/adopt")
+def adopt_improvement(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).adopt(proposal_id,principal.user_id,body["rationale"])
+
+@app.get("/api/improvement/health")
+def improvement_health(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).health()
+
+@app.get("/api/improvement/backlog")
+def improvement_backlog(area: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).backlog(area)
+
 @app.get("/api/agents")
 def agents(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
@@ -308,7 +357,13 @@ def create_training_protocol(body: dict, principal: Principal = Depends(principa
         body["project_id"],body["name"],body["mechanism_hypothesis"],body["challenge_domain"],
         body["dosage"],body["progression_rule"],body["transfer_target"],body["retention_target"],
         body["safety_constraints"],body.get("evidence_level","UNTESTED"),body.get("target_construct_id"),
-        body.get("status","DRAFT"),body.get("version",1))
+        body.get("status","DRAFT"),body.get("version",1),body.get("source_claim_id"),body.get("intervention_id"))
+
+@app.post("/api/science/training-protocols/{protocol_id}/basis")
+def link_training_protocol_basis(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.training import TrainingProtocolService
+    return TrainingProtocolService(db).link_basis(protocol_id,body.get("source_claim_id"),body.get("intervention_id"))
 
 @app.post("/api/science/training-protocols/{protocol_id}/evidence")
 def attach_training_protocol_evidence(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
@@ -338,11 +393,214 @@ def promote_training_protocol(protocol_id: str, body: dict, principal: Principal
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).promote(protocol_id,body["status"],principal.user_id,body["rationale"])
 
+@app.get("/api/science/training-protocols/{protocol_id}/provenance")
+def training_protocol_provenance(protocol_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.scientific_training_pipeline import ScientificTrainingPipeline
+    return ScientificTrainingPipeline(db).trace(protocol_id)
+
+@app.get("/api/science/training-protocols/{protocol_id}/scientific-readiness")
+def training_protocol_scientific_readiness(protocol_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.scientific_training_pipeline import ScientificTrainingPipeline
+    return ScientificTrainingPipeline(db).readiness(protocol_id)
+
 @app.get("/api/science/training-protocols/{protocol_id}/readiness")
 def training_protocol_readiness(protocol_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).readiness(protocol_id)
+
+@app.post("/api/organization/improvements")
+def propose_improvement(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).propose(body["title"],body["area"],body["hypothesis"],body["success_metric"],principal.subject)
+
+@app.post("/api/organization/improvements/{proposal_id}/experiment")
+def start_improvement_experiment(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).start_experiment(proposal_id,body["experiment_design"],body["baseline_note"],principal.subject)
+
+@app.post("/api/organization/improvements/{proposal_id}/result")
+def record_improvement_result(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).record_result(proposal_id,body["result"],body["outcome_note"],body.get("evidence_ref"))
+
+@app.post("/api/organization/improvements/{proposal_id}/adopt")
+def adopt_improvement(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).adopt(proposal_id,principal.subject,body["rationale"])
+
+@app.get("/api/organization/improvements")
+def list_improvements(area: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).backlog(area)
+
+@app.get("/api/organization/self-audit/actions")
+def organization_self_audit_actions(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.audit_action_planner import AuditActionPlanner
+    return AuditActionPlanner(db).plan()
+
+@app.post("/api/science/knowledge-freshness/register")
+def register_knowledge_freshness(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.knowledge_freshness import KnowledgeFreshness
+    return KnowledgeFreshness(db).register(body["entity_type"],body["entity_id"],body.get("review_interval_days",90),principal.user_id)
+
+@app.post("/api/science/knowledge-freshness/validate")
+def validate_knowledge_freshness(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.knowledge_freshness import KnowledgeFreshness
+    return KnowledgeFreshness(db).validate(body["entity_type"],body["entity_id"],principal.user_id,body["rationale"])
+
+@app.post("/api/science/maintenance/discover")
+def discover_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.scientific_maintenance_controller import ScientificMaintenanceController
+    return ScientificMaintenanceController(db).discover()
+
+@app.post("/api/science/maintenance/{work_id}/request-approval")
+def request_scientific_maintenance_approval(work_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.scientific_maintenance_controller import ScientificMaintenanceController
+    return ScientificMaintenanceController(db).request_approval(work_id,principal.user_id)
+
+@app.post("/api/science/maintenance/{work_id}/approve")
+def approve_scientific_maintenance(work_id: str, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    from app.scientific_maintenance_controller import ScientificMaintenanceController
+    return ScientificMaintenanceController(db).approve(work_id,principal.user_id)
+
+@app.post("/api/science/maintenance/{work_id}/dispatch")
+def dispatch_scientific_maintenance(work_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.scientific_maintenance_controller import ScientificMaintenanceController
+    return ScientificMaintenanceController(db).dispatch(work_id,principal.user_id)
+
+@app.post("/api/organization/maintenance/propose")
+def propose_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
+    return AutonomousScientificMaintenance(db).propose()
+
+@app.post("/api/science/maintenance/materialize")
+def materialize_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
+    return AutonomousScientificMaintenance(db).materialize(principal.user_id)
+
+@app.get("/api/science/maintenance")
+def list_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    return db.all("SELECT * FROM maintenance_work ORDER BY created_at DESC")
+
+@app.get("/api/science/knowledge-freshness/scan")
+def scan_knowledge_freshness(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.knowledge_freshness import KnowledgeFreshness
+    return KnowledgeFreshness(db).scan()
+
+@app.get("/api/science/autonomous-maintenance")
+def autonomous_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
+    return AutonomousScientificMaintenance(db).propose()
+
+@app.get("/api/science/control-plane")
+def scientific_control_plane(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.scientific_control_plane import ScientificControlPlane
+    return ScientificControlPlane(db).snapshot()
+
+@app.get("/api/science/system-status")
+def scientific_system_status(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.scientific_system_status import ScientificSystemStatus
+    return ScientificSystemStatus(db).snapshot()
+
+@app.post("/api/science/training/{protocol_id}/safety")
+def training_safety(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.safety import SafetyGate
+    return SafetyGate(db).assess(protocol_id,body["participant_ref"],body["checks"])
+
+@app.get("/api/science/training/{protocol_id}/next-session")
+def training_next_session(protocol_id: str, participant_ref: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.protocol_engine import ProtocolEngine
+    return ProtocolEngine(db).next_session(protocol_id,participant_ref)
+
+@app.get("/api/science/knowledge-review-queue")
+def knowledge_review_queue(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.knowledge_review_queue import KnowledgeReviewQueue
+    return KnowledgeReviewQueue(db).generate()
+
+@app.get("/api/science/knowledge-impact/claim/{claim_id}")
+def knowledge_claim_impact(claim_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.knowledge_impact import KnowledgeImpactAnalyzer
+    return KnowledgeImpactAnalyzer(db).claim_impact(claim_id)
+
+@app.get("/api/science/knowledge-impact/contradictions")
+def knowledge_contradictions(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.knowledge_impact import KnowledgeImpactAnalyzer
+    return KnowledgeImpactAnalyzer(db).contradiction_scan()
+
+@app.get("/api/science/admission/claim/{claim_id}")
+def scientific_claim_admission(claim_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.scientific_admission import ScientificAdmissionGate
+    return ScientificAdmissionGate(db).claim(claim_id)
+
+@app.get("/api/science/admission/intervention/{intervention_id}")
+def scientific_intervention_admission(intervention_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.scientific_admission import ScientificAdmissionGate
+    return ScientificAdmissionGate(db).intervention(intervention_id)
+
+@app.post("/api/science/interventions/{intervention_id}/promote")
+def promote_intervention(intervention_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.intervention_lifecycle import InterventionLifecycle
+    return InterventionLifecycle(db).promote(intervention_id,body["status"],principal.user_id,body["rationale"])
+
+@app.post("/api/science/feedback/study/{study_id}")
+def outcome_feedback_study(study_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.outcome_feedback import OutcomeFeedbackService
+    return OutcomeFeedbackService(db).propose_from_study(study_id,body["outcome_name"],body.get("observation_type","TRAINING"),principal.user_id)
+
+@app.post("/api/science/feedback/training/{protocol_id}")
+def outcome_feedback_training(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.outcome_feedback import OutcomeFeedbackService
+    return OutcomeFeedbackService(db).propose_from_training(protocol_id,body.get("participant_ref"),principal.user_id)
+
+@app.get("/api/organization/next-work")
+def organization_next_work(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_research import AutonomousResearchPlanner
+    return AutonomousResearchPlanner(db).next_work()
+
+@app.get("/api/organization/lab-board")
+def organization_lab_board(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.lab_board import LabBoard
+    return LabBoard(db).snapshot()
+
+@app.get("/api/organization/self-audit")
+def organization_self_audit(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.self_audit import SelfAuditEngine
+    return SelfAuditEngine(db).run()
 
 @app.get("/api/science/ai-constraints")
 def science_ai_constraints(principal: Principal = Depends(principal_from_header)):
