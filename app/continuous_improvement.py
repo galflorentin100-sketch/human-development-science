@@ -7,7 +7,6 @@ Scientific claims remain governed by the evidence/claim lifecycle.
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import json
 import uuid
 
 
@@ -35,7 +34,7 @@ class ContinuousImprovementService:
     def __init__(self, db):
         self.db = db
 
-    def propose(self, title, area, hypothesis, success_metric, owner):
+    def propose(self, title, area, hypothesis, success_metric, owner, evidence_ref=None):
         if area not in AREAS:
             raise ValueError("invalid improvement area")
         if not all(str(x).strip() for x in (title, hypothesis, success_metric, owner)):
@@ -55,6 +54,8 @@ class ContinuousImprovementService:
             raise ValueError("only PROPOSED improvements can start an experiment")
         if not experiment_design.strip() or not baseline_note.strip():
             raise ValueError("experiment design and baseline are required")
+        if p["area"] == "SCIENCE" and not p["evidence_ref"]:
+            raise ValueError("SCIENCE improvements require an evidence reference or explicit research basis")
         self.db.execute(
             """UPDATE improvement_proposals
             SET status='EXPERIMENT', experiment_design=?, baseline_note=?, updated_at=?
@@ -69,6 +70,8 @@ class ContinuousImprovementService:
             raise ValueError("only active experiments can record results")
         if result not in {"SUPPORTED","NOT_SUPPORTED","INCONCLUSIVE"}:
             raise ValueError("invalid experiment result")
+        if not str(outcome_note).strip():
+            raise ValueError("outcome note is required")
         self.db.execute(
             """UPDATE improvement_proposals
             SET experiment_result=?, outcome_note=?, evidence_ref=?, updated_at=?
@@ -120,3 +123,9 @@ class ContinuousImprovementService:
         if not row:
             raise ValueError("improvement proposal not found")
         return row
+
+
+    def health(self):
+        rows=self.db.all("SELECT status,COUNT(*) AS count FROM improvement_proposals GROUP BY status")
+        counts={str(r["status"]):int(r["count"]) for r in rows}
+        return {"counts":counts,"total":sum(counts.values()),"active_experiments":counts.get("EXPERIMENT",0),"adopted":counts.get("ADOPTED",0)}
