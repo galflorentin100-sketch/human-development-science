@@ -434,6 +434,18 @@ def organization_self_audit_actions(principal: Principal = Depends(principal_fro
     from app.audit_action_planner import AuditActionPlanner
     return AuditActionPlanner(db).plan()
 
+@app.post("/api/science/feedback/study/{study_id}")
+def outcome_feedback_study(study_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.outcome_feedback import OutcomeFeedbackService
+    return OutcomeFeedbackService(db).propose_from_study(study_id,body["outcome_name"],body.get("observation_type","TRAINING"),principal.user_id)
+
+@app.post("/api/science/feedback/training/{protocol_id}")
+def outcome_feedback_training(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.outcome_feedback import OutcomeFeedbackService
+    return OutcomeFeedbackService(db).propose_from_training(protocol_id,body.get("participant_ref"),principal.user_id)
+
 @app.get("/api/organization/next-work")
 def organization_next_work(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
