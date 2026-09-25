@@ -434,6 +434,24 @@ def organization_self_audit_actions(principal: Principal = Depends(principal_fro
     from app.audit_action_planner import AuditActionPlanner
     return AuditActionPlanner(db).plan()
 
+@app.post("/api/science/knowledge-freshness/register")
+def register_knowledge_freshness(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.knowledge_freshness import KnowledgeFreshness
+    return KnowledgeFreshness(db).register(body["entity_type"],body["entity_id"],body.get("review_interval_days",90),principal.user_id)
+
+@app.post("/api/science/knowledge-freshness/validate")
+def validate_knowledge_freshness(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.knowledge_freshness import KnowledgeFreshness
+    return KnowledgeFreshness(db).validate(body["entity_type"],body["entity_id"],principal.user_id,body["rationale"])
+
+@app.get("/api/science/knowledge-freshness/scan")
+def scan_knowledge_freshness(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.knowledge_freshness import KnowledgeFreshness
+    return KnowledgeFreshness(db).scan()
+
 @app.get("/api/science/knowledge-review-queue")
 def knowledge_review_queue(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
