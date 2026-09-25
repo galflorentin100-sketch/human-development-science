@@ -66,7 +66,7 @@ class ClaimRevisionService:
         if updated and updated.get("project_id"):
             from app.knowledge_graph import KnowledgeDependencyGraph
             from app.knowledge_impact_engine import KnowledgeImpactEngine
-                        KnowledgeDependencyGraph(self.db).sync_project(updated["project_id"], actor=reviewer)
+            KnowledgeDependencyGraph(self.db).sync_project(updated["project_id"], actor=reviewer)
             impact=KnowledgeImpactEngine(self.db).propagate(
                 updated["project_id"],"claims",rev["claim_id"],
                 reason=f"Approved claim revision {revision_id} may affect dependent knowledge.")
