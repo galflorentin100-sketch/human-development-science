@@ -12,6 +12,11 @@ class AgentOutputGate:
     def submit(self,agent_run_id,project_id=None):
         run=self.db.one("SELECT * FROM agent_runs WHERE id=?",(agent_run_id,))
         if not run: raise ValueError("agent run not found")
+        task=self.db.one("SELECT * FROM tasks WHERE id=?",(run["task_id"],))
+        if not task: raise ValueError("agent run task not found")
+        if project_id is not None and str(project_id)!=str(task["project_id"]):
+            raise ValueError("project_id does not match task project")
+        project_id=task["project_id"]
         payload=json.loads(run["output_payload"] or "{}")
         refs=payload.get("evidence_refs") or []
         if not isinstance(refs,list): refs=[]
