@@ -446,6 +446,30 @@ def validate_knowledge_freshness(body: dict, principal: Principal = Depends(prin
     from app.knowledge_freshness import KnowledgeFreshness
     return KnowledgeFreshness(db).validate(body["entity_type"],body["entity_id"],principal.user_id,body["rationale"])
 
+@app.post("/api/science/maintenance/discover")
+def discover_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.scientific_maintenance_controller import ScientificMaintenanceController
+    return ScientificMaintenanceController(db).discover()
+
+@app.post("/api/science/maintenance/{work_id}/request-approval")
+def request_scientific_maintenance_approval(work_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.scientific_maintenance_controller import ScientificMaintenanceController
+    return ScientificMaintenanceController(db).request_approval(work_id,principal.user_id)
+
+@app.post("/api/science/maintenance/{work_id}/approve")
+def approve_scientific_maintenance(work_id: str, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    from app.scientific_maintenance_controller import ScientificMaintenanceController
+    return ScientificMaintenanceController(db).approve(work_id,principal.user_id)
+
+@app.post("/api/science/maintenance/{work_id}/dispatch")
+def dispatch_scientific_maintenance(work_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.scientific_maintenance_controller import ScientificMaintenanceController
+    return ScientificMaintenanceController(db).dispatch(work_id,principal.user_id)
+
 @app.get("/api/science/knowledge-freshness/scan")
 def scan_knowledge_freshness(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
