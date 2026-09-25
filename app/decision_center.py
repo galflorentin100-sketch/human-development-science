@@ -33,7 +33,7 @@ class DecisionCenter:
             items.append({"type":"FINDING","id":r["id"],"priority":"HIGH",
                           "title":r["statement"],"reason":"Candidate finding requires independent scientific review."})
         for r in self.db.all("SELECT * FROM research_findings WHERE project_id=? AND status='ACCEPTED' ORDER BY reviewed_at DESC",(project_id,)):
-            revision=self.db.one("SELECT id,status FROM claim_revisions cr JOIN claims c ON c.id=cr.claim_id WHERE c.project_id=? AND cr.evidence_refs LIKE ? LIMIT 1",(project_id,"%"+r["id"]+"%"))
+            revision=self.db.one("SELECT id,status FROM claim_revisions cr JOIN claims c ON c.id=cr.claim_id WHERE c.project_id=? AND cr.source_finding_id=? LIMIT 1",(project_id,r["id"]))
             if not revision:
                 items.append({"type":"ACCEPTED_FINDING","id":r["id"],"priority":"NORMAL",
                               "title":r["statement"],"reason":"Accepted finding can inform a claim revision; explicit claim selection and human approval are required."})
