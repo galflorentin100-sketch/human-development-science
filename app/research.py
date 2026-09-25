@@ -27,6 +27,42 @@ class ResearchRepository:
     def knowledge(self,project_id,kind,content,provenance):
         i=str(uuid4()); self.db.execute("INSERT INTO knowledge_items(id,project_id,kind,content,provenance,created_at) VALUES (?,?,?,?,?,?)",(i,project_id,kind,content,provenance,now())); return self.db.one("SELECT * FROM knowledge_items WHERE id=?",(i,))
 
+class ResearchFindingService:
+    VALID_SOURCES={"STUDY_RESULT","LITERATURE","MEASUREMENT","ANALYSIS","OBSERVATION"}
+    VALID_CLASSIFICATIONS={"FACT","INFERENCE","HYPOTHESIS","OPINION"}
+    VALID_STATUSES={"CANDIDATE","UNDER_REVIEW","ACCEPTED","REJECTED"}
+
+    def __init__(self,db): self.db=db
+
+    def create(self,project_id,statement,classification="HYPOTHESIS",source_type="OBSERVATION",
+               source_id=None,evidence_refs=(),interpretation=None,created_by="system"):
+        if classification not in self.VALID_CLASSIFICATIONS: raise ValueError("invalid finding classification")
+        if source_type not in self.VALID_SOURCES: raise ValueError("invalid finding source type")
+        if not statement or not statement.strip(): raise ValueError("finding statement is required")
+        if classification=="FACT": raise ValueError("new findings cannot enter as FACT; submit as a candidate for review")
+        i=str(uuid4())
+        refs=json.dumps(list(evidence_refs),sort_keys=True)
+        self.db.execute("INSERT INTO research_findings(id,project_id,source_type,source_id,statement,classification,status,evidence_refs,interpretation,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (i,project_id,source_type,source_id,statement,classification,"CANDIDATE",refs,interpretation,created_by,now()))
+        return self.db.one("SELECT * FROM research_findings WHERE id=?",(i,))
+
+    def review(self,finding_id,reviewer,decision,rationale):
+        finding=self.db.one("SELECT * FROM research_findings WHERE id=?",(finding_id,))
+        if not finding: raise ValueError("finding not found")
+        if decision not in {"ACCEPTED","REJECTED"}: raise ValueError("decision must be ACCEPTED or REJECTED")
+        if not rationale or not rationale.strip(): raise ValueError("review rationale is required")
+        if finding["created_by"]==reviewer and reviewer!="system": raise ValueError("reviewer must be independent")
+        status=decision
+        self.db.execute("UPDATE research_findings SET status=?,reviewed_by=?,reviewed_at=? WHERE id=?",(status,reviewer,now(),finding_id))
+        self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+            (str(uuid4()),"research_finding.reviewed","research_finding",finding_id,reviewer,json.dumps({"decision":decision,"rationale":rationale},sort_keys=True),now()))
+        return self.db.one("SELECT * FROM research_findings WHERE id=?",(finding_id,))
+
+    def list(self,project_id,status=None):
+        if status and status not in self.VALID_STATUSES: raise ValueError("invalid finding status")
+        if status: return self.db.all("SELECT * FROM research_findings WHERE project_id=? AND status=? ORDER BY created_at DESC",(project_id,status))
+        return self.db.all("SELECT * FROM research_findings WHERE project_id=? ORDER BY created_at DESC",(project_id,))
+
 class StudyExecution:
     VALID_PHASES={"BASELINE","INTERVENTION","POST","FOLLOW_UP"}
     VALID_ARMS={"INTERVENTION","CONTROL"}
