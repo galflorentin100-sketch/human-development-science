@@ -218,3 +218,84 @@ At the end of each meaningful session:
 - list remaining blockers
 - identify the next highest-value implementation step
 - commit durable corrections to this CLAUDE.md when they are project rules.
+
+
+## Continuation / handoff directive — 2026-09-25
+
+This repository is an active continuation of an existing HDS build. **Do not reset, replace, simplify, or reinterpret the existing architecture.** Preserve the mission, scientific governance, provenance model, auditability, and training-first purpose above.
+
+Current development branch: `hds-scientific-provenance`.
+
+Recent implemented layers include:
+- evidence review/resolution and claim state governance
+- scientific findings and Finding → Claim bridge
+- knowledge versioning
+- scientific interpretation guard
+- research/study analysis readiness and audit
+- training protocol lifecycle and provenance
+- continuous organizational improvement proposals
+- organizational decision registry
+- self-audit, lab board and audit action planning
+- scientific completion gate
+- outcome feedback from studies/training
+- scientific admission gates
+- intervention lifecycle gates
+- downstream knowledge impact analysis
+- knowledge review queue
+- knowledge freshness/revalidation tracking
+- knowledge dependency graph
+- bounded autonomous scientific maintenance planning
+
+Recent continuation commits (newest first):
+- `464071dc691b46db33077bbfdcc1b01cd2dde368` — expose knowledge review queue
+- `34a7b55ccbb8a1a3647fad35471fd4a72a0697c4` — expose knowledge freshness APIs
+- `67e0667a756ed094651451fa554ec2e86411cc91` — scientific dependency graph
+- `bf38c85d65f107ad8c61094cdc864764905b375c` — knowledge freshness
+- `dc29741b815631d2846ec16d9da4042e2c3126fd` — knowledge impact APIs
+- `ecc2d427a4e4d09cb4f5271b5af499ecb1d0b8b2` — knowledge impact analyzer
+- `3b57ce37d86030dcb13b351a7e6e596bbf457096` — intervention lifecycle
+- `f63d4e6e49fb910d42d1c8656cd0ce9011d76222` — admission/lifecycle APIs
+- `83507d790cebfe357cb401237a9ece3b74de4aff` — training admission enforcement
+- `b544a53410a9df6dffd20f2f7a77ad73c59da326` — scientific admission gates
+- `3b57ce37d86030dcb13b351a7e6e596bbf457096` — intervention lifecycle gates
+
+### Critical continuation rule
+Continue from the repository state; do not rebuild from scratch. Before implementing anything:
+1. inspect the current branch, recent commits, schema, tests, and existing services;
+2. reconcile this document with actual code rather than trusting it blindly;
+3. fix any regressions introduced by earlier work before adding new architecture;
+4. run the strongest available tests after each coherent slice;
+5. never report tests as passing unless they were actually run.
+
+### Immediate completion target
+The objective is to finish the current scientific operating-system stage end-to-end, not merely add more files.
+
+Prioritize in this order:
+1. full lifecycle integration tests
+2. harden EvidencePipeline resolution semantics, especially VERIFIED + UNCERTAIN
+3. complete knowledge-version admission/revalidation lifecycle
+4. make provenance graph cover evidence → finding → claim → intervention → training → decisions
+5. safety/adverse-event gates for training execution
+6. participant/data governance
+7. complete analysis/statistical execution and audit coverage
+8. bounded autonomous maintenance → task creation → authorized execution → review
+9. scientific AI runtime with structured evidence-aware outputs
+10. Training OS execution/progression
+11. real pilot infrastructure
+12. closed-loop outcome → research → training update
+
+### Autonomous continuation instruction
+When a user asks to "continue", "תמשיך", or equivalent, treat that as authorization to continue implementation from the current roadmap without asking which small feature to build next, unless a genuinely blocking product/scientific decision is required.
+
+The default behavior is:
+**inspect → implement → test → fix → integrate → commit → continue to the next coherent stage.**
+
+Do not stop after creating scaffolding if the stage can be completed. Do not add superficial UI/product features while core scientific infrastructure remains incomplete.
+
+### Preservation rule
+Never weaken an existing scientific gate merely to make a test, demo, dashboard, autonomous loop, or user experience pass. If two components conflict, preserve the stricter scientific interpretation and fix the integration.
+
+### Final system invariant
+HDS must remain a system in which:
+**AI can discover, reason, propose, research, experiment, measure, and improve — but cannot declare scientific truth by itself.**
+Human/authorized governance, evidence resolution, explicit lifecycle transitions, provenance, measurement, transfer, retention, and auditability remain the source of scientific state.
