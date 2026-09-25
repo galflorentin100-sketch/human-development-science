@@ -27,6 +27,14 @@ class ScientificAnalysisEngine:
             raise ValueError("frozen analysis plan contains invalid analysis_spec") from exc
         if not isinstance(spec,dict):
             raise ValueError("analysis_spec must be an object")
+        # freeze_analysis_plan stores the canonical payload as {spec, sha256}.
+        if "spec" in spec and isinstance(spec["spec"],str):
+            try:
+                spec=json.loads(spec["spec"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError("frozen analysis plan contains invalid nested spec") from exc
+        if not isinstance(spec,dict):
+            raise ValueError("analysis_spec must be an object")
         return spec
 
     def validate_analysis_spec(self, plan):
