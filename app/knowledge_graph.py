@@ -83,8 +83,6 @@ class KnowledgeDependencyGraph:
             edge("HYPOTHESIS",r.get("hypothesis"),"TESTED_BY","EXPERIMENT",r["id"])
         for r in self.db.all("SELECT er.id,er.experiment_id FROM experiment_results er JOIN experiments e ON e.id=er.experiment_id WHERE e.project_id=?",(project_id,)):
             edge("EXPERIMENT",r["experiment_id"],"HAS_RESULT","EXPERIMENT_RESULT",r["id"])
-        for r in self.db.all("SELECT o.id,o.study_id FROM study_outcomes o JOIN studies s ON s.id=o.study_id WHERE s.source_id IN (SELECT id FROM sources WHERE project_id=?)",(project_id,)):
-            edge("STUDY",r["study_id"],"HAS_OUTCOME","STUDY_OUTCOME",r["id"])
         return {"project_id":project_id,"created_edges":len(created),"edges":created,"policy":"only explicit, resolvable references are materialized"}
 
     def neighbors(self,project_id,node_type,node_id):
