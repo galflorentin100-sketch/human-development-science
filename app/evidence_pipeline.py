@@ -31,33 +31,47 @@ class EvidencePipeline:
         excerpt_hash=hashlib.sha256(excerpt.encode("utf-8")).hexdigest()
         self.db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(eid,claim_id,source_id,stance,excerpt,int(verified),actor,excerpt_hash,now()))
         return self.db.one("SELECT * FROM evidence WHERE id=?",(eid,))
+    def resolve(self,evidence_id):
+        evidence=self.db.one("SELECT * FROM evidence WHERE id=?",(evidence_id,))
+        if not evidence: raise ValueError("evidence not found")
+        reviews=self.db.all("SELECT verdict FROM evidence_reviews WHERE evidence_id=?",(evidence_id,))
+        verdicts={str(r["verdict"]).upper() for r in reviews}
+        if "VERIFIED" in verdicts and "REJECTED" in verdicts: state="CONFLICTED"
+        elif "VERIFIED" in verdicts: state="VERIFIED"
+        elif "REJECTED" in verdicts: state="REJECTED"
+        elif "UNCERTAIN" in verdicts: state="UNCERTAIN"
+        else: state="UNREVIEWED"
+        return {"evidence_id":evidence_id,"claim_id":evidence["claim_id"],"state":state,"review_count":len(reviews),
+                "source_id":evidence["source_id"],"stance":evidence["stance"],"excerpt_hash":evidence["excerpt_hash"]}
+
+    def claim_evidence_state(self,claim_id):
+        rows=self.db.all("SELECT id FROM evidence WHERE claim_id=? ORDER BY created_at",(claim_id,))
+        resolved=[self.resolve(r["id"]) for r in rows]
+        return {"claim_id":claim_id,"evidence":resolved,
+                "verified_support":sum(x["state"]=="VERIFIED" and x["stance"]=="SUPPORTS" for x in resolved),
+                "verified_contradict":sum(x["state"]=="VERIFIED" and x["stance"]=="CONTRADICTS" for x in resolved),
+                "conflicted":sum(x["state"]=="CONFLICTED" for x in resolved)}
+
     def review(self,evidence_id,reviewer,verdict,rationale):
         evidence=self.db.one("SELECT * FROM evidence WHERE id=?",(evidence_id,))
         if not evidence: raise ValueError("evidence not found")
         normalized=str(verdict).upper()
-        if normalized not in {"VERIFIED","REJECTED","UNCERTAIN"}:
-            raise ValueError("invalid evidence verdict")
-        if not rationale or not str(rationale).strip():
-            raise ValueError("review rationale is required")
+        if normalized not in {"VERIFIED","REJECTED","UNCERTAIN"}: raise ValueError("invalid evidence verdict")
+        if not rationale or not str(rationale).strip(): raise ValueError("review rationale is required")
         if evidence.get("created_by") not in (None, "", "system") and reviewer == evidence["created_by"]:
             raise ValueError("reviewer must be independent from the evidence creator")
         if self.db.one("SELECT 1 FROM evidence_reviews WHERE evidence_id=? AND reviewer=?",(evidence_id,reviewer)):
             raise ValueError("reviewer has already reviewed this evidence")
         rid=str(uuid4())
-        previous=self.db.all("SELECT verdict FROM evidence_reviews WHERE evidence_id=?",(evidence_id,))
         self.db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES (?,?,?,?,?,?)",(rid,evidence_id,reviewer,normalized,rationale,now()))
-        verdicts={row["verdict"] for row in previous} | {normalized}
-        if "REJECTED" in verdicts and "VERIFIED" in verdicts:
-            verified=0
-            claim_id=evidence["claim_id"]
-            claim=self.db.one("SELECT status FROM claims WHERE id=?",(claim_id,))
+        resolved=self.resolve(evidence_id)
+        self.db.execute("UPDATE evidence SET verified=? WHERE id=?",(1 if resolved["state"]=="VERIFIED" else 0,evidence_id))
+        if resolved["state"]=="CONFLICTED":
+            claim=self.db.one("SELECT status FROM claims WHERE id=?",(evidence["claim_id"],))
             if claim and claim["status"] in {"SUPPORTED","CONTRADICTED"}:
                 ts=now()
-                self.db.execute("UPDATE claims SET status='UNCERTAIN',review_required=1,updated_at=? WHERE id=?",(ts,claim_id))
+                self.db.execute("UPDATE claims SET status='UNCERTAIN',review_required=1,updated_at=? WHERE id=?",(ts,evidence["claim_id"]))
                 self.db.execute("INSERT INTO claim_state_transitions(id,claim_id,prior_status,new_status,actor,rationale,evidence_id,created_at) VALUES (?,?,?,?,?,?,?,?)",
-                    (str(uuid4()),claim_id,claim["status"],"UNCERTAIN",reviewer,"conflicting evidence review verdicts",evidence_id,ts))
-        else:
-            verified=1 if normalized=="VERIFIED" else 0
-        self.db.execute("UPDATE evidence SET verified=? WHERE id=?",(verified,evidence_id))
-        return self.db.one("SELECT * FROM evidence WHERE id=?",(evidence_id,))
+                    (str(uuid4()),evidence["claim_id"],claim["status"],"UNCERTAIN",reviewer,"conflicting evidence review verdicts",evidence_id,ts))
         return self.db.one("SELECT * FROM evidence_reviews WHERE id=?",(rid,))
+
