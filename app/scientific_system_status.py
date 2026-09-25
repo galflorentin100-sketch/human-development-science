@@ -14,6 +14,6 @@ class ScientificSystemStatus:
           "training_protocols":count("SELECT COUNT(*) n FROM training_protocols"),
           "supported_training_protocols":count("SELECT COUNT(*) n FROM training_protocols WHERE status='SUPPORTED'"),
           "open_improvements":count("SELECT COUNT(*) n FROM improvement_proposals WHERE status IN ('PROPOSED','EXPERIMENT')"),
-          "open_decisions":count("SELECT COUNT(*) n FROM organizational_decisions WHERE status='OPEN'),
+          "open_decisions":count("SELECT COUNT(*) n FROM organizational_decisions WHERE status='OPEN'"),
           "policy":"descriptive system health only; counts do not establish scientific efficacy"
         }
