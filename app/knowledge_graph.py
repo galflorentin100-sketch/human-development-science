@@ -77,8 +77,14 @@ class KnowledgeDependencyGraph:
             for ref in refs:
                 if self.db.one("SELECT id FROM evidence WHERE id=?",(str(ref),)):
                     edge("EVIDENCE",str(ref),"SUPPORTS_FINDING","FINDING",r["id"],[str(ref)])
-        for r in self.db.all("SELECT id FROM hds_experiments WHERE project_id=?",(project_id,)):
+        for r in self.db.all("SELECT id,research_question,intervention FROM hds_experiments WHERE project_id=?",(project_id,)):
             edge("PROJECT",project_id,"HAS_EXPERIMENT","EXPERIMENT",r["id"])
+            if self.db.one("SELECT id FROM research_questions WHERE id=? AND project_id=?",(r.get("research_question"),project_id)):
+                edge("QUESTION",r["research_question"],"TESTED_BY","EXPERIMENT",r["id"])
+            if self.db.one("SELECT id FROM interventions WHERE id=?",(r.get("intervention"),)):
+                edge("INTERVENTION",r["intervention"],"TESTED_BY","EXPERIMENT",r["id"])
+        for r in self.db.all("SELECT er.id,er.experiment_id FROM hds_experiment_results er JOIN hds_experiments e ON e.id=er.experiment_id WHERE e.project_id=?",(project_id,)):
+            edge("EXPERIMENT",r["experiment_id"],"HAS_RESULT","EXPERIMENT_RESULT",r["id"])
         for r in self.db.all("SELECT e.id,e.hypothesis FROM experiments e WHERE e.project_id=?",(project_id,)):
             edge("HYPOTHESIS",r.get("hypothesis"),"TESTED_BY","EXPERIMENT",r["id"])
         for r in self.db.all("SELECT er.id,er.experiment_id FROM experiment_results er JOIN experiments e ON e.id=er.experiment_id WHERE e.project_id=?",(project_id,)):
