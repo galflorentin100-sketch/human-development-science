@@ -3,7 +3,7 @@
 Generated findings are always candidates and are never silently promoted to FACT.
 """
 import json
-from app.research_findings import ResearchFindingService
+from app.research import ResearchFindingService
 
 class FindingGenerator:
     def __init__(self, db):
