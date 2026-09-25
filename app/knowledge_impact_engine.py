@@ -117,6 +117,15 @@ class KnowledgeImpactEngine:
             raise ValueError("decision must be ACCEPT or REJECT")
         status="ACCEPTED" if decision=="ACCEPT" else "REJECTED"
         self.db.execute("UPDATE knowledge_impact_reviews SET status=? WHERE id=? AND status='PROPOSED'",(status,review_id))
+        if decision=="ACCEPT":
+            from app.research_queue import ResearchQueue
+            ResearchQueue(self.db).propose(
+                row["project_id"],
+                question=f"Reassess knowledge affected by {row['source_type']}:{row['source_id']} ({row['affected_type']}:{row['affected_id']})",
+                rationale="Founder-approved impact review identified a dependency that should be reassessed.",
+                trigger_type="KNOWLEDGE_IMPACT_REVIEW",
+                priority="HIGH",
+            )
         self.db.audit("scientific.impact_reviewed","knowledge_impact_review",review_id,reviewer,
                       {"decision":decision,"rationale":rationale},now(),None)
         return self.db.one("SELECT * FROM knowledge_impact_reviews WHERE id=?",(review_id,))
