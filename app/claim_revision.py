@@ -18,11 +18,11 @@ class ClaimRevisionService:
             created_at TEXT NOT NULL
         )""")
         existing={r["name"] for r in self.db.all("PRAGMA table_info(claim_revisions)")}
-        additions={"prior_classification":"TEXT NOT NULL DEFAULT ''","prior_confidence":"REAL NOT NULL DEFAULT 0","new_classification":"TEXT NOT NULL DEFAULT ''","new_confidence":"REAL NOT NULL DEFAULT 0","reason":"TEXT NOT NULL DEFAULT ''","evidence_id":"TEXT","review_required":"INTEGER NOT NULL DEFAULT 1","previous_statement":"TEXT NOT NULL DEFAULT ''","new_statement":"TEXT NOT NULL DEFAULT ''","previous_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","new_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","rationale":"TEXT NOT NULL DEFAULT ''","evidence_refs":"TEXT NOT NULL DEFAULT '[]'","revised_by":"TEXT NOT NULL DEFAULT 'system'","status":"TEXT NOT NULL DEFAULT 'PROPOSED'"}
+        additions={"prior_classification":"TEXT NOT NULL DEFAULT ''","prior_confidence":"REAL NOT NULL DEFAULT 0","new_classification":"TEXT NOT NULL DEFAULT ''","new_confidence":"REAL NOT NULL DEFAULT 0","reason":"TEXT NOT NULL DEFAULT ''","evidence_id":"TEXT","review_required":"INTEGER NOT NULL DEFAULT 1","previous_statement":"TEXT NOT NULL DEFAULT ''","new_statement":"TEXT NOT NULL DEFAULT ''","previous_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","new_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","rationale":"TEXT NOT NULL DEFAULT ''","evidence_refs":"TEXT NOT NULL DEFAULT '[]'","revised_by":"TEXT NOT NULL DEFAULT 'system'","status":"TEXT NOT NULL DEFAULT 'PROPOSED'","source_finding_id":"TEXT"}
         for name,definition in additions.items():
             if name not in existing: self.db.execute(f"ALTER TABLE claim_revisions ADD COLUMN {name} {definition}")
 
-    def propose(self, claim_id, new_statement, new_status, rationale, evidence_refs=(), actor="system"):
+    def propose(self, claim_id, new_statement, new_status, rationale, evidence_refs=(), actor="system", source_finding_id=None):
         claim=self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
         if not claim: raise ValueError("claim not found")
         if not str(new_statement or "").strip() or not str(rationale or "").strip():
@@ -34,7 +34,7 @@ class ClaimRevisionService:
         self.db.execute("""INSERT INTO claim_revisions
             (id,claim_id,prior_classification,prior_confidence,new_classification,new_confidence,
              reason,evidence_id,review_required,previous_statement,new_statement,previous_status,
-             new_status,rationale,evidence_refs,revised_by,status,created_at)
+             new_status,rationale,evidence_refs,revised_by,status,source_finding_id,created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (i,claim_id,claim.get("classification",""),claim.get("confidence",0.0),
              claim.get("classification",""),claim.get("confidence",0.0),rationale,evidence_id,1,
