@@ -64,6 +64,26 @@ class ResearchQueue:
         )
         return self.get(item_id)
 
+    def begin(self, item_id, actor):
+        row=self.get(item_id)
+        if not row or row["status"]!="APPROVED":
+            raise ValueError("research item must be APPROVED before work begins")
+        from app.research_engine import ResearchEngine
+        engine=ResearchEngine(self.db)
+        existing=self.db.one(
+            "SELECT * FROM research_workspaces WHERE project_id=? AND question=? AND status IN ('DRAFT','ACTIVE','SYNTHESIS_READY','REVIEWED') LIMIT 1",
+            (row["project_id"],row["question"]))
+        workspace=existing or engine.create(
+            row["project_id"],row["question"],
+            scope="Created from founder-approved research queue item.",
+            owner=actor)
+        if workspace["status"]=="DRAFT":
+            workspace=engine.activate(workspace["id"],actor)
+        self.db.execute("UPDATE hds_research_queue SET status='IN_PROGRESS',updated_at=? WHERE id=? AND status='APPROVED'",(now(),item_id))
+        self.db.audit("research_queue.started","research_queue",item_id,actor,
+                       {"workspace_id":workspace["id"]},now(),str(uuid4()))
+        return {"queue_item":self.get(item_id),"workspace":workspace}
+
     def list(self, project_id, status=None):
         if status and status not in self.STATUSES:
             raise ValueError("invalid status")
