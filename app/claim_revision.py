@@ -65,7 +65,18 @@ class ClaimRevisionService:
         updated=self.db.one("SELECT * FROM claims WHERE id=?",(rev["claim_id"],))
         if updated and updated.get("project_id"):
             from app.knowledge_graph import KnowledgeDependencyGraph
+            from app.knowledge_impact_engine import KnowledgeImpactEngine
+            from app.research_queue import ResearchQueue
             KnowledgeDependencyGraph(self.db).sync_project(updated["project_id"], actor=reviewer)
+            impact=KnowledgeImpactEngine(self.db).propagate(
+                updated["project_id"],"claim",rev["claim_id"],actor=reviewer)
+            for affected in impact.get("affected",[]):
+                ResearchQueue(self.db).propose(
+                    updated["project_id"],
+                    question=f"Reassess knowledge affected by approved claim revision {revision_id}: {affected.get('type')}:{affected.get('id')}",
+                    rationale="Approved claim revision triggered a dependency-aware impact review.",
+                    priority="HIGH",
+                )
         return updated
 
     def history(self, claim_id):
