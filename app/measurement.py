@@ -15,7 +15,7 @@ class MeasurementRegistry:
         if self.db.one("SELECT 1 FROM study_measure_definitions WHERE study_id=? AND name=?",(study_id,name)): raise ValueError("measure already defined for study")
         if construct_id and not self.db.one("SELECT 1 FROM scientific_constructs WHERE id=?",(construct_id,)): raise ValueError("construct does not exist")
         i=str(uuid4())
-        self.db.execute("INSERT INTO study_measure_definitions(id,study_id,name,construct_id,operational_definition,method,scale_type,unit,reliability_note,validity_note,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(i,study_id,construct_id,operational_definition,method,scale_type,unit,reliability_note,validity_note,status,now()))
+        self.db.execute("INSERT INTO study_measure_definitions(id,study_id,name,construct_id,operational_definition,method,scale_type,unit,reliability_note,validity_note,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",(i,study_id,name,construct_id,operational_definition,method,scale_type,unit,reliability_note,validity_note,status,now()))
         return self.db.one("SELECT * FROM study_measure_definitions WHERE id=?",(i,))
 
     def bind(self,study_id,measure_id,observation_type,timepoint,required=True):
