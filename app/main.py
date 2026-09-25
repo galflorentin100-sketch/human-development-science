@@ -18,6 +18,7 @@ from app.autonomous_loop import AutonomousLoop
 from app.sc001 import SC001Protocol
 from app.science import ScientificRegistry
 from app.scientific_ai import ScientificAIGuard
+from app.measurement import MeasurementRegistry
 
 settings = Settings.load()
 db = database_from_settings(settings)
@@ -47,7 +48,7 @@ class InterventionRequest(BaseModel):
 class StudyParticipantRequest(BaseModel):
     study_id: str; external_ref: str = Field(min_length=1, max_length=200); consent_status: str = "CONSENTED"
 class StudyOutcomeRequest(BaseModel):
-    study_id: str; participant_id: str; outcome_name: str = Field(min_length=1); value: float | None = None; unit: str | None = None; session_id: str | None = None; missing_reason: str | None = None; observation_type: str = "TRAINING"
+    study_id: str; participant_id: str; outcome_name: str = Field(min_length=1); value: float | None = None; unit: str | None = None; session_id: str | None = None; missing_reason: str | None = None; observation_type: str = "TRAINING"; measure_id: str | None = None; timepoint: str | None = None
 
 def principal_from_header(x_external_subject: str | None = Header(default=None)) -> Principal:
     if not x_external_subject:
@@ -204,7 +205,17 @@ def study_participant(body: StudyParticipantRequest, principal: Principal = Depe
     require_write(principal); return StudyExecution(db).participant(body.study_id, body.external_ref, body.consent_status)
 @app.post("/api/studies/outcomes")
 def study_outcome(body: StudyOutcomeRequest, principal: Principal = Depends(principal_from_header)):
-    require_write(principal); return StudyExecution(db).outcome(body.study_id, body.participant_id, body.outcome_name, body.value, body.unit, body.session_id, body.missing_reason, body.observation_type)
+    require_write(principal); return StudyExecution(db).outcome(body.study_id, body.participant_id, body.outcome_name, body.value, body.unit, body.session_id, body.missing_reason, body.observation_type, body.measure_id, body.timepoint)
+@app.post("/api/studies/measures")
+def study_measure(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    return MeasurementRegistry(db).define(body["study_id"], body["name"], body["operational_definition"], body["method"], body["scale_type"], body.get("unit"), body.get("reliability_note",""), body.get("validity_note",""), body.get("construct_id"))
+
+@app.post("/api/studies/measure-bindings")
+def study_measure_binding(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    return MeasurementRegistry(db).bind(body["study_id"], body["measure_id"], body["observation_type"], body["timepoint"], body.get("required",True))
+
 @app.post("/api/studies/{study_id}/start")
 def study_start(study_id: str, principal: Principal = Depends(principal_from_header)):
     require_permission(principal, "EXECUTE")
