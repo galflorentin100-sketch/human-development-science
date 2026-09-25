@@ -969,6 +969,20 @@ def resolve_founder_approval(approval_id: str, status: str, principal: Principal
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.get("/api/founder/{project_id}/workflow")
+def founder_workflow(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.decision_center import DecisionCenter
+    decisions=DecisionCenter(db)
+    return {
+        "decisions": decisions.list(project_id),
+        "delegateable": decisions.delegateable(project_id),
+        "agent_outputs": db.all("SELECT * FROM agent_output_reviews WHERE project_id=? ORDER BY created_at DESC LIMIT 25",(project_id,)),
+        "findings": db.all("SELECT * FROM research_findings WHERE project_id=? ORDER BY created_at DESC LIMIT 25",(project_id,)),
+        "claim_revisions": db.all("SELECT cr.* FROM claim_revisions cr JOIN claims c ON c.id=cr.claim_id WHERE c.project_id=? ORDER BY cr.created_at DESC LIMIT 25",(project_id,)),
+        "impact_reviews": db.all("SELECT * FROM knowledge_impact_reviews WHERE project_id=? ORDER BY created_at DESC LIMIT 25",(project_id,)),
+    }
+
 @app.post("/api/science/delegate/{project_id}")
 def delegate_scientific_work(project_id: str, limit: int = 5, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
