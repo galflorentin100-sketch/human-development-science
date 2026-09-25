@@ -220,8 +220,7 @@ def _migrate_phase4(self):
         existing={row[1] for row in con.execute("PRAGMA table_info(training_protocols)")}
         for name,definition in {"source_claim_id":"TEXT REFERENCES claims(id)","intervention_id":"TEXT REFERENCES interventions(id)"}.items():
             if name not in existing: con.execute(f"ALTER TABLE training_protocols ADD COLUMN {name} {definition}")
-        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id)
-        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_measure_binding ON study_measure_bindings(study_id,measure_id,observation_type,timepoint)")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id)")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_measure_binding ON study_measure_bindings(study_id,measure_id,observation_type,timepoint)")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
 Database.migrate=_migrate_phase4
