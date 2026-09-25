@@ -19,6 +19,20 @@ CREATE TABLE IF NOT EXISTS research_questions (id TEXT PRIMARY KEY, project_id T
 CREATE TABLE IF NOT EXISTS agent_runs (id TEXT PRIMARY KEY, agent_id TEXT NOT NULL REFERENCES agents(id), task_id TEXT REFERENCES tasks(id), status TEXT NOT NULL, input_payload TEXT NOT NULL, output_payload TEXT NOT NULL, started_at TEXT NOT NULL, completed_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS evaluations (id TEXT PRIMARY KEY, agent_run_id TEXT NOT NULL REFERENCES agent_runs(id), evaluator TEXT NOT NULL, passed INTEGER NOT NULL, score REAL NOT NULL, details TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, actor TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS knowledge_freshness (
+ id TEXT PRIMARY KEY,
+ entity_type TEXT NOT NULL,
+ entity_id TEXT NOT NULL,
+ review_interval_days INTEGER NOT NULL,
+ last_validated_at TEXT NOT NULL,
+ next_review_at TEXT NOT NULL,
+ status TEXT NOT NULL,
+ owner TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ UNIQUE(entity_type,entity_id)
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_freshness_review ON knowledge_freshness(next_review_at,status);
 CREATE TABLE IF NOT EXISTS improvement_proposals (id TEXT PRIMARY KEY, title TEXT NOT NULL, area TEXT NOT NULL, hypothesis TEXT NOT NULL, success_metric TEXT NOT NULL, status TEXT NOT NULL, owner TEXT NOT NULL, experiment_design TEXT, baseline_note TEXT, experiment_result TEXT, outcome_note TEXT, evidence_ref TEXT, adopted_by TEXT, adoption_rationale TEXT, retired_by TEXT, retirement_rationale TEXT, created_at TEXT NOT NULL, updated_at TEXT);
 CREATE TABLE IF NOT EXISTS founder_briefs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), content TEXT NOT NULL, action_required INTEGER NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS failures (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), stage TEXT NOT NULL, expected_result TEXT NOT NULL, actual_result TEXT NOT NULL, root_cause TEXT NOT NULL, lesson TEXT NOT NULL, created_at TEXT NOT NULL);
