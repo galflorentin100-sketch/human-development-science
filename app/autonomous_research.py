@@ -23,6 +23,9 @@ class AutonomousResearchPlanner:
             candidates.append({"kind":"IMPROVEMENT","priority":50,"title":p["title"],"entity_id":p["id"],"reason":"unstarted improvement proposal"})
         for d in self.db.all("SELECT id,decision,status FROM organizational_decisions WHERE status='OPEN' ORDER BY created_at ASC LIMIT 20"):
             candidates.append({"kind":"DECISION_REVIEW","priority":40,"title":d["decision"],"entity_id":d["id"],"reason":"decision awaiting outcome review"})
+        from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
+        for p in AutonomousScientificMaintenance(self.db).propose()["proposals"]:
+            candidates.append({"kind":"SCIENTIFIC_MAINTENANCE","priority":95 if p["priority"]=="HIGH" else 70,"title":p["title"],"entity_id":p["entity_id"],"reason":p["reason"]})
         candidates.sort(key=lambda x:(-x["priority"],x["kind"],x["entity_id"]))
         return {"generated_at":_now(),"candidate_count":len(candidates),"next":candidates[:10],"selection_policy":"risk_and_evidence_gaps_first; no automatic state mutation"}
 
