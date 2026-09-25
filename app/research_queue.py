@@ -27,10 +27,15 @@ class ResearchQueue:
             updated_at TEXT NOT NULL
         )""")
 
-    def propose(self, project_id, question, rationale, trigger_type,
+    def propose(self, project_id, question, rationale, trigger_type="MANUAL",
                 evidence_refs=(), priority="NORMAL"):
         if not str(question or "").strip() or not str(rationale or "").strip():
             raise ValueError("question and rationale are required")
+        existing=self.db.one(
+            "SELECT * FROM hds_research_queue WHERE project_id=? AND question=? AND status IN ('PROPOSED','APPROVED','IN_PROGRESS') LIMIT 1",
+            (project_id,question))
+        if existing:
+            return existing
         if priority not in {"LOW", "NORMAL", "HIGH", "CRITICAL"}:
             raise ValueError("invalid priority")
         i = str(uuid4())
