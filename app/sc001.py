@@ -44,7 +44,7 @@ class SC001Protocol:
             exclusion_criteria="Any circumstance that prevents informed consent or safe completion of study procedures.",
             sample_size_target=60,
             allocation="Randomized intervention/control allocation.",
-            analysis_plan="Primary: goal execution rate; secondary: transfer and retention outcomes; report missingness explicitly."
+            analysis_plan=json.dumps({"outcome_name":"goal_execution_rate","registered_outcome_name":"goal_execution_rate","estimand":"between-arm difference in baseline-to-post change","population":"randomized participants","estimator":"unadjusted change-score difference","ci_method":"normal_approximation_95","missing_data_policy":"complete paired cases; report missingness; no imputation","multiplicity_policy":"primary outcome only for confirmatory interpretation; secondary outcomes descriptive","subgroup_policy":"none unless separately preregistered","stopping_rule":"fixed sample target; no outcome-based stopping","allowed_methods":["INFERENTIAL_RANDOMIZED_ARM","LONGITUDINAL_RETENTION"]},sort_keys=True)
         )
     def register(self,db,project_id):
         protocol=self.draft()
