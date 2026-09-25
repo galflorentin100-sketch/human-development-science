@@ -11,6 +11,12 @@ class ClaimChangeService:
         if not old: raise ValueError("claim not found")
         classification=new_classification or old["classification"]
         if classification not in VALID_CLASSIFICATIONS: raise ValueError("invalid claim classification")
+        if classification=="FACT":
+            if old["status"]!="SUPPORTED":
+                raise ValueError("FACT classification requires SUPPORTED claim state")
+            verified=self.db.one("SELECT 1 FROM evidence WHERE claim_id=? AND verified=1",(claim_id,))
+            if not verified:
+                raise ValueError("FACT classification requires verified evidence")
         confidence=old["confidence"] if new_confidence is None else float(new_confidence)
         if not 0.0<=confidence<=1.0: raise ValueError("confidence must be between 0 and 1")
         if evidence_id is not None:
