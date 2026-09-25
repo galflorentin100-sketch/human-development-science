@@ -46,7 +46,15 @@ class KnowledgeUpdateProposer:
         finding=self.db.one("SELECT * FROM research_findings WHERE id=?",(finding_id,))
         if not finding: raise ValueError("finding not found")
         if finding["status"]!="ACCEPTED": raise ValueError("finding must be ACCEPTED before proposing a claim revision")
-        if finding["review_required"] and not str(rationale or "").strip():
+        claim=self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
+        if not claim: raise ValueError("claim not found")
+        if claim["project_id"]!=finding["project_id"]:
+            raise ValueError("finding and claim must belong to the same project")
+        finding_refs=set(json.loads(finding["evidence_refs"] or "[]"))
+        proposed_refs=set(str(x) for x in evidence_refs)
+        if proposed_refs and not proposed_refs.issubset(finding_refs):
+            raise ValueError("claim revision evidence must be a subset of the accepted finding evidence")
+        if not str(rationale or "").strip():
             raise ValueError("rationale is required")
         revision=ClaimRevisionService(self.db).propose(
             claim_id,new_statement,new_status,rationale,evidence_refs,
