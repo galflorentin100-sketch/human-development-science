@@ -13,6 +13,7 @@ ROLE_MAP={
     "IMPACT":"knowledge-manager",
     "EXPERIMENT":"experiment-designer",
     "INTEGRITY":"evidence-auditor",
+    "AGENT_OUTPUT":"knowledge-manager",
 }
 
 class AgentDelegation:
