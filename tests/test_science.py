@@ -27,3 +27,22 @@ def test_intervention_evidence_is_structured(tmp_path):
     i=registry.intervention("x","rationale","mechanism","PLAUSIBLE","daily","adults")
     ev=registry.intervention_evidence(i["id"],"PILOT","study-001","pilot evidence")
     assert ev["evidence_kind"]=="PILOT"
+
+
+def test_scientific_interpretation_blocks_unsupported_causality():
+    from app.scientific_ai import ScientificAIGuard
+    guard=ScientificAIGuard()
+    try:
+        guard.validate_interpretation("The intervention caused a durable improvement.")
+        assert False
+    except ValueError as exc:
+        assert "unsupported" in str(exc)
+
+def test_scientific_interpretation_allows_qualified_inference():
+    from app.scientific_ai import ScientificAIGuard
+    statement=ScientificAIGuard().validate_interpretation(
+        "The randomized comparison was associated with a larger mean change.",
+        causal_design=False,
+        evidence_refs=("analysis-1",),
+    )
+    assert statement.classification=="INFERENCE"
