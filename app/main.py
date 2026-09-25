@@ -845,6 +845,14 @@ def scientific_impact_reviews(project_id: str, status: str = None, principal: Pr
     return KnowledgeImpactEngine(db).list(project_id, status)
 
 
+@app.post("/api/science/knowledge-graph/{project_id}/sync")
+def science_sync_knowledge_graph(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
+        raise HTTPException(404, "project not found")
+    from app.knowledge_graph import KnowledgeDependencyGraph
+    return KnowledgeDependencyGraph(db).sync_project(project_id, principal.user_id)
+
 @app.get("/api/science/knowledge-graph/{project_id}")
 def science_knowledge_graph(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
