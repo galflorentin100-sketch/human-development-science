@@ -62,7 +62,11 @@ class ClaimRevisionService:
                 (str(uuid4()),"claim.revised","claim",rev["claim_id"],reviewer,
                  json.dumps({"revision_id":revision_id,"rationale":rev["rationale"],
                              "evidence_refs":json.loads(rev["evidence_refs"] or "[]")},sort_keys=True),now()))
-        return self.db.one("SELECT * FROM claims WHERE id=?",(rev["claim_id"],))
+        updated=self.db.one("SELECT * FROM claims WHERE id=?",(rev["claim_id"],))
+        if updated and updated.get("project_id"):
+            from app.knowledge_graph import KnowledgeDependencyGraph
+            KnowledgeDependencyGraph(self.db).sync_project(updated["project_id"], actor=reviewer)
+        return updated
 
     def history(self, claim_id):
         return self.db.all("SELECT * FROM claim_revisions WHERE claim_id=? ORDER BY created_at",(claim_id,))
