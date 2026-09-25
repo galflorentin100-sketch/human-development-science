@@ -332,6 +332,12 @@ def list_training_protocols(project_id: str, status: str | None = None, principa
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).list(project_id,status)
 
+@app.post("/api/science/training-protocols/{protocol_id}/promote")
+def promote_training_protocol(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.training import TrainingProtocolService
+    return TrainingProtocolService(db).promote(protocol_id,body["status"],principal.user_id,body["rationale"])
+
 @app.get("/api/science/training-protocols/{protocol_id}/readiness")
 def training_protocol_readiness(protocol_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
