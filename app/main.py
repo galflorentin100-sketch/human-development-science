@@ -936,6 +936,15 @@ def science_knowledge_impact(project_id: str, node_type: str, node_id: str, dept
     return {**impact, "reviews_created": impact["node_count"],
             "guardrail": "Potential impact only; founder review is required before scientific state changes."}
 
+@app.post("/api/science/impact-review/{review_id}")
+def review_knowledge_impact(review_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    from app.knowledge_impact_engine import KnowledgeImpactEngine
+    try:
+        return KnowledgeImpactEngine(db).review(review_id,principal.user_id,decision,rationale)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
 @app.get("/api/founder/{project_id}/decisions")
 def founder_decisions(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
