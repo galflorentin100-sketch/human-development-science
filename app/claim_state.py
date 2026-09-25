@@ -3,6 +3,14 @@ from app.models import now
 
 VALID_STATES={"DRAFT","PROPOSED","SUPPORTED","CONTRADICTED","UNCERTAIN","RETIRED"}
 TERMINAL={"RETIRED"}
+ALLOWED_TRANSITIONS={
+    "DRAFT":{"PROPOSED","RETIRED"},
+    "PROPOSED":{"SUPPORTED","CONTRADICTED","UNCERTAIN","RETIRED"},
+    "SUPPORTED":{"UNCERTAIN","RETIRED"},
+    "CONTRADICTED":{"UNCERTAIN","RETIRED"},
+    "UNCERTAIN":{"SUPPORTED","CONTRADICTED","RETIRED"},
+    "RETIRED":set(),
+}
 
 class ClaimStateService:
     def __init__(self,db): self.db=db
@@ -19,6 +27,8 @@ class ClaimStateService:
         if new_status not in VALID_STATES: raise ValueError("invalid claim state")
         old=claim["status"] or "DRAFT"
         if old in TERMINAL: raise ValueError("retired claims cannot transition")
+        if new_status not in ALLOWED_TRANSITIONS.get(old,set()):
+            raise ValueError(f"invalid claim transition: {old} -> {new_status}")
         if not rationale.strip(): raise ValueError("rationale is required")
         if evidence_id:
             ev=self.db.one("SELECT * FROM evidence WHERE id=? AND claim_id=?",(evidence_id,claim_id))
