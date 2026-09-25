@@ -44,7 +44,10 @@ class ResearchFindingService:
         refs=json.dumps(list(evidence_refs),sort_keys=True)
         self.db.execute("INSERT INTO research_findings(id,project_id,source_type,source_id,statement,classification,status,evidence_refs,interpretation,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (i,project_id,source_type,source_id,statement,classification,"CANDIDATE",refs,interpretation,created_by,now()))
-        return self.db.one("SELECT * FROM research_findings WHERE id=?",(i,))
+        result=self.db.one("SELECT * FROM research_findings WHERE id=?",(i,))
+        from app.knowledge_graph import KnowledgeDependencyGraph
+        KnowledgeDependencyGraph(self.db).sync_project(project_id, created_by)
+        return result
 
     def review(self,finding_id,reviewer,decision,rationale):
         finding=self.db.one("SELECT * FROM research_findings WHERE id=?",(finding_id,))
