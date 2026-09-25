@@ -329,6 +329,7 @@ class ScientificAnalysisEngine:
                  f"{missing} of {n_total} participants lacked at least two observed TRAINING values.",
                  "Within-participant pre/post change among observed values; this does not establish that the intervention caused the change.",
                  now())
+            )
             for name,(value,denom) in metrics.items():
                 con.execute(
                     "INSERT INTO study_analysis_metrics(id,study_id,analysis_plan_id,outcome_name,metric_name,metric_value,denominator,note,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
