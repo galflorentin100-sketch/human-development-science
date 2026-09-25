@@ -350,6 +350,36 @@ def training_protocol_readiness(protocol_id: str, principal: Principal = Depends
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).readiness(protocol_id)
 
+@app.post("/api/organization/improvements")
+def propose_improvement(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).propose(body["title"],body["area"],body["hypothesis"],body["success_metric"],principal.subject)
+
+@app.post("/api/organization/improvements/{proposal_id}/experiment")
+def start_improvement_experiment(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).start_experiment(proposal_id,body["experiment_design"],body["baseline_note"],principal.subject)
+
+@app.post("/api/organization/improvements/{proposal_id}/result")
+def record_improvement_result(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).record_result(proposal_id,body["result"],body["outcome_note"],body.get("evidence_ref"))
+
+@app.post("/api/organization/improvements/{proposal_id}/adopt")
+def adopt_improvement(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).adopt(proposal_id,principal.subject,body["rationale"])
+
+@app.get("/api/organization/improvements")
+def list_improvements(area: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).backlog(area)
+
 @app.get("/api/science/ai-constraints")
 def science_ai_constraints(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
