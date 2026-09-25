@@ -35,11 +35,11 @@ class ClaimRevisionService:
             (id,claim_id,prior_classification,prior_confidence,new_classification,new_confidence,
              reason,evidence_id,review_required,previous_statement,new_statement,previous_status,
              new_status,rationale,evidence_refs,revised_by,status,source_finding_id,created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (i,claim_id,claim.get("classification",""),claim.get("confidence",0.0),
              claim.get("classification",""),claim.get("confidence",0.0),rationale,evidence_id,1,
              claim["statement"],new_statement,claim["status"],new_status,rationale,
-             json.dumps(refs,sort_keys=True),actor,"PROPOSED",now()))
+             json.dumps(refs,sort_keys=True),actor,"PROPOSED",source_finding_id,now()))
         return self.db.one("SELECT * FROM claim_revisions WHERE id=?",(i,))
 
     def approve(self, revision_id, reviewer):
