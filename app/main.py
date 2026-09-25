@@ -300,6 +300,44 @@ def science_intervention(body: InterventionRequest, principal: Principal = Depen
     require_write(principal)
     return ScientificRegistry(db).intervention(body.name, body.rationale, body.mechanism, body.evidence_level, body.dosage, body.population, body.target_construct_id)
 
+@app.post("/api/science/training-protocols")
+def create_training_protocol(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.training import TrainingProtocolService
+    return TrainingProtocolService(db).create(
+        body["project_id"],body["name"],body["mechanism_hypothesis"],body["challenge_domain"],
+        body["dosage"],body["progression_rule"],body["transfer_target"],body["retention_target"],
+        body["safety_constraints"],body.get("evidence_level","UNTESTED"),body.get("target_construct_id"),
+        body.get("status","DRAFT"),body.get("version",1))
+
+@app.post("/api/science/training-protocols/{protocol_id}/evidence")
+def attach_training_protocol_evidence(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.training import TrainingProtocolService
+    return TrainingProtocolService(db).attach_evidence(protocol_id,body["evidence_kind"],body["evidence_ref"],body.get("notes",""))
+
+@app.post("/api/science/training-protocols/{protocol_id}/sessions")
+def record_training_session(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.training import TrainingProtocolService
+    return TrainingProtocolService(db).session(
+        protocol_id,body["participant_ref"],body["session_number"],body["load_note"],body["adherence"],
+        body.get("task_success"),body.get("transfer_score"),body.get("retention_score"),
+        body.get("decision_accuracy"),body.get("initiation_latency"),body.get("recovery_score"),
+        body.get("fatigue_note",""))
+
+@app.get("/api/science/projects/{project_id}/training-protocols")
+def list_training_protocols(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.training import TrainingProtocolService
+    return TrainingProtocolService(db).list(project_id,status)
+
+@app.get("/api/science/training-protocols/{protocol_id}/readiness")
+def training_protocol_readiness(protocol_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.training import TrainingProtocolService
+    return TrainingProtocolService(db).readiness(protocol_id)
+
 @app.get("/api/science/ai-constraints")
 def science_ai_constraints(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
