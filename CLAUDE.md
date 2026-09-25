@@ -405,3 +405,47 @@ HDS should become capable of saying:
 "We need another experiment."
 
 Those are successful system states, not failures.
+
+
+## Continuation Contract — 2026-09
+When continuing the project, preserve the existing mission and architecture. Do not restart or redesign HDS from scratch. Inspect current code first and continue from the highest-value unfinished item.
+
+### Non-negotiable scientific rules
+- Never invent studies, statistics, participants, measurements, citations, evidence, or outcomes.
+- Explicitly distinguish FACT, INFERENCE, HYPOTHESIS, and OPINION.
+- Evidence must be traceable and independently reviewable.
+- Contradictory or unresolved evidence increases uncertainty; it is never silently ignored.
+- Never silently upgrade, downgrade, retire, or rewrite scientific truth.
+- Training claims require measurement; generalization requires observed transfer; durability requires observed retention.
+- Training theory is itself a hypothesis unless supported by evidence.
+- AI may propose and analyze, but must not autonomously decide scientific truth or approve evidence.
+- Prefer conservative uncertainty to unsupported certainty.
+- Every important state change must be auditable.
+
+### Scientific chain
+Evidence -> Review -> Finding -> Claim -> Intervention -> Training Protocol -> Measurement -> Transfer -> Retention -> Analysis -> Finding -> Knowledge update.
+
+### Engineering chain
+Problem -> Hypothesis -> Experiment -> Measurement -> Result -> Decision -> Adoption/Rejection -> Re-check.
+
+### Current architecture to preserve
+Evidence provenance; reviewer resolution; Claim state machine; immutable revisions; Scientific AI Guard; findings lifecycle; Finding->Claim bridge; knowledge versioning; intervention lifecycle/admission; training protocol lifecycle/admission; transfer/retention gates; scientific completion; continuous improvement; decision registry; self-audit; lab board; autonomous research planning; knowledge impact; dependency graph; freshness/revalidation; review queue.
+
+### Immediate build order
+1. End-to-end integration tests across Evidence -> Finding -> Claim -> Intervention -> Training -> Measurement -> Transfer -> Retention.
+2. Harden Evidence Resolution: VERIFIED only -> VERIFIED; any UNCERTAIN -> UNCERTAIN/REVIEW_REQUIRED; VERIFIED+REJECTED -> CONFLICTED; REJECTED only -> REJECTED.
+3. Complete Claim -> Knowledge Version lifecycle and downstream invalidation/review.
+4. Complete provenance graph Evidence -> Claim -> Intervention -> Training.
+5. Add safety/adverse-event gates before practical training execution.
+6. Harden participant/data governance, consent, withdrawal, missingness and protocol deviations.
+7. Expand preregistered statistics only when justified by the study design.
+8. Connect autonomous maintenance proposals to bounded, auditable research tasks; never allow autonomous scientific state mutation.
+9. Build structured scientific AI runtime with provenance, uncertainty and alternative explanations.
+10. Build the practical Training OS only after the scientific gates are reliable.
+11. Run a real human pilot only after safety, consent, measurement and analysis gates are ready.
+
+### Coding rules
+Inspect before editing. Reuse existing services/schema. Add tests for positive and negative/bypass paths. Do not claim CI/tests are green unless actually verified. Preserve backward compatibility or document migrations. Read-only analysis remains read-only. Autonomous planners propose work only; normal permission, approval, cost and evidence gates still apply.
+
+### Definition of done
+A feature is not done because its happy path works. It must work end-to-end, reject invalid states, resist bypasses, preserve provenance, produce auditable changes, expose uncertainty, have positive and negative tests, integrate with the existing architecture, and never silently change scientific truth.
