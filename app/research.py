@@ -52,10 +52,33 @@ class ResearchFindingService:
         if decision not in {"ACCEPTED","REJECTED"}: raise ValueError("decision must be ACCEPTED or REJECTED")
         if not rationale or not rationale.strip(): raise ValueError("review rationale is required")
         if finding["created_by"]==reviewer and reviewer!="system": raise ValueError("reviewer must be independent")
+        refs=json.loads(finding["evidence_refs"] or "[]")
+        if not isinstance(refs,list): raise ValueError("finding evidence_refs must be a list")
+        if finding["interpretation"]:
+            from app.scientific_ai import ScientificAIGuard
+            ScientificAIGuard().validate_interpretation(
+                finding["interpretation"],
+                evidence_refs=tuple(str(x) for x in refs),
+                causal_design=False,
+                retention_observed=False,
+                transfer_observed=False,
+            )
+        if decision=="ACCEPTED":
+            if not refs:
+                raise ValueError("ACCEPTED finding requires at least one evidence reference")
+            from app.evidence_pipeline import EvidencePipeline
+            pipeline=EvidencePipeline(self.db)
+            for ref in refs:
+                evidence=self.db.one("SELECT id FROM evidence WHERE id=?",(str(ref),))
+                if not evidence: raise ValueError("finding references unknown evidence")
+                resolution=pipeline.resolve(str(ref))
+                if resolution["state"]!="VERIFIED":
+                    raise ValueError("ACCEPTED finding requires all referenced evidence to be VERIFIED")
         status=decision
-        self.db.execute("UPDATE research_findings SET status=?,reviewed_by=?,reviewed_at=? WHERE id=?",(status,reviewer,now(),finding_id))
+        ts=now()
+        self.db.execute("UPDATE research_findings SET status=?,reviewed_by=?,reviewed_at=? WHERE id=?",(status,reviewer,ts,finding_id))
         self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
-            (str(uuid4()),"research_finding.reviewed","research_finding",finding_id,reviewer,json.dumps({"decision":decision,"rationale":rationale},sort_keys=True),now()))
+            (str(uuid4()),"research_finding.reviewed","research_finding",finding_id,reviewer,json.dumps({"decision":decision,"rationale":rationale,"evidence_refs":refs},sort_keys=True),ts))
         return self.db.one("SELECT * FROM research_findings WHERE id=?",(finding_id,))
 
     def list(self,project_id,status=None):
