@@ -71,6 +71,17 @@ class SC001Protocol:
         db.audit("research.protocol_registered","study",study["id"],"experiment-designer",{"protocol_id":protocol.id,"quality_gates":gates,"protocol_hash":digest,"approval_id":approval["id"]},now(),str(uuid4()))
         return {"protocol":protocol,"quality_gates":gates,"hypothesis":hypothesis,"experiment":experiment,"measurements":definitions,"study":db.one("SELECT * FROM studies WHERE id=?",(study["id"],)),"approval":approval}
     def quality_gates(self,protocol:StudyProtocol):
+        import json
+        try:
+            spec=json.loads(protocol.analysis_plan)
+        except (TypeError, ValueError):
+            spec={}
+        required=("outcome_name","registered_outcome_name","estimand","population","estimator",
+                  "ci_method","missing_data_policy","multiplicity_policy","subgroup_policy",
+                  "stopping_rule","allowed_methods")
+        analysis_contract={k:bool(spec.get(k)) for k in required}
+        analysis_contract["allowed_methods_nonempty"]=isinstance(spec.get("allowed_methods"),list) and bool(spec.get("allowed_methods"))
+        all_contract=all(analysis_contract.values())
         return {
             "falsifiable_question":bool(protocol.question),
             "primary_outcome_defined":bool(protocol.primary_outcome.definition),
@@ -83,6 +94,8 @@ class SC001Protocol:
             "sample_size_defined":protocol.sample_size_target>0,
             "allocation_defined":bool(protocol.allocation),
             "analysis_plan_defined":bool(protocol.analysis_plan),
+            "analysis_contract_defined":all_contract,
+            "analysis_contract_fields":analysis_contract,
             "measurement_schema_defined":all(bool(o.name and o.definition and o.unit) for o in (protocol.primary_outcome,)+protocol.transfer_outcomes),
-            "status":"READY_FOR_REVIEW" if all([bool(protocol.question),bool(protocol.primary_outcome.definition),len(protocol.transfer_outcomes)>=1,len(protocol.retention_timepoints)>=1,bool(protocol.control),bool(protocol.population),bool(protocol.inclusion_criteria),bool(protocol.exclusion_criteria),protocol.sample_size_target>0,bool(protocol.allocation),bool(protocol.analysis_plan),all(bool(o.name and o.definition and o.unit) for o in (protocol.primary_outcome,)+protocol.transfer_outcomes)]) else "BLOCKED"
+            "status":"READY_FOR_REVIEW" if all([bool(protocol.question),bool(protocol.primary_outcome.definition),len(protocol.transfer_outcomes)>=1,len(protocol.retention_timepoints)>=1,bool(protocol.control),bool(protocol.population),bool(protocol.inclusion_criteria),bool(protocol.exclusion_criteria),protocol.sample_size_target>0,bool(protocol.allocation),bool(protocol.analysis_plan),all(bool(o.name and o.definition and o.unit) for o in (protocol.primary_outcome,)+protocol.transfer_outcomes),all_contract]) else "BLOCKED"
         }
