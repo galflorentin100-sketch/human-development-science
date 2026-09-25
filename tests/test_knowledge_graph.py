@@ -43,3 +43,16 @@ def test_sync_materializes_only_resolvable_explicit_relationships(tmp_path):
     assert result["created_edges"] >= 3
     graph=KnowledgeDependencyGraph(db).build(pid)
     assert any(e["relation"]=="GROUNDS" and e["from_id"]==claim for e in graph["edges"])
+
+
+def test_sync_connects_experiment_and_result(tmp_path):
+    db=Database(str(tmp_path/"experiment.db")); ResearchCycle(db); pid=_setup(db)
+    from app.research import ResearchRepository
+    h=ResearchRepository(db).hypothesis(pid,"Does training improve retention?")
+    e=ResearchRepository(db).experiment(pid,h["id"],"pre-post")
+    ResearchRepository(db).result(e["id"],"retention improved","descriptive result")
+    result=KnowledgeDependencyGraph(db).sync_project(pid)
+    graph=KnowledgeDependencyGraph(db).build(pid)
+    assert any(x["relation"]=="TESTED_BY" and x["to_id"]==e["id"] for x in graph["edges"])
+    assert any(x["relation"]=="HAS_RESULT" and x["from_id"]==e["id"] for x in graph["edges"])
+    assert result["created_edges"] >= 2
