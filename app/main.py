@@ -39,6 +39,21 @@ class Goal(BaseModel):
     goal: str = Field(min_length=1, max_length=2000)
 class ResearchRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
+class ResearchWorkspaceRequest(BaseModel):
+    project_id: str
+    question: str = Field(min_length=1, max_length=4000)
+    scope: str = ""
+    inclusion_rules: list[str] = []
+    exclusion_rules: list[str] = []
+class ResearchSourceRequest(BaseModel):
+    source_id: str
+    relevance: str = "UNASSESSED"
+    notes: str = ""
+    content: str | None = None
+class ResearchSynthesisRequest(BaseModel):
+    synthesis: str = Field(min_length=1, max_length=20000)
+    limitations: str = ""
+    uncertainty: str = ""
 class ExperimentRequest(BaseModel):
     project_id: str; hypothesis: str = Field(min_length=1); design: str = Field(min_length=1)
 class ConstructRequest(BaseModel):
@@ -94,6 +109,68 @@ def ready():
     except Exception as exc:
         raise HTTPException(status_code=503, detail="service not ready") from exc
     return {"status": "ready", "database": True, "agents": True}
+
+@app.post("/api/science/research-workspaces")
+def create_research_workspace(req: ResearchWorkspaceRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.research_engine import ResearchEngine
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (req.project_id,)):
+        raise HTTPException(404, "project not found")
+    return ResearchEngine(db).create(req.project_id,req.question,req.scope,req.inclusion_rules,req.exclusion_rules,principal.user_id)
+
+@app.get("/api/science/research-workspaces/{project_id}")
+def list_research_workspaces(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.research_engine import ResearchEngine
+    return {"items":ResearchEngine(db).list(project_id,status)}
+
+@app.get("/api/science/research-workspaces/{project_id}/{workspace_id}")
+def get_research_workspace(project_id: str, workspace_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.research_engine import ResearchEngine
+    try:
+        row=ResearchEngine(db).get(workspace_id)
+    except ValueError as exc:
+        raise HTTPException(404,str(exc)) from exc
+    if row["project_id"]!=project_id:
+        raise HTTPException(404,"research workspace not found")
+    return row
+
+@app.post("/api/science/research-workspaces/{workspace_id}/activate")
+def activate_research_workspace(workspace_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.research_engine import ResearchEngine
+    try:
+        return ResearchEngine(db).activate(workspace_id,principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/science/research-workspaces/{workspace_id}/sources")
+def add_research_source(workspace_id: str, req: ResearchSourceRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.research_engine import ResearchEngine
+    try:
+        return ResearchEngine(db).add_source(workspace_id,req.source_id,req.relevance,req.notes,req.content)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/science/research-workspaces/{workspace_id}/synthesize")
+def synthesize_research_workspace(workspace_id: str, req: ResearchSynthesisRequest, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.research_engine import ResearchEngine
+    try:
+        return ResearchEngine(db).synthesize(workspace_id,req.synthesis,req.limitations,req.uncertainty,principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/science/research-syntheses/{synthesis_id}/review")
+def review_research_synthesis(synthesis_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    from app.research_engine import ResearchEngine
+    try:
+        return ResearchEngine(db).review(synthesis_id,principal.user_id,decision.upper(),rationale)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
 
 @app.get("/api/science/system-health")
 def science_system_health(principal: Principal = Depends(principal_from_header)):
