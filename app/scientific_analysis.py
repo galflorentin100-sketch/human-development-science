@@ -263,6 +263,14 @@ class ScientificAnalysisEngine:
                 "metrics":self.db.all("SELECT metric_name,metric_value,denominator,note FROM study_analysis_metrics WHERE study_id=? AND analysis_plan_id=? AND outcome_name=?",(study_id,analysis_plan_id,outcome_name)),
                 "retention":retention}
 
+    def analysis_audit(self, study_id, analysis_plan_id, outcome_name=None):
+        q="SELECT * FROM study_analysis_audit WHERE study_id=? AND analysis_plan_id=?"
+        args=[study_id,analysis_plan_id]
+        if outcome_name is not None:
+            q+=" AND analysis_result_id IN (SELECT id FROM study_analysis_results WHERE outcome_name=?)"
+            args.append(outcome_name)
+        return self.db.all(q+" ORDER BY created_at",tuple(args))
+
     def _arm_retention(self, study_id, outcome_name):
         rows=self.db.all(
             "SELECT a.arm,o.value FROM study_assignments a JOIN study_outcomes o ON o.participant_id=a.participant_id AND o.study_id=a.study_id WHERE a.study_id=? AND o.outcome_name=? AND o.observation_type='RETENTION' AND o.value IS NOT NULL",
