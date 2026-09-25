@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS study_outcomes (id TEXT PRIMARY KEY, study_id TEXT NO
 CREATE TABLE IF NOT EXISTS study_adherence (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), participant_id TEXT NOT NULL REFERENCES study_participants(id), session_id TEXT REFERENCES study_sessions(id), planned INTEGER NOT NULL, completed INTEGER NOT NULL, adherence_note TEXT, recorded_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS study_analysis_plans (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), version INTEGER NOT NULL, analysis_spec TEXT NOT NULL, frozen INTEGER NOT NULL DEFAULT 0, frozen_at TEXT, created_at TEXT NOT NULL, UNIQUE(study_id,version));
 CREATE TABLE IF NOT EXISTS study_analysis_results (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), analysis_plan_id TEXT NOT NULL REFERENCES study_analysis_plans(id), outcome_name TEXT NOT NULL, n_total INTEGER NOT NULL, n_observed INTEGER NOT NULL, estimate REAL, uncertainty TEXT, missing_data_note TEXT, interpretation TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS study_measure_definitions (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), name TEXT NOT NULL, construct_id TEXT REFERENCES scientific_constructs(id), operational_definition TEXT NOT NULL, method TEXT NOT NULL, scale_type TEXT NOT NULL, unit TEXT, reliability_note TEXT NOT NULL, validity_note TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(study_id,name));
+CREATE TABLE IF NOT EXISTS study_measure_bindings (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), measure_id TEXT NOT NULL REFERENCES study_measure_definitions(id), observation_type TEXT NOT NULL, timepoint TEXT NOT NULL, required INTEGER NOT NULL DEFAULT 1, UNIQUE(study_id,measure_id,observation_type,timepoint));
 CREATE INDEX IF NOT EXISTS idx_goals_company_status ON goals(company_id,status);
 CREATE INDEX IF NOT EXISTS idx_decisions_company_created ON decisions(company_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
@@ -139,8 +141,10 @@ def _migrate_phase4(self):
         if "observation_type" not in existing:
             con.execute("ALTER TABLE study_outcomes ADD COLUMN observation_type TEXT NOT NULL DEFAULT 'TRAINING'")
         con.executescript(PHASE3_SCHEMA); con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA); con.executescript(PHASE6_SCHEMA)
-        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id)")
-        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id)
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_measure_binding ON study_measure_bindings(study_id,measure_id,observation_type,timepoint)")")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_measure_binding ON study_measure_bindings(study_id,measure_id,observation_type,timepoint)")
+            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
 Database.migrate=_migrate_phase4
 class DatabaseConfigurationError(RuntimeError): pass
 class PostgreSQLDatabase:
