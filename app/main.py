@@ -198,6 +198,8 @@ def validate_scientific_interpretation(req: InterpretationRequest, principal: Pr
     ).__dict__
 
 
+@app.get("/api/studies/{study_id}/analysis/{analysis_plan_id}/audit")
+
 def study_analysis_audit(study_id: str, analysis_plan_id: str, outcome_name: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     return ScientificAnalysisEngine(db).analysis_audit(study_id, analysis_plan_id, outcome_name)
