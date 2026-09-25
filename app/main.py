@@ -845,6 +845,54 @@ def scientific_impact_reviews(project_id: str, status: str = None, principal: Pr
     return KnowledgeImpactEngine(db).list(project_id, status)
 
 
+@app.get("/api/science/knowledge-graph/{project_id}")
+def science_knowledge_graph(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
+        raise HTTPException(404, "project not found")
+    from app.knowledge_graph import KnowledgeDependencyGraph
+    return KnowledgeDependencyGraph(db).build(project_id)
+
+@app.get("/api/science/knowledge-graph/{project_id}/trace/{node_type}/{node_id}")
+def science_knowledge_trace(project_id: str, node_type: str, node_id: str, depth: int = 4, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
+        raise HTTPException(404, "project not found")
+    if depth < 0 or depth > 10:
+        raise HTTPException(400, "depth must be between 0 and 10")
+    from app.knowledge_graph import KnowledgeDependencyGraph
+    return KnowledgeDependencyGraph(db).trace(project_id, node_type.upper(), node_id, depth)
+
+@app.post("/api/science/knowledge-graph/{project_id}/edges")
+def science_add_knowledge_edge(project_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
+        raise HTTPException(404, "project not found")
+    from app.knowledge_graph import KnowledgeDependencyGraph
+    return KnowledgeDependencyGraph(db).add_edge(
+        project_id, body["from_type"].upper(), body["from_id"], body["relation"].upper(),
+        body["to_type"].upper(), body["to_id"], body.get("provenance_refs", ()), principal.user_id)
+
+@app.post("/api/science/knowledge-graph/{project_id}/impact/{node_type}/{node_id}")
+def science_knowledge_impact(project_id: str, node_type: str, node_id: str, depth: int = 4, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
+        raise HTTPException(404, "project not found")
+    if depth < 0 or depth > 10:
+        raise HTTPException(400, "depth must be between 0 and 10")
+    from app.knowledge_graph import KnowledgeDependencyGraph
+    from app.knowledge_impact_engine import KnowledgeImpactEngine
+    graph = KnowledgeDependencyGraph(db)
+    impact = graph.impacted(project_id, node_type.upper(), node_id, depth)
+    for item in impact["affected"]:
+        db.execute("""INSERT OR IGNORE INTO knowledge_impact_reviews
+            (id,project_id,source_type,source_id,impact_type,affected_type,affected_id,reason,status,created_at)
+            VALUES (lower(hex(randomblob(16))),?,?,?,?,?,?,?,?,datetime('now'))""",
+            (project_id,node_type.upper(),str(node_id),"GRAPH_DEPENDENCY",item["type"],item["id"],
+             "Explicit knowledge-graph dependency","PROPOSED"))
+    return {**impact, "reviews_created": impact["node_count"],
+            "guardrail": "Potential impact only; founder review is required before scientific state changes."}
+
 @app.get("/api/founder/{project_id}/decisions")
 def founder_decisions(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
