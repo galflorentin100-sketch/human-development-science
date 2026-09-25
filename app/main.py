@@ -95,6 +95,12 @@ def ready():
         raise HTTPException(status_code=503, detail="service not ready") from exc
     return {"status": "ready", "database": True, "agents": True}
 
+@app.get("/api/science/system-health")
+def science_system_health(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.scientific_system_health import ScientificSystemHealth
+    return ScientificSystemHealth(db).snapshot()
+
 @app.get("/api/operations")
 def operations(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
