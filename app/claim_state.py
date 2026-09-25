@@ -30,8 +30,6 @@ class ClaimStateService:
         if new_status=="CONTRADICTED":
             if contradict < 1 or evidence_id is None: raise ValueError("CONTRADICTED requires verified contradicting evidence")
             if support > 0: raise ValueError("conflicting verified evidence requires UNCERTAIN status")
-        if new_status in {"PROPOSED","UNCERTAIN"} and evidence_id is None and new_status=="PROPOSED":
-            raise ValueError("PROPOSED requires an evidence reference or explicit hypothesis transition")
         ts=now(); tid=str(uuid4())
         with self.db.transaction() as con:
             con.execute("UPDATE claims SET status=?,updated_at=?,review_required=? WHERE id=?",(new_status,ts,1 if new_status in {"PROPOSED","UNCERTAIN"} else 0,claim_id))
