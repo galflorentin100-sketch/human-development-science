@@ -19,6 +19,7 @@ from app.sc001 import SC001Protocol
 from app.science import ScientificRegistry
 from app.scientific_ai import ScientificAIGuard
 from app.measurement import MeasurementRegistry
+from app.claim_state import ClaimStateService
 
 settings = Settings.load()
 db = database_from_settings(settings)
@@ -177,6 +178,16 @@ def sc001_register(project_id: str, principal: Principal = Depends(principal_fro
     require_write(principal)
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)): raise HTTPException(404, "project not found")
     return SC001Protocol().register(db, project_id)
+@app.post("/api/science/claims/{claim_id}/transition")
+def transition_claim(claim_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    return ClaimStateService(db).transition(claim_id, body["status"], principal.subject, body["rationale"], body.get("evidence_id"))
+
+@app.get("/api/science/claims/{claim_id}/evidence-state")
+def claim_evidence_state(claim_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    return ClaimStateService(db).evidence_state(claim_id)
+
 @app.post("/api/science/constructs")
 def science_construct(body: ConstructRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
