@@ -1039,11 +1039,14 @@ def review_agent_output(review_id: str, decision: str, rationale: str, principal
     return AgentOutputGate(db).review(review_id,principal.user_id,decision,rationale)
 
 
-@app.post("/api/science/agent-output/{review_id}/candidate-finding")
-def candidate_finding_from_agent_output(review_id: str, principal: Principal = Depends(principal_from_header)):
-    require_execute(principal)
-    from app.knowledge_update_proposer import KnowledgeUpdateProposer
-    return KnowledgeUpdateProposer(db).propose_from_output(review_id)
+@app.post("/api/science/findings/{finding_id}/review")
+def review_scientific_finding(finding_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    from app.research import ResearchFindingService
+    try:
+        return ResearchFindingService(db).review(finding_id,principal.user_id,decision.upper(),rationale)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
 
 @app.post("/api/science/findings/{finding_id}/claim-revision")
 def propose_claim_revision_from_finding(finding_id: str, claim_id: str, new_statement: str, new_status: str, rationale: str, evidence_refs: list[str] | None = None, principal: Principal = Depends(principal_from_header)):
