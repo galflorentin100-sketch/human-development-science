@@ -1,5 +1,17 @@
 # Claude Handoff — HDS
 
+> This document is an execution handoff, not a new product specification. Preserve the existing mission and architecture.
+
+## Mission lock
+HDS is a scientific organization first and a practical human-development/training system second. Its permanent loop is: research → evidence → findings → claims → interventions → training → measurement → transfer → retention → review → updated knowledge. Do not turn it into generic self-help or an unverified training-content platform.
+
+## Current branch
+`hds-scientific-provenance`
+
+## Important existing modules
+`scientific_admission.py`, `intervention_lifecycle.py`, `knowledge_impact.py`, `knowledge_graph.py`, `knowledge_review_queue.py`, `knowledge_freshness.py`, `autonomous_scientific_maintenance.py`, `autonomous_research.py`, `scientific_training_pipeline.py`, `outcome_feedback.py`, `finding_claim_bridge.py`, `scientific_completion.py`, `self_audit.py`, `lab_board.py`.
+
+
 ## Purpose
 Continue the existing HDS project without changing its mission, architecture, scientific standards, or training-first direction.
 
