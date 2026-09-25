@@ -24,9 +24,11 @@ class DecisionCenter:
         # Surface accepted agent-output reviews as a distinct founder decision:
         # conversion into a finding is still gated and never automatic.
         for r in self.db.all("SELECT * FROM agent_output_reviews WHERE project_id=? AND status='ACCEPTED' ORDER BY created_at DESC",(project_id,)):
-            items.append({"type":"AGENT_OUTPUT","id":r["id"],"priority":"HIGH",
-                          "title":f"Review accepted agent output {r['id']}",
-                          "reason":"Accepted output is eligible for candidate-finding creation; human decision remains required."})
+            existing=self.db.one("SELECT id,status FROM research_findings WHERE project_id=? AND source_type='AGENT_OUTPUT' AND source_id=? LIMIT 1",(project_id,r["agent_run_id"]))
+            if not existing:
+                items.append({"type":"AGENT_OUTPUT","id":r["id"],"priority":"HIGH",
+                              "title":f"Review accepted agent output {r['id']}",
+                              "reason":"Accepted output is eligible for candidate-finding creation; human decision remains required."})
         for item in items:
             item["next_action"]={
                 "RESEARCH":"delegate_research",
