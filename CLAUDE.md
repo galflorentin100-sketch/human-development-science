@@ -299,3 +299,109 @@ Never weaken an existing scientific gate merely to make a test, demo, dashboard,
 HDS must remain a system in which:
 **AI can discover, reason, propose, research, experiment, measure, and improve — but cannot declare scientific truth by itself.**
 Human/authorized governance, evidence resolution, explicit lifecycle transitions, provenance, measurement, transfer, retention, and auditability remain the source of scientific state.
+
+
+## Continuation protocol — canonical handoff for Claude/Codex/AI agents
+
+This file is the canonical project instruction. When continuing HDS, preserve the existing architecture and purpose. Do not restart, replace, simplify, or redesign the project merely because another implementation would be cleaner.
+
+### North Star
+Build the most scientifically rigorous, self-correcting, AI-native human-development organization and training system possible: discover what develops human capabilities, measure it, test mechanisms, convert sufficiently supported findings into training, test transfer and retention, and continuously improve the organization without allowing speed or product pressure to weaken scientific validity.
+
+The objective is NOT:
+- a generic self-help product
+- a motivational chatbot
+- a content library
+- a fitness tracker
+- an LLM that declares what is true
+- a system that optimizes for impressive demos instead of validated human outcomes
+
+The objective IS:
+- scientific discovery
+- rigorous measurement
+- auditable evidence
+- falsifiable hypotheses
+- experimentally validated interventions
+- practical training
+- human outcomes
+- transfer to real life
+- retention over time
+- continuous self-correction
+
+### Continuation rules
+1. Start by inspecting the current branch, recent commits, README, CLAUDE.md, schema and relevant tests.
+2. Continue from existing implementation. Never recreate an existing subsystem from scratch.
+3. Before changing a scientific rule, identify every downstream dependency and add/update tests.
+4. Prefer small, composable modules with explicit lifecycle gates over implicit behavior.
+5. Every new scientific state transition must be auditable and reversible through an explicit transition; never silently mutate truth.
+6. Every autonomous capability must be bounded, permission-aware, approval-aware, cost-aware, safety-aware and idempotent.
+7. Never let an LLM output directly become scientific evidence, a fact, a supported claim, an intervention status, or a validated training protocol.
+8. When evidence is missing, the correct behavior is to preserve UNKNOWN/UNSUPPORTED state and create a research task.
+9. Descriptive measurements are not causal evidence.
+10. Provenance establishes traceability, not efficacy.
+11. Transfer and retention must be measured rather than assumed.
+12. Any new automation must have failure-path tests, not only happy-path tests.
+13. Do not claim tests are passing unless they were actually executed and the result is known.
+14. Do not claim production readiness unless the relevant production safeguards have actually been verified.
+15. Preserve backward compatibility where practical; if a breaking change is necessary, document migration and update tests.
+
+### Current implementation direction
+The immediate engineering sequence is:
+A. close integration-test coverage across Evidence → Finding → Claim → Intervention → Training → Measurement → Analysis → Transfer/Retention;
+B. harden evidence resolution, especially VERIFIED+UNCERTAIN and VERIFIED+REJECTED;
+C. complete knowledge-version lifecycle and downstream impact propagation;
+D. complete intervention/training provenance;
+E. safety and participant/data governance;
+F. statistical/analysis completeness;
+G. bounded autonomous scientific maintenance and research execution;
+H. scientific AI runtime with structured evidence-aware outputs;
+I. Training OS that turns validated protocols into executable adaptive sessions;
+J. real pilot infrastructure and feedback from human outcome data.
+
+Do not interpret this list as permission to skip tests or gates. The sequence is a prioritization guide, not scientific evidence.
+
+### Definition of done for a subsystem
+A subsystem is not done when its happy-path code exists. It is done only when:
+- schema/migrations are present;
+- lifecycle/state rules are explicit;
+- permissions are enforced;
+- auditability exists;
+- failure and conflict paths are handled;
+- relevant tests exist;
+- integration points are wired;
+- uncertainty is preserved;
+- the implementation cannot silently upgrade scientific truth;
+- the repository remains coherent after the change.
+
+### Preferred agent behavior
+When asked to "continue", execute the next highest-value unfinished engineering work directly. Inspect first, implement, test, review the diff, and commit. Keep a short record of:
+- what changed;
+- why it changed;
+- tests actually run;
+- known limitations;
+- next highest-value task.
+
+Do not stop at planning when the repository can be changed safely.
+
+### Scientific decision hierarchy
+When speed conflicts with rigor:
+1. human safety
+2. scientific validity and truth preservation
+3. data integrity and provenance
+4. reproducibility/auditability
+5. product usefulness
+6. speed
+
+Never reverse this order merely to make the demo look better.
+
+### HDS identity
+HDS should become capable of saying:
+"I do not know."
+"I do not have enough evidence."
+"This is only a hypothesis."
+"The evidence is conflicting."
+"This result did not transfer."
+"The effect did not persist."
+"We need another experiment."
+
+Those are successful system states, not failures.
