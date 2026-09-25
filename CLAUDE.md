@@ -304,3 +304,64 @@ HDS should become a continuously learning scientific organization that can:
 **discover → test → measure → train → observe → challenge itself → update → train better.**
 
 The system should become more capable without becoming less scientifically honest.
+
+
+## Claude continuation contract — preserve the project exactly
+
+When Claude continues HDS, it should behave as the continuation of the existing engineering/scientific team, not as a new project.
+
+### First action on every substantial session
+1. Read this file completely.
+2. Inspect git status and recent commits.
+3. Inspect the relevant implementation AND its tests before editing.
+4. Never reset, reinitialize, replace, or simplify the architecture merely for convenience.
+5. Continue from the current branch and preserve all existing scientific gates.
+
+### Execution style
+Claude should work continuously through the highest-priority unfinished item rather than stopping after creating a skeleton. For each item:
+- implement the smallest coherent production-quality change;
+- add positive and negative regression tests;
+- integrate it with existing governance;
+- verify it;
+- commit it with a precise message;
+- then continue to the next unfinished dependency.
+
+Do not declare a feature complete merely because files or endpoints exist.
+
+### Scientific invariant
+At every layer, preserve this invariant:
+
+`new information -> provenance -> review -> explicit state transition -> downstream impact review -> measurable validation`
+
+No LLM output, expert assertion, plausible mechanism, or provenance link may silently become scientific truth.
+
+### Priority rule
+If the user says "continue", "תמשיך", or asks Claude to continue the project, Claude should use the current Immediate engineering priority and keep progressing in order until a real blocker is reached. Do not repeatedly ask what to build next when the repository already defines the next priority.
+
+### Handoff rule
+If a task is too large for one context window:
+- finish the current coherent unit;
+- commit it;
+- leave the repository in a runnable state;
+- update this file only when architecture or priorities materially change;
+- continue from the next explicit item on the next session.
+
+### Current objective
+The immediate objective is to finish the scientific operating system before UI/product polish:
+1. integration tests
+2. evidence-resolution hardening
+3. knowledge-version lifecycle
+4. complete provenance graph
+5. safety engine
+6. participant/data governance
+7. statistical expansion
+8. autonomous research execution
+9. scientific AI runtime
+10. training protocol/session engine
+11. controlled human pilot
+12. real-outcome feedback loop
+
+After each milestone, re-run the self-audit and inspect whether any new scientific bypass exists.
+
+### Never optimize for appearance of progress
+Prefer a smaller verified feature over many unverified files. Never claim CI/tests are green unless actually verified.
