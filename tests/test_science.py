@@ -115,3 +115,22 @@ def test_training_protocol_requires_transfer_retention_and_safety(tmp_path):
         assert "required" in str(exc)
     p=svc.create(project_id,"p","mechanism","fatigue","daily","progress","real-world task","8 weeks","safety")
     assert svc.readiness(p["id"])["ready_for_pilot"] is True
+
+
+def test_training_protocol_cannot_be_supported_without_transfer_and_retention(tmp_path):
+    from app.training import TrainingProtocolService
+    db=Database(str(tmp_path/"promotion.db")); ResearchCycle(db)
+    from app.models import now
+    import uuid
+    cid,aid,pid=[str(uuid.uuid4()) for _ in range(3)]
+    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",(cid,"c","m","v","p",now()))
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(aid,"a","r","m","[]","[]","1","ACTIVE",now()))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(pid,cid,"o","ACTIVE",aid,now()))
+    svc=TrainingProtocolService(db)
+    p=svc.create(pid,"protocol","mechanism","uncertainty","dose","progress","real-world","8 weeks","safety")
+    svc.promote(p["id"],"PILOT","reviewer","pilot begins")
+    try:
+        svc.promote(p["id"],"SUPPORTED","reviewer","support")
+        assert False
+    except ValueError as exc:
+        assert "evidence" in str(exc) or "sessions" in str(exc)
