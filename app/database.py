@@ -124,6 +124,22 @@ CREATE INDEX IF NOT EXISTS idx_claim_revisions_claim ON claim_revisions(claim_id
 CREATE INDEX IF NOT EXISTS idx_findings_project_created ON findings(project_id,created_at);
 CREATE TABLE IF NOT EXISTS evidence_sources (id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES sources(id), state TEXT NOT NULL, content_hash TEXT, fetched_at TEXT, parsed_at TEXT, rejection_reason TEXT, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS evidence_reviews (id TEXT PRIMARY KEY, evidence_id TEXT NOT NULL REFERENCES evidence(id), reviewer TEXT NOT NULL, verdict TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS research_findings (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ source_type TEXT NOT NULL,
+ source_id TEXT,
+ statement TEXT NOT NULL,
+ classification TEXT NOT NULL,
+ status TEXT NOT NULL,
+ evidence_refs TEXT NOT NULL,
+ interpretation TEXT,
+ created_by TEXT NOT NULL,
+ reviewed_by TEXT,
+ created_at TEXT NOT NULL,
+ reviewed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_research_findings_project ON research_findings(project_id,created_at);
 CREATE TABLE IF NOT EXISTS scientific_knowledge_versions (
  id TEXT PRIMARY KEY,
  claim_id TEXT NOT NULL REFERENCES claims(id),
