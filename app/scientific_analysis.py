@@ -1,5 +1,7 @@
 from statistics import mean, stdev
 from uuid import uuid4
+import hashlib
+import json
 from app.models import now
 
 class ScientificAnalysisEngine:
@@ -59,6 +61,21 @@ class ScientificAnalysisEngine:
         if method not in methods:
             raise ValueError(f"analysis method '{method}' is not preregistered")
         return spec
+
+    def _dataset_hash(self, study_id, outcome_name):
+        rows=self.db.all("SELECT participant_id,observation_type,session_id,value,unit,missing_reason,recorded_at FROM study_outcomes WHERE study_id=? AND outcome_name=? ORDER BY participant_id,observation_type,recorded_at,id",(study_id,outcome_name))
+        payload=json.dumps([dict(r) for r in rows],sort_keys=True,default=str,separators=(",",":"))
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _record_analysis_audit(self, study_id, plan, result_id, outcome_name, method, population_note):
+        study=self.db.one("SELECT protocol_hash FROM studies WHERE id=?",(study_id,))
+        if not study or not study["protocol_hash"]:
+            raise ValueError("protocol hash required for analysis audit")
+        plan_hash=hashlib.sha256((plan["analysis_spec"] or "").encode("utf-8")).hexdigest()
+        dataset_hash=self._dataset_hash(study_id,outcome_name)
+        self.db.execute("INSERT INTO study_analysis_audit(id,study_id,analysis_plan_id,analysis_result_id,protocol_hash,analysis_plan_hash,dataset_hash,method,population_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (str(uuid4()),study_id,plan["id"],result_id,study["protocol_hash"],plan_hash,dataset_hash,method,population_note,now()))
+        return {"protocol_hash":study["protocol_hash"],"analysis_plan_hash":plan_hash,"dataset_hash":dataset_hash}
 
     @staticmethod
     def _mean_ci95(values):
@@ -172,6 +189,7 @@ class ScientificAnalysisEngine:
             for name,(value,denom) in metrics.items():
                 con.execute("INSERT INTO study_analysis_metrics(id,study_id,analysis_plan_id,outcome_name,metric_name,metric_value,denominator,note,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                     (str(uuid4()),study_id,analysis_plan_id,outcome_name,name,value,denom,None,now()))
+        self._record_analysis_audit(study_id, plan, rid, outcome_name, "INFERENTIAL_RANDOMIZED_ARM", "Complete paired TRAINING cases only")
         return result
 
     def randomized_arm_analysis(self, study_id, analysis_plan_id, outcome_name):
