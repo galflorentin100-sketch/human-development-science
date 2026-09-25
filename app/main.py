@@ -179,6 +179,11 @@ def sc001_register(project_id: str, principal: Principal = Depends(principal_fro
     require_write(principal)
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)): raise HTTPException(404, "project not found")
     return SC001Protocol().register(db, project_id)
+@app.get("/api/studies/{study_id}/analysis/{analysis_plan_id}/audit")
+def study_analysis_audit(study_id: str, analysis_plan_id: str, outcome_name: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    return ScientificAnalysisEngine(db).analysis_audit(study_id, analysis_plan_id, outcome_name)
+
 @app.get("/api/studies/{study_id}/analysis/{analysis_plan_id}/missingness")
 def study_missingness(study_id: str, analysis_plan_id: str, outcome_name: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
