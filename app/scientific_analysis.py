@@ -29,6 +29,21 @@ class ScientificAnalysisEngine:
             raise ValueError("analysis_spec must be an object")
         return spec
 
+    def validate_analysis_spec(self, plan):
+        """Validate the minimum preregistration contract before any inferential analysis."""
+        spec=self._analysis_spec(plan)
+        required=("outcome_name","estimand","population","estimator","ci_method",
+                  "missing_data_policy","multiplicity_policy","subgroup_policy","stopping_rule")
+        missing=[k for k in required if not spec.get(k)]
+        if missing:
+            raise ValueError("analysis_spec missing required preregistration fields: "+", ".join(missing))
+        allowed=spec.get("allowed_methods",[])
+        if not isinstance(allowed,list) or not allowed:
+            raise ValueError("analysis_spec.allowed_methods must be a non-empty list")
+        if spec["outcome_name"] != spec.get("registered_outcome_name",spec["outcome_name"]):
+            raise ValueError("analysis_spec outcome does not match registered outcome")
+        return {"valid":True,"allowed_methods":allowed,"spec":spec}
+
     def _require_method(self, plan, method):
         spec=self._analysis_spec(plan)
         methods=spec.get("allowed_methods", spec.get("methods", []))
