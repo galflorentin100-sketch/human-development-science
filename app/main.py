@@ -380,6 +380,18 @@ def promote_training_protocol(protocol_id: str, body: dict, principal: Principal
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).promote(protocol_id,body["status"],principal.user_id,body["rationale"])
 
+@app.get("/api/science/training-protocols/{protocol_id}/provenance")
+def training_protocol_provenance(protocol_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.scientific_training_pipeline import ScientificTrainingPipeline
+    return ScientificTrainingPipeline(db).trace(protocol_id)
+
+@app.get("/api/science/training-protocols/{protocol_id}/scientific-readiness")
+def training_protocol_scientific_readiness(protocol_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.scientific_training_pipeline import ScientificTrainingPipeline
+    return ScientificTrainingPipeline(db).readiness(protocol_id)
+
 @app.get("/api/science/training-protocols/{protocol_id}/readiness")
 def training_protocol_readiness(protocol_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
