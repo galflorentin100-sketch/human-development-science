@@ -190,3 +190,22 @@ def test_knowledge_impact_finds_downstream_training(tmp_path):
     impact=KnowledgeImpactAnalyzer(db).claim_impact(claim_id)
     assert any(x["id"]==p["id"] for x in impact["downstream"]["training_protocols"])
     assert impact["review_required"] is True
+
+
+def test_scientific_system_health_is_read_only_and_flags_gaps(tmp_path):
+    from app.scientific_system_health import ScientificSystemHealth
+    db=Database(str(tmp_path/"health.db")); ResearchCycle(db)
+    result=ScientificSystemHealth(db).snapshot()
+    assert result["status"] in {"NOMINAL","REVIEW_REQUIRED"}
+    assert result["policy"].startswith("health reports")
+    assert result["maintenance_proposals"] >= 0
+
+
+def test_autonomous_maintenance_materializes_only_auditable_work(tmp_path):
+    from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
+    db=Database(str(tmp_path/"maintenance.db")); ResearchCycle(db)
+    result=AutonomousScientificMaintenance(db).materialize()
+    assert result["policy"].startswith("materialization creates")
+    for wid in result["created"]:
+        row=db.one("SELECT status FROM maintenance_work WHERE id=?",(wid,))
+        assert row["status"]=="PROPOSED"
