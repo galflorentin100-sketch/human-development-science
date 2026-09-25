@@ -42,3 +42,19 @@ def test_research_synthesis_requires_sources_and_review(tmp_path):
     accepted=engine.review(syn["id"],"founder","ACCEPTED","reviewed source scope and limitations")
     assert accepted["status"]=="ACCEPTED"
     assert engine.get(ws["id"])["status"]=="REVIEWED"
+
+
+def test_accepted_synthesis_becomes_candidate_finding_not_claim(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    from app.research_engine import ResearchEngine
+    db=Database(str(tmp_path/"finding.db")); ResearchCycle(db); pid=_setup(db)
+    engine=ResearchEngine(db)
+    ws=engine.create(pid,"What develops resilience?",owner="researcher")
+    engine.activate(ws["id"],"researcher")
+    source=EvidencePipeline(db).register_source("Paper","https://example.org/resilience","Author",2025)
+    engine.add_source(ws["id"],source["id"])
+    syn=engine.synthesize(ws["id"],"Candidate synthesis","limitations","uncertain","researcher")
+    engine.review(syn["id"],"founder","ACCEPTED","reviewed")
+    finding=engine.promote_to_candidate_finding(syn["id"],"knowledge-manager")
+    assert finding["status"]=="CANDIDATE"
+    assert finding["classification"]=="INFERENCE"
