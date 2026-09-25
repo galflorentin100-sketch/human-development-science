@@ -62,6 +62,10 @@ class CompanyOrchestrator:
                 return {"status":"WAITING_FOR_APPROVAL","steps":len(history),"history":history}
             pending=self.db.one("SELECT COUNT(*) AS n FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED','RUNNING','REVIEW','BLOCKED')",(project_id,))["n"]
             if pending==0:
+                from app.scientific_completion import ScientificCompletionGate
+                gate=ScientificCompletionGate(self.db).check(project_id)
+                if not gate["ready"]:
+                    return {"status":"SCIENTIFIC_GATE_BLOCKED","steps":len(history),"history":history,"gate":gate}
                 updated=self.db.execute("UPDATE projects SET status='COMPLETED',updated_at=? WHERE id=? AND status='RUNNING'",(now(),project_id))
                 if getattr(updated,"rowcount",1) != 1:
                     return {"status":"PROJECT_STATE_CHANGED","steps":len(history),"history":history}
