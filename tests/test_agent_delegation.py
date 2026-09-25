@@ -20,3 +20,10 @@ def test_delegation_deduplicates(tmp_path):
     d=AgentDelegation(db)
     assert len(d.delegate_pending(pid,5))==1
     assert len(d.delegate_pending(pid,5))==0
+
+
+def test_decision_center_has_delegateable_method(tmp_path):
+    from app.decision_center import DecisionCenter
+    db=Database(str(tmp_path/"x.db"))
+    pid=str(uuid.uuid4())
+    assert DecisionCenter(db).delegateable(pid)==[]
