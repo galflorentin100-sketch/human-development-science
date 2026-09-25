@@ -57,6 +57,7 @@ class ClaimStateService:
         version=int(latest["v"] or 0)+1
         self.db.execute("INSERT INTO scientific_knowledge_versions(id,claim_id,version,statement,classification,status,confidence,evidence_state,evidence_snapshot_hash,change_reason,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (str(uuid4()),claim_id,version,claim["statement"],claim["classification"],claim["status"],claim["confidence"],state["conflicted"] and "CONFLICTED" or state["verified_support"] and "SUPPORTED" or state["verified_contradict"] and "CONTRADICTED" or "UNVERIFIED",snapshot,rationale,now()))
+        self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",(str(uuid4()),"scientific_knowledge.versioned","claim",claim_id,actor,"version="+str(version),now()))
         return self.db.one("SELECT * FROM scientific_knowledge_versions WHERE claim_id=? AND version=?",(claim_id,version))
 
     def knowledge_history(self,claim_id):
