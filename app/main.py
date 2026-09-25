@@ -74,6 +74,13 @@ def require_read(principal: Principal) -> None:
 def require_write(principal: Principal) -> None:
     require_permission(principal, "WRITE")
 
+
+def require_execute(principal: Principal) -> None:
+    require_permission(principal, "EXECUTE")
+
+def require_approve(principal: Principal) -> None:
+    require_permission(principal, "APPROVE")
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "hds-company-os", "environment": settings.environment}
