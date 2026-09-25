@@ -648,3 +648,80 @@ def next_tasks(project_id: str, principal: Principal = Depends(principal_from_he
     return AutonomousPlanner(db).create_next_tasks(project_id, [{"title":"Collect evidence","agent_id":"researcher","priority":1.0},{"title":"Challenge evidence","agent_id":"skeptic","priority":0.9},{"title":"Audit evidence","agent_id":"evidence-auditor","priority":0.9}])
 @app.get("/")
 def dashboard(): return HTMLResponse((Path(__file__).parent / "dashboard.html").read_text())
+
+
+@app.get("/api/science/closed-loop/{project_id}")
+def science_closed_loop(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
+        raise HTTPException(404, "project not found")
+    from app.closed_loop_engine import ClosedLoopEngine
+    return ClosedLoopEngine(db).project(project_id)
+
+@app.get("/api/science/protocols/{protocol_id}/loop")
+def science_protocol_loop(protocol_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.closed_loop_engine import ClosedLoopEngine
+    try:
+        return ClosedLoopEngine(db).protocol(protocol_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+@app.get("/api/science/integrity/{project_id}")
+def science_integrity(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
+        raise HTTPException(404, "project not found")
+    from app.scientific_integrity import ScientificIntegrityChecker
+    return ScientificIntegrityChecker(db).project(project_id)
+
+@app.post("/api/science/experiments")
+def science_create_experiment(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.experiment_engine import ExperimentEngine
+    return ExperimentEngine(db).create(
+        body["project_id"], body["research_question"], body["hypothesis"],
+        body["design"], body["population"], body["intervention"],
+        body["comparison"], body["outcomes"], body["analysis_plan"])
+
+@app.post("/api/science/experiments/{experiment_id}/preregister")
+def science_preregister_experiment(experiment_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.experiment_engine import ExperimentEngine
+    try:
+        return ExperimentEngine(db).preregister(experiment_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/science/experiments/{experiment_id}/start")
+def science_start_experiment(experiment_id: str, principal: Principal = Depends(principal_from_header)):
+    require_permission(principal, "EXECUTE")
+    from app.experiment_engine import ExperimentEngine
+    try:
+        return ExperimentEngine(db).start(experiment_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.get("/api/science/research-queue/{project_id}")
+def science_research_queue(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.research_queue import ResearchQueue
+    return ResearchQueue(db).list(project_id)
+
+@app.post("/api/science/research-queue")
+def science_propose_research(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.research_queue import ResearchQueue
+    return ResearchQueue(db).propose(
+        body["project_id"], body["question"], body["rationale"],
+        body["trigger_type"], body.get("evidence_refs", ()),
+        body.get("priority", "NORMAL"))
+
+@app.post("/api/science/research-queue/{item_id}/approve")
+def science_approve_research(item_id: str, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    from app.research_queue import ResearchQueue
+    try:
+        return ResearchQueue(db).approve(item_id, principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
