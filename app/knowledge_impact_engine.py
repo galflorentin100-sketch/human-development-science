@@ -106,6 +106,21 @@ class KnowledgeImpactEngine:
                 "affected_count":len(impacts),"affected":impacts,
                 "guardrail":"Potential impact only; human review is required before scientific state changes."}
 
+    def review(self, review_id, reviewer, decision, rationale):
+        row=self.db.one("SELECT * FROM knowledge_impact_reviews WHERE id=?",(review_id,))
+        if not row: raise ValueError("impact review not found")
+        if row["status"]!="PROPOSED": raise ValueError("impact review is no longer pending")
+        if not str(reviewer or "").strip() or not str(rationale or "").strip():
+            raise ValueError("reviewer and rationale are required")
+        decision=str(decision).upper()
+        if decision not in {"ACCEPT","REJECT"}:
+            raise ValueError("decision must be ACCEPT or REJECT")
+        status="ACCEPTED" if decision=="ACCEPT" else "REJECTED"
+        self.db.execute("UPDATE knowledge_impact_reviews SET status=? WHERE id=? AND status='PROPOSED'",(status,review_id))
+        self.db.audit("scientific.impact_reviewed","knowledge_impact_review",review_id,reviewer,
+                      {"decision":decision,"rationale":rationale},now(),None)
+        return self.db.one("SELECT * FROM knowledge_impact_reviews WHERE id=?",(review_id,))
+
     def list(self,project_id,status=None):
         sql="SELECT * FROM knowledge_impact_reviews WHERE project_id=?"
         params=[project_id]
