@@ -895,3 +895,16 @@ def review_agent_output(review_id: str, decision: str, rationale: str, principal
     require_approve(principal)
     from app.agent_output_gate import AgentOutputGate
     return AgentOutputGate(db).review(review_id,principal.user_id,decision,rationale)
+
+
+@app.post("/api/science/agent-output/{review_id}/candidate-finding")
+def candidate_finding_from_agent_output(review_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.knowledge_update_proposer import KnowledgeUpdateProposer
+    return KnowledgeUpdateProposer(db).propose_from_output(review_id)
+
+@app.post("/api/science/findings/{finding_id}/claim-revision")
+def propose_claim_revision_from_finding(finding_id: str, claim_id: str, new_statement: str, new_status: str, rationale: str, evidence_refs: list[str] | None = None, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.knowledge_update_proposer import KnowledgeUpdateProposer
+    return KnowledgeUpdateProposer(db).propose_claim_revision(finding_id,claim_id,new_statement,new_status,rationale,evidence_refs or [])
