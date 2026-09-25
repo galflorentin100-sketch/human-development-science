@@ -46,3 +46,72 @@ def test_scientific_interpretation_allows_qualified_inference():
         evidence_refs=("analysis-1",),
     )
     assert statement.classification=="INFERENCE"
+
+
+def test_claim_evidence_resolution_requires_reviewer_state(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    from app.claim_state import ClaimStateService
+    db=Database(str(tmp_path/"evidence.db")); ResearchCycle(db)
+    company=db.one("SELECT id FROM companies LIMIT 1")
+    project=db.one("SELECT id FROM projects LIMIT 1")
+    if not project:
+        from app.models import now
+        cid=company["id"] if company else "company-test"
+        if not company:
+            db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",(cid,"c","m","v","p",now()))
+        agent=db.one("SELECT id FROM agents LIMIT 1")
+        if not agent:
+            db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",("agent-test","a","r","m","[]","[]","1","ACTIVE",now()))
+            agent={"id":"agent-test"}
+        import uuid
+        pid=str(uuid.uuid4())
+        db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(pid,cid,"test","ACTIVE",agent["id"],now()))
+        project={"id":pid}
+    import uuid
+    claim_id=str(uuid.uuid4()); source_id=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim_id,project["id"],"x","HYPOTHESIS","PRELIMINARY",0.5,"PROPOSED",now()))
+    db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(source_id,"s","https://example.com/"+source_id,"PAPER","","test"))
+    pipeline=EvidencePipeline(db)
+    pipeline.ingest_text(source_id,"source text")
+    ev=pipeline.attach(claim_id,source_id,"excerpt")
+    assert pipeline.resolve(ev["id"])["state"]=="UNREVIEWED"
+    pipeline.review(ev["id"],"reviewer-1","VERIFIED","checked")
+    assert ClaimStateService(db).evidence_state(claim_id)["state"]=="SUPPORTED_EVIDENCE"
+
+def test_conflicting_evidence_forces_uncertain_claim(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    db=Database(str(tmp_path/"conflict.db")); ResearchCycle(db)
+    from app.models import now
+    import uuid
+    company_id=str(uuid.uuid4()); agent_id=str(uuid.uuid4()); project_id=str(uuid.uuid4()); claim_id=str(uuid.uuid4())
+    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",(company_id,"c","m","v","p",now()))
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(agent_id,"a","r","m","[]","[]","1","ACTIVE",now()))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(project_id,company_id,"o","ACTIVE",agent_id,now()))
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim_id,project_id,"x","HYPOTHESIS","PRELIMINARY",0.5,"SUPPORTED",now()))
+    pipeline=EvidencePipeline(db)
+    for idx,verdict in enumerate(("VERIFIED","REJECTED")):
+        sid=str(uuid.uuid4())
+        db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(sid,"s","https://example.com/"+sid,"PAPER","","test"))
+        pipeline.ingest_text(sid,"source "+str(idx))
+        ev=pipeline.attach(claim_id,sid,"excerpt")
+        pipeline.review(ev["id"],"reviewer-"+str(idx),verdict,"reviewed")
+    assert pipeline.claim_evidence_state(claim_id)["conflicted"]==1
+    assert db.one("SELECT status FROM claims WHERE id=?",(claim_id,))["status"]=="UNCERTAIN"
+
+def test_training_protocol_requires_transfer_retention_and_safety(tmp_path):
+    from app.training import TrainingProtocolService
+    db=Database(str(tmp_path/"training.db")); ResearchCycle(db)
+    from app.models import now
+    import uuid
+    company_id=str(uuid.uuid4()); agent_id=str(uuid.uuid4()); project_id=str(uuid.uuid4())
+    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",(company_id,"c","m","v","p",now()))
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(agent_id,"a","r","m","[]","[]","1","ACTIVE",now()))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(project_id,company_id,"o","ACTIVE",agent_id,now()))
+    svc=TrainingProtocolService(db)
+    try:
+        svc.create(project_id,"p","mechanism","fatigue","daily","progress","", "8 weeks","safe")
+        assert False
+    except ValueError as exc:
+        assert "required" in str(exc)
+    p=svc.create(project_id,"p","mechanism","fatigue","daily","progress","real-world task","8 weeks","safety")
+    assert svc.readiness(p["id"])["ready_for_pilot"] is True
