@@ -16,7 +16,9 @@ class DecisionCenter:
         items=[]
         for r in ResearchQueue(self.db).list(project_id):
             if r["status"]=="PROPOSED":
-                items.append({"type":"RESEARCH","id":r["id"],"priority":r["priority"],"title":r["question"],"reason":r["rationale"]})
+                items.append({"type":"RESEARCH","id":r["id"],"priority":r["priority"],"title":r["question"],
+                              "reason":r["rationale"],"trigger_type":r.get("trigger_type","MANUAL"),
+                              "status":r["status"]})
         for r in ContradictionEngine(self.db).list(project_id):
             items.append({"type":"CONTRADICTION","id":r["id"],"priority":"HIGH","title":r["description"],"reason":"Scientific contradiction requires review."})
         for r in KnowledgeImpactEngine(self.db).list(project_id,"PROPOSED"):
