@@ -198,6 +198,18 @@ def validate_scientific_interpretation(req: InterpretationRequest, principal: Pr
     ).__dict__
 
 
+@app.post("/api/science/claims/{claim_id}/knowledge-version")
+def create_knowledge_version(claim_id: str, rationale: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.claim_state import ClaimStateService
+    return ClaimStateService(db).knowledge_version(claim_id, principal.user_id, rationale)
+
+@app.get("/api/science/claims/{claim_id}/knowledge-history")
+def knowledge_history(claim_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.claim_state import ClaimStateService
+    return ClaimStateService(db).knowledge_history(claim_id)
+
 @app.get("/api/science/evidence/{evidence_id}/resolution")
 def evidence_resolution(evidence_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
