@@ -17,6 +17,9 @@ class KnowledgeUpdateProposer:
         if review["status"]!="ACCEPTED": raise ValueError("only accepted outputs can create findings")
         run=self.db.one("SELECT * FROM agent_runs WHERE id=?",(review["agent_run_id"],))
         if not run: raise ValueError("agent run not found")
+        existing=self.db.one("SELECT * FROM research_findings WHERE project_id=? AND source_type='AGENT_OUTPUT' AND source_id=? ORDER BY created_at DESC LIMIT 1",(review["project_id"],run["id"]))
+        if existing:
+            return existing
         payload=json.loads(run["output_payload"] or "{}")
         result=payload.get("payload",{}).get("result") or payload.get("result") or ""
         if not str(result).strip(): raise ValueError("accepted output has no substantive result")
