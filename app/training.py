@@ -13,7 +13,7 @@ class TrainingProtocolService:
 
     def create(self,project_id,name,mechanism_hypothesis,challenge_domain,dosage,
                progression_rule,transfer_target,retention_target,safety_constraints,
-               evidence_level="UNTESTED",target_construct_id=None,status="DRAFT",version=1):
+               evidence_level="UNTESTED",target_construct_id=None,status="DRAFT",version=1,source_claim_id=None,intervention_id=None):
         if evidence_level not in self.EVIDENCE_LEVELS:
             raise ValueError("invalid training protocol evidence level")
         if status not in self.STATUSES:
@@ -28,13 +28,29 @@ class TrainingProtocolService:
             raise ValueError("training protocol fields are required")
         if target_construct_id and not self.db.one("SELECT 1 FROM scientific_constructs WHERE id=?",(target_construct_id,)):
             raise ValueError("target construct not found")
+        if source_claim_id and not self.db.one("SELECT 1 FROM claims WHERE id=?",(source_claim_id,)):
+            raise ValueError("source claim not found")
+        if intervention_id and not self.db.one("SELECT 1 FROM interventions WHERE id=?",(intervention_id,)):
+            raise ValueError("intervention not found")
         i=str(uuid4())
         self.db.execute(
-            "INSERT INTO training_protocols(id,project_id,name,target_construct_id,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (i,project_id,name,target_construct_id,mechanism_hypothesis,challenge_domain,dosage,
+            "INSERT INTO training_protocols(id,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (i,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,dosage,
              progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,int(version),now())
         )
         return self.db.one("SELECT * FROM training_protocols WHERE id=?",(i,))
+
+    def link_basis(self,protocol_id,source_claim_id=None,intervention_id=None):
+        protocol=self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
+        if not protocol: raise ValueError("training protocol not found")
+        if source_claim_id is not None and not self.db.one("SELECT 1 FROM claims WHERE id=?",(source_claim_id,)):
+            raise ValueError("source claim not found")
+        if intervention_id is not None and not self.db.one("SELECT 1 FROM interventions WHERE id=?",(intervention_id,)):
+            raise ValueError("intervention not found")
+        if source_claim_id is None and intervention_id is None:
+            raise ValueError("scientific basis requires a source claim or intervention")
+        self.db.execute("UPDATE training_protocols SET source_claim_id=?, intervention_id=? WHERE id=?",(source_claim_id,intervention_id,protocol_id))
+        return self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
 
     def attach_evidence(self,protocol_id,evidence_kind,evidence_ref,notes=""):
         if not self.db.one("SELECT 1 FROM training_protocols WHERE id=?",(protocol_id,)):
@@ -86,7 +102,17 @@ class TrainingProtocolService:
         old=protocol["status"]
         allowed={"DRAFT":{"PILOT","RETIRED"},"PILOT":{"SUPPORTED","RETIRED"},"SUPPORTED":{"RETIRED"},"RETIRED":set()}
         if new_status not in allowed.get(old,set()): raise ValueError(f"invalid training protocol transition: {old} -> {new_status}")
+        if new_status in {"PILOT","SUPPORTED"} and not (protocol["source_claim_id"] or protocol["intervention_id"]):
+            raise ValueError("PILOT/SUPPORTED training protocol requires explicit scientific basis")
         if new_status=="SUPPORTED":
+            if protocol["source_claim_id"]:
+                claim=self.db.one("SELECT status FROM claims WHERE id=?",(protocol["source_claim_id"],))
+                if not claim or claim["status"] != "SUPPORTED":
+                    raise ValueError("SUPPORTED training protocol requires a SUPPORTED source claim")
+            if protocol["intervention_id"]:
+                intervention=self.db.one("SELECT status FROM interventions WHERE id=?",(protocol["intervention_id"],))
+                if not intervention or intervention["status"] != "SUPPORTED":
+                    raise ValueError("SUPPORTED training protocol requires a SUPPORTED intervention")
             evidence=self._evidence_readiness(protocol_id)
             if not evidence or any(x["state"]!="VERIFIED" for x in evidence):
                 raise ValueError("SUPPORTED training protocol requires all attached evidence to be VERIFIED")
@@ -112,6 +138,7 @@ class TrainingProtocolService:
             "status":protocol["status"],
             "evidence_level":protocol["evidence_level"],
             "evidence_count":len(evidence),
+            "scientific_basis":{"source_claim_id":protocol["source_claim_id"],"intervention_id":protocol["intervention_id"]},
             "has_transfer_target":bool(protocol["transfer_target"].strip()),
             "has_retention_target":bool(protocol["retention_target"].strip()),
             "has_safety_constraints":bool(protocol["safety_constraints"].strip()),
