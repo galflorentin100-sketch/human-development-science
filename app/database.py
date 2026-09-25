@@ -243,6 +243,50 @@ def database_from_settings(settings):
 
 PHASE6_SCHEMA = """CREATE TABLE IF NOT EXISTS scientific_constructs (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), name TEXT NOT NULL, definition TEXT NOT NULL, construct_type TEXT NOT NULL, status TEXT NOT NULL, version INTEGER NOT NULL, created_at TEXT NOT NULL, UNIQUE(project_id,name,version));
 CREATE TABLE IF NOT EXISTS scientific_measures (id TEXT PRIMARY KEY, construct_id TEXT NOT NULL REFERENCES scientific_constructs(id), name TEXT NOT NULL, operational_definition TEXT NOT NULL, method TEXT NOT NULL, unit TEXT, reliability_note TEXT NOT NULL, validity_note TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS training_protocols (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ name TEXT NOT NULL,
+ target_construct_id TEXT REFERENCES scientific_constructs(id),
+ mechanism_hypothesis TEXT NOT NULL,
+ challenge_domain TEXT NOT NULL,
+ dosage TEXT NOT NULL,
+ progression_rule TEXT NOT NULL,
+ transfer_target TEXT NOT NULL,
+ retention_target TEXT NOT NULL,
+ safety_constraints TEXT NOT NULL,
+ evidence_level TEXT NOT NULL,
+ status TEXT NOT NULL,
+ version INTEGER NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(project_id,name,version)
+);
+CREATE TABLE IF NOT EXISTS training_protocol_evidence (
+ id TEXT PRIMARY KEY,
+ protocol_id TEXT NOT NULL REFERENCES training_protocols(id),
+ evidence_kind TEXT NOT NULL,
+ evidence_ref TEXT NOT NULL,
+ notes TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(protocol_id,evidence_kind,evidence_ref)
+);
+CREATE TABLE IF NOT EXISTS training_sessions (
+ id TEXT PRIMARY KEY,
+ protocol_id TEXT NOT NULL REFERENCES training_protocols(id),
+ participant_ref TEXT NOT NULL,
+ session_number INTEGER NOT NULL,
+ load_note TEXT NOT NULL,
+ adherence INTEGER NOT NULL,
+ task_success REAL,
+ transfer_score REAL,
+ retention_score REAL,
+ decision_accuracy REAL,
+ initiation_latency REAL,
+ recovery_score REAL,
+ fatigue_note TEXT,
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_training_sessions_protocol ON training_sessions(protocol_id,participant_ref,session_number);
 CREATE TABLE IF NOT EXISTS interventions (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, target_construct_id TEXT REFERENCES scientific_constructs(id), rationale TEXT NOT NULL, mechanism TEXT NOT NULL, evidence_level TEXT NOT NULL, dosage TEXT NOT NULL, population TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS intervention_evidence (id TEXT PRIMARY KEY, intervention_id TEXT NOT NULL REFERENCES interventions(id), evidence_kind TEXT NOT NULL, evidence_ref TEXT NOT NULL, notes TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(intervention_id,evidence_kind,evidence_ref));
 CREATE TABLE IF NOT EXISTS construct_versions (id TEXT PRIMARY KEY, construct_id TEXT NOT NULL REFERENCES scientific_constructs(id), version INTEGER NOT NULL, definition TEXT NOT NULL, operational_scope TEXT NOT NULL, change_reason TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(construct_id,version));
