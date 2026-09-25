@@ -452,6 +452,12 @@ def scan_knowledge_freshness(principal: Principal = Depends(principal_from_heade
     from app.knowledge_freshness import KnowledgeFreshness
     return KnowledgeFreshness(db).scan()
 
+@app.get("/api/science/autonomous-maintenance")
+def autonomous_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
+    return AutonomousScientificMaintenance(db).propose()
+
 @app.get("/api/science/knowledge-review-queue")
 def knowledge_review_queue(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
