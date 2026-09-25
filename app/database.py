@@ -124,6 +124,21 @@ CREATE INDEX IF NOT EXISTS idx_claim_revisions_claim ON claim_revisions(claim_id
 CREATE INDEX IF NOT EXISTS idx_findings_project_created ON findings(project_id,created_at);
 CREATE TABLE IF NOT EXISTS evidence_sources (id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES sources(id), state TEXT NOT NULL, content_hash TEXT, fetched_at TEXT, parsed_at TEXT, rejection_reason TEXT, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS evidence_reviews (id TEXT PRIMARY KEY, evidence_id TEXT NOT NULL REFERENCES evidence(id), reviewer TEXT NOT NULL, verdict TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS scientific_knowledge_versions (
+ id TEXT PRIMARY KEY,
+ claim_id TEXT NOT NULL REFERENCES claims(id),
+ version INTEGER NOT NULL,
+ statement TEXT NOT NULL,
+ classification TEXT NOT NULL,
+ status TEXT NOT NULL,
+ confidence REAL NOT NULL,
+ evidence_state TEXT NOT NULL,
+ evidence_snapshot_hash TEXT NOT NULL,
+ change_reason TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(claim_id,version)
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_versions_claim ON scientific_knowledge_versions(claim_id,version);
 CREATE TABLE IF NOT EXISTS retry_events (id TEXT PRIMARY KEY, task_id TEXT REFERENCES tasks(id), attempt INTEGER NOT NULL, reason TEXT, action TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_retry_task ON retry_events(task_id,attempt);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_evidence_review_reviewer ON evidence_reviews(evidence_id,reviewer);"""
