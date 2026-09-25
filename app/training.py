@@ -34,8 +34,8 @@ class TrainingProtocolService:
             raise ValueError("intervention not found")
         i=str(uuid4())
         self.db.execute(
-            "INSERT INTO training_protocols(id,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (i,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,dosage,
+            "INSERT INTO training_protocols(id,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (i,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,challenge_domain,dosage,
              progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,int(version),now())
         )
         return self.db.one("SELECT * FROM training_protocols WHERE id=?",(i,))
