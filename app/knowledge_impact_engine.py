@@ -124,6 +124,7 @@ class KnowledgeImpactEngine:
                 question=f"Reassess knowledge affected by {row['source_type']}:{row['source_id']} ({row['affected_type']}:{row['affected_id']})",
                 rationale="Founder-approved impact review identified a dependency that should be reassessed.",
                 trigger_type="KNOWLEDGE_IMPACT_REVIEW",
+                evidence_refs=(),
                 priority="HIGH",
             )
         self.db.audit("scientific.impact_reviewed","knowledge_impact_review",review_id,reviewer,
