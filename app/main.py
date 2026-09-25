@@ -210,6 +210,27 @@ def knowledge_history(claim_id: str, principal: Principal = Depends(principal_fr
     from app.claim_state import ClaimStateService
     return ClaimStateService(db).knowledge_history(claim_id)
 
+@app.post("/api/science/findings")
+def create_research_finding(payload: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.research import ResearchFindingService
+    return ResearchFindingService(db).create(
+        payload["project_id"],payload["statement"],payload.get("classification","HYPOTHESIS"),
+        payload.get("source_type","OBSERVATION"),payload.get("source_id"),
+        payload.get("evidence_refs",()),payload.get("interpretation"),principal.user_id)
+
+@app.post("/api/science/findings/{finding_id}/review")
+def review_research_finding(finding_id: str, payload: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.research import ResearchFindingService
+    return ResearchFindingService(db).review(finding_id,principal.user_id,payload["decision"],payload["rationale"])
+
+@app.get("/api/science/projects/{project_id}/findings")
+def list_research_findings(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.research import ResearchFindingService
+    return ResearchFindingService(db).list(project_id,status)
+
 @app.get("/api/science/evidence/{evidence_id}/resolution")
 def evidence_resolution(evidence_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
