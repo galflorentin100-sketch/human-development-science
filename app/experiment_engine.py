@@ -86,6 +86,8 @@ class ExperimentEngine:
             "UPDATE hds_experiments SET status='COMPLETED', updated_at=? WHERE id=?",
             (now(), experiment_id),
         )
+        from app.knowledge_graph import KnowledgeDependencyGraph
+        KnowledgeDependencyGraph(self.db).sync_project(row["project_id"])
         return self.get(experiment_id)
 
     def abort(self, experiment_id, reason):
