@@ -187,6 +187,9 @@ def _migrate_phase4(self):
         if "observation_type" not in existing:
             con.execute("ALTER TABLE study_outcomes ADD COLUMN observation_type TEXT NOT NULL DEFAULT 'TRAINING'")
         con.executescript(PHASE3_SCHEMA); con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA); con.executescript(PHASE6_SCHEMA)
+        existing={row[1] for row in con.execute("PRAGMA table_info(training_protocols)")}
+        for name,definition in {"source_claim_id":"TEXT REFERENCES claims(id)","intervention_id":"TEXT REFERENCES interventions(id)"}.items():
+            if name not in existing: con.execute(f"ALTER TABLE training_protocols ADD COLUMN {name} {definition}")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id)
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_measure_binding ON study_measure_bindings(study_id,measure_id,observation_type,timepoint)")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_measure_binding ON study_measure_bindings(study_id,measure_id,observation_type,timepoint)")
@@ -248,6 +251,8 @@ CREATE TABLE IF NOT EXISTS training_protocols (
  project_id TEXT NOT NULL REFERENCES projects(id),
  name TEXT NOT NULL,
  target_construct_id TEXT REFERENCES scientific_constructs(id),
+ source_claim_id TEXT REFERENCES claims(id),
+ intervention_id TEXT REFERENCES interventions(id),
  mechanism_hypothesis TEXT NOT NULL,
  challenge_domain TEXT NOT NULL,
  dosage TEXT NOT NULL,
