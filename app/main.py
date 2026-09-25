@@ -198,6 +198,18 @@ def validate_scientific_interpretation(req: InterpretationRequest, principal: Pr
     ).__dict__
 
 
+@app.get("/api/science/evidence/{evidence_id}/resolution")
+def evidence_resolution(evidence_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.evidence_pipeline import EvidencePipeline
+    return EvidencePipeline(db).resolve(evidence_id)
+
+@app.get("/api/science/claims/{claim_id}/evidence-resolution")
+def claim_evidence_resolution(claim_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.evidence_pipeline import EvidencePipeline
+    return EvidencePipeline(db).claim_evidence_state(claim_id)
+
 @app.get("/api/studies/{study_id}/analysis/{analysis_plan_id}/audit")
 
 def study_analysis_audit(study_id: str, analysis_plan_id: str, outcome_name: str | None = None, principal: Principal = Depends(principal_from_header)):
