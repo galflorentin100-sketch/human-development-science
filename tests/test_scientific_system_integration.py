@@ -56,3 +56,62 @@ def test_freshness_register_and_scan(tmp_path):
     db.execute("UPDATE knowledge_freshness SET next_review_at=? WHERE id=?",( "2000-01-01T00:00:00+00:00",row["id"]))
     scan=KnowledgeFreshness(db).scan()
     assert scan["stale_count"]==1
+
+
+def test_training_provenance_trace_reaches_protocol_evidence_and_sessions(tmp_path):
+    from app.models import now
+    from app.scientific_training_pipeline import ScientificTrainingPipeline
+    from app.training import TrainingProtocolService
+
+    db=Database(str(tmp_path/"trace.db")); ResearchCycle(db); pid=_setup(db)
+    claim=str(uuid.uuid4()); source=str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (claim,pid,"training claim","FACT","SUPPORTED",1.0,"SUPPORTED",now())
+    )
+    db.execute(
+        "INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",
+        (source,"s","https://x/"+source,"PAPER","","test")
+    )
+    ep=EvidencePipeline(db); ep.ingest_text(source,"evidence text")
+    ev=ep.attach(claim,source,"excerpt")
+    ep.review(ev["id"],"reviewer","VERIFIED","independent verification")
+
+    protocol=TrainingProtocolService(db).create(
+        pid,"protocol","mechanism","challenge","dose","progress",
+        "transfer","retention","safety",evidence_level="SUPPORTED",
+        source_claim_id=claim
+    )
+    TrainingProtocolService(db).session(
+        protocol["id"],"participant-1",1,"load","1",
+        task_success=1.0,transfer_score=0.7,retention_score=0.6
+    )
+
+    graph=ScientificTrainingPipeline(db).trace(protocol["id"])
+    assert graph["claim"]["id"]==claim
+    assert any(x["layer"]=="CLAIM" and x["resolution"]["state"]=="VERIFIED" for x in graph["evidence"])
+    assert len(graph["sessions"])==1
+    assert graph["sessions"][0]["participant_ref"]=="participant-1"
+
+
+def test_training_provenance_readiness_reports_missing_evidence(tmp_path):
+    from app.models import now
+    from app.scientific_training_pipeline import ScientificTrainingPipeline
+    from app.training import TrainingProtocolService
+
+    db=Database(str(tmp_path/"missing-trace.db")); ResearchCycle(db); pid=_setup(db)
+    claim=str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (claim,pid,"training claim","FACT","SUPPORTED",1.0,"SUPPORTED",now())
+    )
+    protocol=TrainingProtocolService(db).create(
+        pid,"protocol","mechanism","challenge","dose","progress",
+        "transfer","retention","safety",source_claim_id=claim
+    )
+    missing_ref=str(uuid.uuid4())
+    TrainingProtocolService(db).attach_evidence(protocol["id"],"RCT",missing_ref)
+
+    readiness=ScientificTrainingPipeline(db).readiness(protocol["id"])
+    assert readiness["missing_evidence_count"]==1
+    assert "missing_evidence" in readiness["blockers"]
