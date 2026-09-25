@@ -50,3 +50,18 @@ def test_research_queue_requires_explicit_approval(tmp_path):
     row=q.propose(pid,"What changes transfer?","transfer evidence is incomplete","EVIDENCE_GAP",priority="HIGH")
     assert row["status"]=="PROPOSED"
     assert q.approve(row["id"],"founder")["status"]=="APPROVED"
+
+
+def test_hds_experiment_result_is_in_knowledge_graph(tmp_path):
+    from app.experiment_engine import ExperimentEngine
+    from app.knowledge_graph import KnowledgeDependencyGraph
+    db=Database(str(tmp_path/"hds_experiment.db")); ResearchCycle(db); pid=_setup(db)
+    e=ExperimentEngine(db).create(
+        pid,"q","h","pre-post","adults","intervention","control","retention",
+        '{"outcome_name":"retention","estimand":"within","population":"adults","estimator":"difference","ci_method":"none","missing_data_policy":"complete-cases","multiplicity_policy":"none","subgroup_policy":"none","stopping_rule":"fixed","allowed_methods":["DESCRIPTIVE"]}'
+    )
+    ExperimentEngine(db).preregister(e["id"])
+    ExperimentEngine(db).start(e["id"])
+    result=ExperimentEngine(db).record_result(e["id"],"0.7","descriptive result")
+    graph=KnowledgeDependencyGraph(db).build(pid)
+    assert any(edge["relation"]=="HAS_RESULT" and edge["to_id"]==result["id"] for edge in graph["edges"])
