@@ -66,3 +66,11 @@ class KnowledgeDependencyGraph:
                 if other not in seen:
                     seen.add(other); frontier.append((other[0],other[1],depth+1))
         return {"root":{"type":node_type,"id":str(node_id)},"nodes":nodes,"node_count":len(nodes)}
+    def impacted(self, project_id, node_type, node_id, max_depth=4):
+        """Return downstream/upstream nodes reachable through declared edges."""
+        trace = self.trace(project_id, node_type, node_id, max_depth)
+        root = (node_type, str(node_id))
+        return {"root": trace["root"],
+                "affected": [n for n in trace["nodes"] if (n["type"], n["id"]) != root],
+                "node_count": max(0, trace["node_count"] - 1),
+                "policy": "dependency trace only; no causal or efficacy inference"}
