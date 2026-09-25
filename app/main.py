@@ -434,6 +434,18 @@ def organization_self_audit_actions(principal: Principal = Depends(principal_fro
     from app.audit_action_planner import AuditActionPlanner
     return AuditActionPlanner(db).plan()
 
+@app.get("/api/science/knowledge-impact/claim/{claim_id}")
+def knowledge_claim_impact(claim_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.knowledge_impact import KnowledgeImpactAnalyzer
+    return KnowledgeImpactAnalyzer(db).claim_impact(claim_id)
+
+@app.get("/api/science/knowledge-impact/contradictions")
+def knowledge_contradictions(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.knowledge_impact import KnowledgeImpactAnalyzer
+    return KnowledgeImpactAnalyzer(db).contradiction_scan()
+
 @app.get("/api/science/admission/claim/{claim_id}")
 def scientific_claim_admission(claim_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
