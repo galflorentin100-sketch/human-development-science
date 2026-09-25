@@ -483,6 +483,17 @@ def propose_scientific_maintenance(principal: Principal = Depends(principal_from
     from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
     return AutonomousScientificMaintenance(db).propose()
 
+@app.post("/api/science/maintenance/materialize")
+def materialize_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
+    return AutonomousScientificMaintenance(db).materialize(principal.user_id)
+
+@app.get("/api/science/maintenance")
+def list_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    return db.all("SELECT * FROM maintenance_work ORDER BY created_at DESC")
+
 @app.get("/api/science/knowledge-freshness/scan")
 def scan_knowledge_freshness(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
