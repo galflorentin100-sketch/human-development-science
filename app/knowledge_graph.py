@@ -51,6 +51,34 @@ class KnowledgeDependencyGraph:
             if p.get("intervention_id"): edges.append({"from_id":p["intervention_id"],"to_id":p["id"],"relation":"IMPLEMENTS","from_type":"INTERVENTION","to_type":"TRAINING_PROTOCOL"})
         return {"nodes":nodes,"edges":edges,"policy":"graph is descriptive; it does not infer efficacy"}
 
+    def sync_project(self, project_id, actor="system"):
+        """Materialize only relationships represented by explicit domain references."""
+        created=[]
+        def edge(a,aid,rel,b,bid,refs=()):
+            if aid and bid:
+                before=self.db.one("SELECT id FROM knowledge_edges WHERE project_id=? AND from_type=? AND from_id=? AND relation=? AND to_type=? AND to_id=?",(project_id,a,str(aid),rel,b,str(bid)))
+                row=self.add_edge(project_id,a,str(aid),rel,b,str(bid),refs,actor)
+                if not before: created.append(row)
+        # Source -> Evidence -> Claim is explicit in the evidence schema.
+        for r in self.db.all("SELECT e.id evidence_id,e.claim_id,e.source_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE c.project_id=?",(project_id,)):
+            edge("SOURCE",r["source_id"],"HAS_EVIDENCE","EVIDENCE",r["evidence_id"])
+            edge("EVIDENCE",r["evidence_id"],"SUPPORTS_OR_CONTRADICTS","CLAIM",r["claim_id"])
+        # Claims / interventions -> training protocols are explicit foreign-key relationships.
+        for r in self.db.all("SELECT id,source_claim_id,intervention_id FROM training_protocols WHERE project_id=?",(project_id,)):
+            edge("CLAIM",r.get("source_claim_id"),"GROUNDS","TRAINING_PROTOCOL",r["id"])
+            edge("INTERVENTION",r.get("intervention_id"),"IMPLEMENTED_BY","TRAINING_PROTOCOL",r["id"])
+        # Protocol -> observed training sessions/outcomes is an explicit protocol_id reference.
+        for r in self.db.all("SELECT id,protocol_id FROM training_sessions WHERE protocol_id IN (SELECT id FROM training_protocols WHERE project_id=?)",(project_id,)):
+            edge("TRAINING_PROTOCOL",r["protocol_id"],"HAS_SESSION","TRAINING_SESSION",r["id"])
+        # Research findings have machine-readable evidence refs; only create edges when refs resolve.
+        for r in self.db.all("SELECT id,evidence_refs FROM research_findings WHERE project_id=?",(project_id,)):
+            try: refs=json.loads(r.get("evidence_refs") or "[]")
+            except (TypeError,ValueError): refs=[]
+            for ref in refs:
+                if self.db.one("SELECT id FROM evidence WHERE id=?",(str(ref),)):
+                    edge("EVIDENCE",str(ref),"SUPPORTS_FINDING","FINDING",r["id"],[str(ref)])
+        return {"project_id":project_id,"created_edges":len(created),"edges":created,"policy":"only explicit, resolvable references are materialized"}
+
     def neighbors(self,project_id,node_type,node_id):
         return self.db.all("""SELECT * FROM knowledge_edges WHERE project_id=? AND status='ACTIVE'
             AND ((from_id=? AND from_type=?) OR (to_id=? AND to_type=?)) ORDER BY created_at DESC""",
