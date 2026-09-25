@@ -27,6 +27,21 @@ class DecisionCenter:
             items.append({"type":"AGENT_OUTPUT","id":r["id"],"priority":"HIGH",
                           "title":f"Review accepted agent output {r['id']}",
                           "reason":"Accepted output is eligible for candidate-finding creation; human decision remains required."})
+        for item in items:
+            item["next_action"]={
+                "RESEARCH":"delegate_research",
+                "CONTRADICTION":"delegate_skeptic_review",
+                "IMPACT":"review_impact",
+                "AGENT_OUTPUT":"create_candidate_finding",
+                "EXPERIMENT":"delegate_experiment_design",
+                "INTEGRITY":"delegate_evidence_audit",
+            }.get(item["type"],"review")
+            item["requires_founder_approval"]=item["type"] in {"CONTRADICTION","IMPACT","AGENT_OUTPUT"}
+            item["agent_role"]={
+                "RESEARCH":"researcher","CONTRADICTION":"skeptic","IMPACT":"knowledge-manager",
+                "AGENT_OUTPUT":"knowledge-manager","EXPERIMENT":"experiment-designer",
+                "INTEGRITY":"evidence-auditor"
+            }.get(item["type"],"founder-advisor")
         return items
 
     def delegateable(self,project_id):
