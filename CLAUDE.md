@@ -224,7 +224,7 @@ At the end of each meaningful session:
 
 This repository is an active continuation of an existing HDS build. **Do not reset, replace, simplify, or reinterpret the existing architecture.** Preserve the mission, scientific governance, provenance model, auditability, and training-first purpose above.
 
-Current development branch: `hds-scientific-provenance`.
+Current active development branch: `main` (the historical `hds-scientific-provenance` branch has diverged and is not the current continuation base).
 
 Recent implemented layers include:
 - evidence review/resolution and claim state governance
