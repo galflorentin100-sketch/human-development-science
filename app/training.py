@@ -69,6 +69,39 @@ class TrainingProtocolService:
         )
         return self.db.one("SELECT * FROM training_sessions WHERE id=?",(i,))
 
+    def _evidence_readiness(self,protocol_id):
+        from app.evidence_pipeline import EvidencePipeline
+        rows=self.db.all("SELECT evidence_ref,evidence_kind FROM training_protocol_evidence WHERE protocol_id=?",(protocol_id,))
+        resolved=[]
+        for row in rows:
+            try: resolved.append(EvidencePipeline(self.db).resolve(row["evidence_ref"]))
+            except ValueError: resolved.append({"state":"MISSING","evidence_id":row["evidence_ref"]})
+        return resolved
+
+    def promote(self,protocol_id,new_status,actor,rationale):
+        protocol=self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
+        if not protocol: raise ValueError("training protocol not found")
+        if new_status not in self.STATUSES: raise ValueError("invalid training protocol status")
+        if not rationale or not rationale.strip(): raise ValueError("promotion rationale is required")
+        old=protocol["status"]
+        allowed={"DRAFT":{"PILOT","RETIRED"},"PILOT":{"SUPPORTED","RETIRED"},"SUPPORTED":{"RETIRED"},"RETIRED":set()}
+        if new_status not in allowed.get(old,set()): raise ValueError(f"invalid training protocol transition: {old} -> {new_status}")
+        if new_status=="SUPPORTED":
+            evidence=self._evidence_readiness(protocol_id)
+            if not evidence or any(x["state"]!="VERIFIED" for x in evidence):
+                raise ValueError("SUPPORTED training protocol requires all attached evidence to be VERIFIED")
+            sessions=self.db.all("SELECT * FROM training_sessions WHERE protocol_id=? ORDER BY session_number",(protocol_id,))
+            if not sessions: raise ValueError("SUPPORTED training protocol requires training sessions")
+            if not any(s["transfer_score"] is not None for s in sessions):
+                raise ValueError("SUPPORTED training protocol requires observed transfer data")
+            if not any(s["retention_score"] is not None for s in sessions):
+                raise ValueError("SUPPORTED training protocol requires observed retention data")
+        ts=now()
+        self.db.execute("UPDATE training_protocols SET status=? WHERE id=?",(new_status,protocol_id))
+        self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+            (str(uuid4()),"training_protocol.status_changed","training_protocol",protocol_id,actor,json.dumps({"from":old,"to":new_status,"rationale":rationale},sort_keys=True),ts))
+        return self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
+
     def readiness(self,protocol_id):
         protocol=self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
         if not protocol:
