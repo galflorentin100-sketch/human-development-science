@@ -1,0 +1,94 @@
+"""Dependency-aware impact propagation for HDS.
+
+This engine is intentionally conservative: it discovers explicit database
+relationships and reports potentially affected records. It never changes
+scientific claims, protocols, or knowledge automatically.
+"""
+import json
+from collections import deque
+from app.models import now
+
+class KnowledgeImpactEngine:
+    ROOT_TABLES=("claims","evidence","research_findings","interventions","training_protocols")
+
+    def __init__(self,db):
+        self.db=db
+        self._ensure()
+
+    def _ensure(self):
+        self.db.execute("""CREATE TABLE IF NOT EXISTS knowledge_impact_reviews (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            source_type TEXT NOT NULL,
+            source_id TEXT NOT NULL,
+            impact_type TEXT NOT NULL,
+            affected_type TEXT NOT NULL,
+            affected_id TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'PROPOSED',
+            created_at TEXT NOT NULL,
+            UNIQUE(project_id,source_type,source_id,affected_type,affected_id)
+        )""")
+
+    def _tables(self):
+        rows=self.db.all("SELECT name FROM sqlite_master WHERE type='table'")
+        return {r["name"] for r in rows}
+
+    def _columns(self,table):
+        return {r["name"] for r in self.db.all(f"PRAGMA table_info({table})")}
+
+    def _rows_with_ref(self,table,source_id):
+        cols=self._columns(table)
+        candidates={"id","claim_id","source_claim_id","evidence_id","evidence_ref",
+                    "finding_id","intervention_id","protocol_id","project_id",
+                    "source_id","research_finding_id"}
+        usable=candidates & cols
+        if not usable: return []
+        clauses=[]; params=[]
+        for c in usable:
+            clauses.append(f'"{c}"=?'); params.append(str(source_id))
+        return self.db.all(f'SELECT * FROM "{table}" WHERE '+" OR ".join(clauses),tuple(params))
+
+    def propagate(self,project_id,source_type,source_id,reason="upstream scientific state changed"):
+        if source_type not in self.ROOT_TABLES:
+            raise ValueError("unsupported source_type")
+        tables=self._tables()
+        queue=deque([(source_type,str(source_id),0)])
+        seen={(source_type,str(source_id))}
+        impacts=[]
+        while queue:
+            table,sid,depth=queue.popleft()
+            for target in tables:
+                if target.startswith("sqlite_") or target=="knowledge_impact_reviews":
+                    continue
+                for row in self._rows_with_ref(target,sid):
+                    rid=row.get("id")
+                    if not rid: continue
+                    key=(target,str(rid))
+                    if key in seen: continue
+                    seen.add(key)
+                    impact={
+                        "type":target,"id":str(rid),"depth":depth+1,
+                        "reason":reason,
+                    }
+                    impacts.append(impact)
+                    if depth<4:
+                        queue.append((target,str(rid),depth+1))
+        for x in impacts:
+            self.db.execute("""INSERT OR IGNORE INTO knowledge_impact_reviews
+                (id,project_id,source_type,source_id,impact_type,affected_type,
+                 affected_id,reason,status,created_at)
+                VALUES (lower(hex(randomblob(16))),?,?,?,?,?,?,?,?,?)""",
+                (project_id,source_type,str(source_id),"DEPENDENCY",x["type"],
+                 x["id"],reason,"PROPOSED",now()))
+        return {"project_id":project_id,"source":{"type":source_type,"id":str(source_id)},
+                "affected_count":len(impacts),"affected":impacts,
+                "guardrail":"Potential impact only; human review is required before scientific state changes."}
+
+    def list(self,project_id,status=None):
+        sql="SELECT * FROM knowledge_impact_reviews WHERE project_id=?"
+        params=[project_id]
+        if status:
+            sql+=" AND status=?"; params.append(status)
+        sql+=" ORDER BY created_at DESC"
+        return self.db.all(sql,tuple(params))
