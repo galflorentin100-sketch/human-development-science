@@ -36,11 +36,13 @@ class CompanyOrchestrator:
             return {"status":"EXECUTION_RECORD_MISSING","task":task}
         from app.agent_output_gate import AgentOutputGate
         output_review=AgentOutputGate(self.db).submit(run["id"], project_id)
+        # Scientific completion is deliberately asynchronous: a human/evidence review
+        # must happen before the run can become verified or the task can complete.
+        if output_review["status"] in {"READY_FOR_REVIEW","NEEDS_EVIDENCE"}:
+            return {"status":"WAITING_FOR_OUTPUT_REVIEW","task":task,"output_review":output_review,
+                    "next_action":"Review agent output and verify evidence before task completion."}
         evaluation=EvaluationService(self.db).evaluate_run(run["id"],task["success_criteria"])
         if evaluation["passed"]:
-            updated=self.db.execute("UPDATE tasks SET status='COMPLETED',updated_at=? WHERE id=? AND status='REVIEW'",(now(),task["id"]))
-            if getattr(updated,"rowcount",1) != 1:
-                return {"status":"TASK_STATE_CHANGED","task":task,"evaluation":evaluation}
             return {"status":"COMPLETED","task":task,"evaluation":evaluation,"output_review":output_review}
         failure=EvaluationService(self.db).record_failure(project_id,"agent_execution",task["success_criteria"],"Unverified output","Execution produced no independently verified result.","Require verification before completion.","Add evidence-backed evaluator or external model.")
         retry=self.tasks.retry_or_escalate(task["id"],"Evaluation did not verify the execution result.")
