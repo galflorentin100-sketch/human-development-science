@@ -46,6 +46,22 @@ class ClaimStateService:
             con.execute("INSERT INTO claim_state_transitions(id,claim_id,prior_status,new_status,actor,rationale,evidence_id,created_at) VALUES (?,?,?,?,?,?,?,?)",(tid,claim_id,old,new_status,actor,rationale,evidence_id,ts))
         return self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
 
+    def knowledge_version(self,claim_id,actor,rationale):
+        claim=self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
+        if not claim: raise ValueError("claim not found")
+        if not rationale or not rationale.strip(): raise ValueError("knowledge version rationale is required")
+        from app.evidence_pipeline import EvidencePipeline
+        state=EvidencePipeline(self.db).claim_evidence_state(claim_id)
+        snapshot=__import__("hashlib").sha256(__import__("json").dumps(state,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+        latest=self.db.one("SELECT MAX(version) AS v FROM scientific_knowledge_versions WHERE claim_id=?",(claim_id,))
+        version=int(latest["v"] or 0)+1
+        self.db.execute("INSERT INTO scientific_knowledge_versions(id,claim_id,version,statement,classification,status,confidence,evidence_state,evidence_snapshot_hash,change_reason,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (str(uuid4()),claim_id,version,claim["statement"],claim["classification"],claim["status"],claim["confidence"],state["conflicted"] and "CONFLICTED" or state["verified_support"] and "SUPPORTED" or state["verified_contradict"] and "CONTRADICTED" or "UNVERIFIED",snapshot,rationale,now()))
+        return self.db.one("SELECT * FROM scientific_knowledge_versions WHERE claim_id=? AND version=?",(claim_id,version))
+
+    def knowledge_history(self,claim_id):
+        return self.db.all("SELECT * FROM scientific_knowledge_versions WHERE claim_id=? ORDER BY version",(claim_id,))
+
     def evidence_state(self,claim_id):
         support,contradict,rows=self._evidence_summary(claim_id)
         if support and contradict: state="CONFLICTED"
