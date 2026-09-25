@@ -86,9 +86,32 @@ class StudyExecution:
         i=str(uuid4())
         self.db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?)",(i,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,now()))
         return self.db.one("SELECT * FROM study_outcomes WHERE id=?",(i,))
+    def _validate_execution_readiness(self, study_id):
+        study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
+        if not study: raise ValueError("study does not exist")
+        if not study["protocol_snapshot"] or not study["protocol_hash"]:
+            raise ValueError("study protocol snapshot is required before execution")
+        plans=self.db.all("SELECT * FROM study_analysis_plans WHERE study_id=? AND frozen=1 ORDER BY version DESC",(study_id,))
+        if not plans:
+            raise ValueError("frozen analysis plan is required before execution")
+        plan=plans[0]
+        try:
+            payload=json.loads(plan["analysis_spec"])
+            spec=json.loads(payload["spec"]) if isinstance(payload.get("spec"),str) else payload.get("spec",payload)
+        except (TypeError,ValueError,KeyError) as exc:
+            raise ValueError("frozen analysis plan is invalid") from exc
+        required=("outcome_name","estimand","population","estimator","ci_method",
+                  "missing_data_policy","multiplicity_policy","subgroup_policy",
+                  "stopping_rule","allowed_methods")
+        missing=[k for k in required if not spec.get(k)]
+        if missing or not isinstance(spec.get("allowed_methods"),list) or not spec["allowed_methods"]:
+            raise ValueError("study is not execution-ready: incomplete analysis contract")
+        return study,plan
+
     def start(self,study_id):
         study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
         if not study: raise ValueError("study does not exist")
+        self._validate_execution_readiness(study_id)
         if study["status"]!="APPROVED": raise ValueError("founder approval required")
         with self.db.transaction() as con:
             updated=con.execute("UPDATE studies SET status='RUNNING' WHERE id=? AND status='APPROVED'",(study_id,))
