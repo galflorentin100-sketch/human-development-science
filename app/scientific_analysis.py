@@ -17,6 +17,75 @@ class ScientificAnalysisEngine:
             raise ValueError("analysis plan must be frozen")
         return plan
 
+    @staticmethod
+    def _mean_ci95(values):
+        """Normal-approximation 95% CI for a mean; descriptive/inferential boundary is explicit."""
+        if not values:
+            return {"mean":None,"se":None,"ci95_low":None,"ci95_high":None,"n":0}
+        m=mean(values); n=len(values)
+        if n < 2:
+            return {"mean":m,"se":None,"ci95_low":None,"ci95_high":None,"n":n}
+        se=stdev(values)/(n**0.5)
+        return {"mean":m,"se":se,"ci95_low":m-1.96*se,"ci95_high":m+1.96*se,"n":n}
+
+    @staticmethod
+    def _cohens_d_independent(a,b):
+        if len(a)<2 or len(b)<2: return None
+        na,nb=len(a),len(b)
+        va,vb=stdev(a)**2,stdev(b)**2
+        pooled=((na-1)*va+(nb-1)*vb)/(na+nb-2)
+        if pooled<=0: return None
+        return (mean(a)-mean(b))/(pooled**0.5)
+
+    def inferential_randomized_arm_analysis(self, study_id, analysis_plan_id, outcome_name):
+        """
+        Inferential layer for a two-arm randomized study.
+        Reports unadjusted effect size and normal-approximation CI.
+        This is not a substitute for a preregistered model chosen for the
+        outcome distribution, sample size, missingness mechanism, or repeated measures.
+        """
+        self._plan(study_id,analysis_plan_id)
+        rows=self.db.all(
+            "SELECT p.id participant_id,a.arm,o.observation_type,o.value,o.recorded_at "
+            "FROM study_participants p JOIN study_assignments a ON a.participant_id=p.id AND a.study_id=p.study_id "
+            "LEFT JOIN study_outcomes o ON o.participant_id=p.id AND o.study_id=? AND o.outcome_name=? "
+            "WHERE p.study_id=? ORDER BY p.id,o.recorded_at",(study_id,outcome_name,study_id))
+        grouped={}
+        for r in rows:
+            p=grouped.setdefault(r["participant_id"],{"arm":r["arm"],"values":[]})
+            if r["observation_type"]=="TRAINING" and r["value"] is not None: p["values"].append(r["value"])
+        changes={"INTERVENTION":[],"CONTROL":[]}
+        for p in grouped.values():
+            if len(p["values"])>=2 and p["arm"] in changes: changes[p["arm"]].append(p["values"][-1]-p["values"][0])
+        i=self._mean_ci95(changes["INTERVENTION"]); c=self._mean_ci95(changes["CONTROL"])
+        d=self._cohens_d_independent(changes["INTERVENTION"],changes["CONTROL"])
+        diff=i["mean"]-c["mean"] if i["mean"] is not None and c["mean"] is not None else None
+        result={"intervention":i,"control":c,"between_arm_difference":diff,"cohens_d":d,
+                "limitations":["unadjusted","normal-approximation CI","complete paired cases only",
+                "no multiplicity correction","no missing-data model","no longitudinal model"],
+                "interpretation":"These are model-dependent statistical estimates. They should not be treated as proof of causality or generalization without checking the preregistered design assumptions."}
+        rid=str(uuid4())
+        with self.db.transaction() as con:
+            con.execute("INSERT INTO study_analysis_results(id,study_id,analysis_plan_id,outcome_name,n_total,n_observed,estimate,uncertainty,missing_data_note,interpretation,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (rid,study_id,analysis_plan_id,outcome_name,len(grouped),sum(len(v["values"])>=2 for v in grouped.values()),
+                 diff,"95% CIs use a normal approximation; Cohen's d is unadjusted.",
+                 "Complete paired cases only; participants with missing baseline/post values are excluded.",
+                 result["interpretation"],now()))
+            metrics={
+                "intervention_mean_change":(i["mean"],i["n"]),
+                "intervention_ci95_low":(i["ci95_low"],i["n"]),
+                "intervention_ci95_high":(i["ci95_high"],i["n"]),
+                "control_mean_change":(c["mean"],c["n"]),
+                "control_ci95_low":(c["ci95_low"],c["n"]),
+                "control_ci95_high":(c["ci95_high"],c["n"]),
+                "between_arm_difference":(diff,min(i["n"],c["n"])),
+                "cohens_d":(d,min(i["n"],c["n"]))
+            }
+            for name,(value,denom) in metrics.items():
+                con.execute("INSERT INTO study_analysis_metrics(id,study_id,analysis_plan_id,outcome_name,metric_name,metric_value,denominator,note,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (str(uuid4()),study_id,analysis_plan_id,outcome_name,name,value,denom,None,now()))
+        return result
+
     def randomized_arm_analysis(self, study_id, analysis_plan_id, outcome_name):
         """
         Preregistered-style descriptive randomized-arm analysis.
