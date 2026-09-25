@@ -28,3 +28,18 @@ def test_impact_trace_does_not_claim_efficacy(tmp_path):
     result=g.impacted(pid,"CLAIM","c1")
     assert result["node_count"]==2
     assert "causal" in result["policy"] or "efficacy" in result["policy"]
+
+
+def test_sync_materializes_only_resolvable_explicit_relationships(tmp_path):
+    db=Database(str(tmp_path/"sync.db")); ResearchCycle(db); pid=_setup(db)
+    source,claim,protocol=[str(uuid.uuid4()) for _ in range(3)]
+    from app.models import now
+    db.execute("INSERT INTO sources(id,title,url,authors,publication_year,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?,?,?)",(source,"s","https://example.org/s","","2026","PAPER","",""))
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,pid,"c","FACT","PRELIMINARY",0.5,"PROPOSED",now()))
+    db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(str(uuid.uuid4()),claim,source,"SUPPORTS","x",0,"system","h",now()))
+    from app.training import TrainingProtocolService
+    p=TrainingProtocolService(db).create(pid,"p","m","d","dose","progress","transfer","retention","safe",source_claim_id=claim)
+    result=KnowledgeDependencyGraph(db).sync_project(pid)
+    assert result["created_edges"] >= 3
+    graph=KnowledgeDependencyGraph(db).build(pid)
+    assert any(e["relation"]=="GROUNDS" and e["from_id"]==claim for e in graph["edges"])
