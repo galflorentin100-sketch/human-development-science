@@ -477,6 +477,12 @@ def dispatch_scientific_maintenance(work_id: str, principal: Principal = Depends
     from app.scientific_maintenance_controller import ScientificMaintenanceController
     return ScientificMaintenanceController(db).dispatch(work_id,principal.user_id)
 
+@app.post("/api/organization/maintenance/propose")
+def propose_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
+    return AutonomousScientificMaintenance(db).propose()
+
 @app.get("/api/science/knowledge-freshness/scan")
 def scan_knowledge_freshness(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
