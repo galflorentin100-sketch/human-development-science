@@ -30,7 +30,12 @@ class EvidencePipeline:
         eid=str(uuid4())
         excerpt_hash=hashlib.sha256(excerpt.encode("utf-8")).hexdigest()
         self.db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(eid,claim_id,source_id,stance,excerpt,int(verified),actor,excerpt_hash,now()))
-        return self.db.one("SELECT * FROM evidence WHERE id=?",(eid,))
+        result=self.db.one("SELECT * FROM evidence WHERE id=?",(eid,))
+        project=self.db.one("SELECT project_id FROM claims WHERE id=?",(claim_id,))
+        if project:
+            from app.knowledge_graph import KnowledgeDependencyGraph
+            KnowledgeDependencyGraph(self.db).sync_project(project["project_id"], actor)
+        return result
     def resolve(self,evidence_id):
         evidence=self.db.one("SELECT * FROM evidence WHERE id=?",(evidence_id,))
         if not evidence: raise ValueError("evidence not found")
