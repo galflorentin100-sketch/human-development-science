@@ -62,3 +62,13 @@ class ScientificAIGuard:
         if independent_reviews < 1: return "PRELIMINARY"
         if replication_count < 1: return "SUPPORTED"
         return "WELL_SUPPORTED"
+
+    
+    def finding_constraints(self) -> list[str]:
+        return [
+            "Treat every new finding as a candidate until its evidence is independently resolved.",
+            "Never convert an AI-generated interpretation directly into a scientific fact.",
+            "A finding must preserve provenance to its source, study, observation, or analysis.",
+            "Actively record contradictory evidence when it is available.",
+            "Unknown, missing, and unresolved evidence must remain explicit.",
+        ]
