@@ -110,6 +110,15 @@ def ready():
         raise HTTPException(status_code=503, detail="service not ready") from exc
     return {"status": "ready", "database": True, "agents": True}
 
+@app.post("/api/science/research-queue/{item_id}/begin")
+def begin_research_queue_item(item_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.research_queue import ResearchQueue
+    try:
+        return ResearchQueue(db).begin(item_id,principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
 @app.post("/api/science/research-workspaces")
 def create_research_workspace(req: ResearchWorkspaceRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
