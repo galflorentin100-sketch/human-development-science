@@ -34,18 +34,20 @@ class CompanyOrchestrator:
         if not run:
             self.tasks.retry_or_escalate(task["id"],"Execution completed without an agent run record.")
             return {"status":"EXECUTION_RECORD_MISSING","task":task}
+        from app.agent_output_gate import AgentOutputGate
+        output_review=AgentOutputGate(self.db).submit(run["id"], project_id)
         evaluation=EvaluationService(self.db).evaluate_run(run["id"],task["success_criteria"])
         if evaluation["passed"]:
             updated=self.db.execute("UPDATE tasks SET status='COMPLETED',updated_at=? WHERE id=? AND status='REVIEW'",(now(),task["id"]))
             if getattr(updated,"rowcount",1) != 1:
                 return {"status":"TASK_STATE_CHANGED","task":task,"evaluation":evaluation}
-            return {"status":"COMPLETED","task":task,"evaluation":evaluation}
+            return {"status":"COMPLETED","task":task,"evaluation":evaluation,"output_review":output_review}
         failure=EvaluationService(self.db).record_failure(project_id,"agent_execution",task["success_criteria"],"Unverified output","Execution produced no independently verified result.","Require verification before completion.","Add evidence-backed evaluator or external model.")
         retry=self.tasks.retry_or_escalate(task["id"],"Evaluation did not verify the execution result.")
         if retry["action"]=="RETRY":
-            return {"status":"RETRY_SCHEDULED","task":task,"evaluation":evaluation,"failure":failure,"retry":retry}
+            return {"status":"RETRY_SCHEDULED","task":task,"evaluation":evaluation,"failure":failure,"retry":retry,"output_review":output_review}
         replanned=self.planner.replan_after_failure(project_id,failure)
-        return {"status":"FAILED","task":task,"evaluation":evaluation,"failure":failure,"retry":retry,"replanned_tasks":replanned}
+        return {"status":"FAILED","task":task,"evaluation":evaluation,"failure":failure,"retry":retry,"replanned_tasks":replanned,"output_review":output_review}
     def run_autonomous(self,project_id,max_steps=25):
         if max_steps>25: raise ValueError("autonomous loop is bounded to 25 steps")
         history=[]
