@@ -31,7 +31,7 @@ class KnowledgeDependencyGraph:
     def build(self,project_id=None):
         nodes=[]; edges=[]
         tables=[("claims","CLAIM"),("interventions","INTERVENTION"),("training_protocols","TRAINING_PROTOCOL"),
-                ("research_findings","FINDING"),("evidence","EVIDENCE"),("research_questions","QUESTION")]
+                ("research_findings","FINDING"),("evidence","EVIDENCE"),("research_questions","QUESTION"),("hds_experiments","EXPERIMENT"),("hds_experiment_results","EXPERIMENT_RESULT")]
         for table,typ in tables:
             try:
                 rows=self.db.all(f"SELECT * FROM {table}"+((" WHERE project_id=?" if "project_id" in {x["name"] for x in self.db.all(f"PRAGMA table_info({table})")} else "")),((project_id,) if project_id else ()))
@@ -85,6 +85,12 @@ class KnowledgeDependencyGraph:
                 edge("INTERVENTION",r["intervention"],"TESTED_BY","EXPERIMENT",r["id"])
         for r in self.db.all("SELECT er.id,er.experiment_id FROM hds_experiment_results er JOIN hds_experiments e ON e.id=er.experiment_id WHERE e.project_id=?",(project_id,)):
             edge("EXPERIMENT",r["experiment_id"],"HAS_RESULT","EXPERIMENT_RESULT",r["id"])
+        for r in self.db.all("SELECT er.id,er.experiment_id,er.evidence_refs FROM hds_experiment_results er JOIN hds_experiments e ON e.id=er.experiment_id WHERE e.project_id=?",(project_id,)):
+            try: refs=json.loads(r.get("evidence_refs") or "[]")
+            except (TypeError,ValueError): refs=[]
+            for ref in refs:
+                if self.db.one("SELECT id FROM evidence WHERE id=?",(str(ref),)):
+                    edge("EVIDENCE",str(ref),"SUPPORTS_OR_INFORMS","EXPERIMENT_RESULT",r["id"],[str(ref)])
         for r in self.db.all("SELECT e.id,e.hypothesis FROM experiments e WHERE e.project_id=?",(project_id,)):
             edge("HYPOTHESIS",r.get("hypothesis"),"TESTED_BY","EXPERIMENT",r["id"])
         for r in self.db.all("SELECT er.id,er.experiment_id FROM experiment_results er JOIN experiments e ON e.id=er.experiment_id WHERE e.project_id=?",(project_id,)):
