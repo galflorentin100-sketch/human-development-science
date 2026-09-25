@@ -1,12 +1,68 @@
-"""Dependency graph across scientific knowledge layers."""
+"""Explicit, auditable scientific knowledge graph.
+
+The graph stores declared relationships only. It never infers efficacy from
+graph connectivity.
+"""
+import json
+from uuid import uuid4
+from app.models import now
+
 class KnowledgeDependencyGraph:
-    def __init__(self,db): self.db=db
-    def build(self):
+    def __init__(self,db):
+        self.db=db
+        self.db.execute("""CREATE TABLE IF NOT EXISTS knowledge_edges (
+            id TEXT PRIMARY KEY, project_id TEXT NOT NULL, from_type TEXT NOT NULL,
+            from_id TEXT NOT NULL, relation TEXT NOT NULL, to_type TEXT NOT NULL,
+            to_id TEXT NOT NULL, provenance_refs TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL DEFAULT 'ACTIVE', created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(project_id,from_type,from_id,relation,to_type,to_id)
+        )""")
+
+    def add_edge(self,project_id,from_type,from_id,relation,to_type,to_id,provenance_refs=(),created_by="system"):
+        self.db.execute("""INSERT OR IGNORE INTO knowledge_edges
+            (id,project_id,from_type,from_id,relation,to_type,to_id,provenance_refs,status,created_by,created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (str(uuid4()),project_id,from_type,str(from_id),relation,to_type,str(to_id),
+             json.dumps(list(provenance_refs),sort_keys=True),"ACTIVE",created_by,now()))
+        return self.db.one("""SELECT * FROM knowledge_edges WHERE project_id=? AND from_type=? AND from_id=? AND relation=? AND to_type=? AND to_id=?""",
+            (project_id,from_type,str(from_id),relation,to_type,str(to_id)))
+
+    def build(self,project_id=None):
         nodes=[]; edges=[]
-        for table,typ in [("claims","CLAIM"),("interventions","INTERVENTION"),("training_protocols","TRAINING_PROTOCOL")]:
-            for r in self.db.all(f"SELECT * FROM {table}"):
-                nodes.append({"id":r["id"],"type":typ,"status":r["status"]})
-        for p in self.db.all("SELECT id,source_claim_id,intervention_id FROM training_protocols"):
-            if p["source_claim_id"]: edges.append({"from":p["source_claim_id"],"to":p["id"],"relation":"GROUNDS"})
-            if p["intervention_id"]: edges.append({"from":p["intervention_id"],"to":p["id"],"relation":"IMPLEMENTS"})
+        tables=[("claims","CLAIM"),("interventions","INTERVENTION"),("training_protocols","TRAINING_PROTOCOL"),
+                ("research_findings","FINDING"),("evidence","EVIDENCE"),("research_questions","QUESTION")]
+        for table,typ in tables:
+            try:
+                rows=self.db.all(f"SELECT * FROM {table}"+((" WHERE project_id=?" if "project_id" in {x["name"] for x in self.db.all(f"PRAGMA table_info({table})")} else "")),((project_id,) if project_id else ()))
+            except Exception:
+                rows=[]
+            for row in rows:
+                nodes.append({"id":row["id"],"type":typ,"status":row.get("status")})
+        if project_id:
+            edges=self.db.all("SELECT * FROM knowledge_edges WHERE project_id=? AND status='ACTIVE' ORDER BY created_at",(project_id,))
+        else:
+            edges=self.db.all("SELECT * FROM knowledge_edges WHERE status='ACTIVE' ORDER BY created_at")
+        # Add legacy explicit protocol relationships as read-only graph edges.
+        protocols=self.db.all("SELECT * FROM training_protocols")
+        for p in protocols:
+            if project_id and p.get("project_id")!=project_id: continue
+            if p.get("source_claim_id"): edges.append({"from_id":p["source_claim_id"],"to_id":p["id"],"relation":"GROUNDS","from_type":"CLAIM","to_type":"TRAINING_PROTOCOL"})
+            if p.get("intervention_id"): edges.append({"from_id":p["intervention_id"],"to_id":p["id"],"relation":"IMPLEMENTS","from_type":"INTERVENTION","to_type":"TRAINING_PROTOCOL"})
         return {"nodes":nodes,"edges":edges,"policy":"graph is descriptive; it does not infer efficacy"}
+
+    def neighbors(self,project_id,node_type,node_id):
+        return self.db.all("""SELECT * FROM knowledge_edges WHERE project_id=? AND status='ACTIVE'
+            AND ((from_id=? AND from_type=?) OR (to_id=? AND to_type=?)) ORDER BY created_at DESC""",
+            (project_id,str(node_id),node_type,str(node_id),node_type))
+
+    def trace(self,project_id,node_type,node_id,max_depth=4):
+        seen={(node_type,str(node_id))}; frontier=[(node_type,str(node_id),0)]; nodes=[]
+        while frontier:
+            typ,nid,depth=frontier.pop(0); nodes.append({"type":typ,"id":nid,"depth":depth})
+            if depth>=max_depth: continue
+            for e in self.neighbors(project_id,typ,nid):
+                other=(e["to_type"],e["to_id"]) if e["from_type"]==typ and e["from_id"]==nid else (e["from_type"],e["from_id"])
+                if other not in seen:
+                    seen.add(other); frontier.append((other[0],other[1],depth+1))
+        return {"root":{"type":node_type,"id":str(node_id)},"nodes":nodes,"node_count":len(nodes)}
