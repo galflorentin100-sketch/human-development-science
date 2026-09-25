@@ -29,5 +29,19 @@ class DecisionCenter:
                           "reason":"Accepted output is eligible for candidate-finding creation; human decision remains required."})
         return items
 
+    def delegateable(self,project_id):
+        """Return decisions that have not yet been delegated to an active task."""
+        items=self.list(project_id)
+        result=[]
+        for item in items:
+            title=f"[{item['type']}] {item['title']}"
+            active=self.db.one(
+                "SELECT id,status,owner FROM tasks WHERE project_id=? AND title=? AND status NOT IN ('COMPLETED','CANCELLED')",
+                (project_id,title),
+            )
+            if not active:
+                result.append(item)
+        return result
+
     def approvals(self,limit=100):
         return self.db.all("SELECT * FROM approvals WHERE status='PENDING' ORDER BY created_at DESC LIMIT ?",(int(limit),))
