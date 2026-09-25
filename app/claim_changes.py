@@ -14,13 +14,12 @@ class ClaimChangeService:
         if classification=="FACT":
             if old["status"]!="SUPPORTED":
                 raise ValueError("FACT classification requires SUPPORTED claim state")
-            verified=self.db.one("SELECT 1 FROM evidence WHERE claim_id=? AND verified=1",(claim_id,))
-            support=self.db.one("SELECT 1 FROM evidence WHERE claim_id=? AND verified=1 AND stance='SUPPORTS'",(claim_id,))
-            contradict=self.db.one("SELECT 1 FROM evidence WHERE claim_id=? AND verified=1 AND stance='CONTRADICTS'",(claim_id,))
-            if not verified or not support:
+            from app.evidence_pipeline import EvidencePipeline
+            evidence_state=EvidencePipeline(self.db).claim_evidence_state(claim_id)
+            if evidence_state["verified_support"] < 1:
                 raise ValueError("FACT classification requires verified supporting evidence")
-            if contradict:
-                raise ValueError("FACT classification blocked while verified contradictory evidence exists")
+            if evidence_state["verified_contradict"] > 0 or evidence_state["conflicted"] > 0:
+                raise ValueError("FACT classification blocked while contradictory or conflicted evidence exists")
         confidence=old["confidence"] if new_confidence is None else float(new_confidence)
         if not 0.0<=confidence<=1.0: raise ValueError("confidence must be between 0 and 1")
         if evidence_id is not None:
