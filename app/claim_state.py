@@ -16,10 +16,12 @@ class ClaimStateService:
     def __init__(self,db): self.db=db
 
     def _evidence_summary(self,claim_id):
+        from app.evidence_pipeline import EvidencePipeline
         rows=self.db.all("SELECT e.*,s.state AS source_state FROM evidence e JOIN sources s ON s.id=e.source_id WHERE e.claim_id=?",(claim_id,))
-        verified_support=sum(1 for r in rows if r["verified"] and r["stance"]=="SUPPORTS")
-        verified_contradict=sum(1 for r in rows if r["verified"] and r["stance"]=="CONTRADICTS")
-        return verified_support,verified_contradict,rows
+        resolved=[EvidencePipeline(self.db).resolve(r["id"]) for r in rows]
+        verified_support=sum(1 for r in resolved if r["state"]=="VERIFIED" and r["stance"]=="SUPPORTS")
+        verified_contradict=sum(1 for r in resolved if r["state"]=="VERIFIED" and r["stance"]=="CONTRADICTS")
+        return verified_support,verified_contradict,resolved
 
     def transition(self,claim_id,new_status,actor,rationale,evidence_id=None):
         claim=self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
@@ -64,9 +66,10 @@ class ClaimStateService:
         return self.db.all("SELECT * FROM scientific_knowledge_versions WHERE claim_id=? ORDER BY version",(claim_id,))
 
     def evidence_state(self,claim_id):
-        support,contradict,rows=self._evidence_summary(claim_id)
-        if support and contradict: state="CONFLICTED"
-        elif support: state="SUPPORTED_EVIDENCE"
-        elif contradict: state="CONTRADICTED_EVIDENCE"
-        else: state="UNVERIFIED"
-        return {"state":state,"verified_support":support,"verified_contradict":contradict,"evidence_count":len(rows)}
+        from app.evidence_pipeline import EvidencePipeline
+        state=EvidencePipeline(self.db).claim_evidence_state(claim_id)
+        if state["conflicted"] or (state["verified_support"] and state["verified_contradict"]): label="CONFLICTED"
+        elif state["verified_support"]: label="SUPPORTED_EVIDENCE"
+        elif state["verified_contradict"]: label="CONTRADICTED_EVIDENCE"
+        else: label="UNVERIFIED"
+        return {"state":label,"verified_support":state["verified_support"],"verified_contradict":state["verified_contradict"],"conflicted":state["conflicted"],"evidence_count":len(state["evidence"])}
