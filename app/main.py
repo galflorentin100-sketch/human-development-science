@@ -702,6 +702,41 @@ def science_start_experiment(experiment_id: str, principal: Principal = Depends(
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
+@app.post("/api/science/experiments/{experiment_id}/complete")
+def science_complete_experiment(experiment_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.experiment_engine import ExperimentEngine
+    try:
+        return ExperimentEngine(db).complete(experiment_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/science/experiments/{experiment_id}/result")
+def science_record_experiment_result(experiment_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.experiment_engine import ExperimentEngine
+    try:
+        return ExperimentEngine(db).record_result(
+            experiment_id,
+            body["outcome"],
+            body["interpretation"],
+            body.get("evidence_refs", ()),
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.get("/api/science/experiments/{experiment_id}/result")
+def science_get_experiment_result(experiment_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.experiment_engine import ExperimentEngine
+    return ExperimentEngine(db).result(experiment_id)
+
+@app.get("/api/science/projects/{project_id}/experiments")
+def science_list_experiments(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.experiment_engine import ExperimentEngine
+    return ExperimentEngine(db).list(project_id)
+
 @app.get("/api/science/research-queue/{project_id}")
 def science_research_queue(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
