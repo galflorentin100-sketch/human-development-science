@@ -434,6 +434,12 @@ def organization_self_audit_actions(principal: Principal = Depends(principal_fro
     from app.audit_action_planner import AuditActionPlanner
     return AuditActionPlanner(db).plan()
 
+@app.get("/api/science/knowledge-review-queue")
+def knowledge_review_queue(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.knowledge_review_queue import KnowledgeReviewQueue
+    return KnowledgeReviewQueue(db).generate()
+
 @app.get("/api/science/knowledge-impact/claim/{claim_id}")
 def knowledge_claim_impact(claim_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
