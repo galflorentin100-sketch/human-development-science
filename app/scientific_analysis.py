@@ -18,6 +18,26 @@ class ScientificAnalysisEngine:
         return plan
 
     @staticmethod
+    def _analysis_spec(plan):
+        import json
+        raw=plan["analysis_spec"] or "{}"
+        try:
+            spec=json.loads(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("frozen analysis plan contains invalid analysis_spec") from exc
+        if not isinstance(spec,dict):
+            raise ValueError("analysis_spec must be an object")
+        return spec
+
+    def _require_method(self, plan, method):
+        spec=self._analysis_spec(plan)
+        methods=spec.get("allowed_methods", spec.get("methods", []))
+        if isinstance(methods,str): methods=[methods]
+        if method not in methods:
+            raise ValueError(f"analysis method '{method}' is not preregistered")
+        return spec
+
+    @staticmethod
     def _mean_ci95(values):
         """Normal-approximation 95% CI for a mean; descriptive/inferential boundary is explicit."""
         if not values:
@@ -60,7 +80,8 @@ class ScientificAnalysisEngine:
 
     def longitudinal_retention_analysis(self, study_id, analysis_plan_id, outcome_name):
         """Describe post-to-retention trajectories without fitting an unregistered repeated-measures model."""
-        self._plan(study_id,analysis_plan_id)
+        plan=self._plan(study_id,analysis_plan_id)
+        self._require_method(plan,"INFERENTIAL_RANDOMIZED_ARM")
         rows=self.db.all(
             "SELECT participant_id,observation_type,value,recorded_at FROM study_outcomes "
             "WHERE study_id=? AND outcome_name=? AND value IS NOT NULL "
@@ -87,7 +108,8 @@ class ScientificAnalysisEngine:
         This is not a substitute for a preregistered model chosen for the
         outcome distribution, sample size, missingness mechanism, or repeated measures.
         """
-        self._plan(study_id,analysis_plan_id)
+        plan=self._plan(study_id,analysis_plan_id)
+        self._require_method(plan,"LONGITUDINAL_RETENTION")
         rows=self.db.all(
             "SELECT p.id participant_id,a.arm,o.observation_type,o.value,o.recorded_at "
             "FROM study_participants p JOIN study_assignments a ON a.participant_id=p.id AND a.study_id=p.study_id "
