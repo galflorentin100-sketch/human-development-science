@@ -38,10 +38,25 @@ class AgentOutputGate:
         decision=str(decision).upper()
         if decision not in {"ACCEPT","REJECT","NEEDS_EVIDENCE"}: raise ValueError("invalid review decision")
         status={"ACCEPT":"ACCEPTED","REJECT":"REJECTED","NEEDS_EVIDENCE":"NEEDS_EVIDENCE"}[decision]
+        run=self.db.one("SELECT * FROM agent_runs WHERE id=?",(row["agent_run_id"],))
+        if not run: raise ValueError("agent run not found")
+        if decision=="ACCEPT":
+            try: refs=json.loads(row["evidence_refs"] or "[]")
+            except (TypeError,ValueError): refs=[]
+            if not refs: raise ValueError("accepted output requires evidence")
+            for ref in refs:
+                evidence=self.db.one("SELECT verified,claim_id FROM evidence WHERE id=?",(str(ref),))
+                if not evidence or not evidence["verified"]:
+                    raise ValueError("all output evidence must be verified before acceptance")
+            self.db.execute("UPDATE agent_runs SET verified=1,confidence=1.0 WHERE id=?",(row["agent_run_id"],))
         self.db.execute("UPDATE agent_output_reviews SET status=?,reviewer=?,rationale=?,reviewed_at=? WHERE id=? AND status='READY_FOR_REVIEW'",
                          (status,reviewer,rationale,now(),review_id))
+        if decision=="ACCEPT":
+            self.db.execute("UPDATE tasks SET status='COMPLETED',updated_at=? WHERE id=? AND status='REVIEW'",(now(),row["task_id"]))
+        elif decision=="REJECT":
+            self.db.execute("UPDATE tasks SET status='FAILED',updated_at=? WHERE id=? AND status='REVIEW'",(now(),row["task_id"]))
         self.db.audit("scientific.agent_output_reviewed","agent_output_review",review_id,reviewer,
-                      {"decision":decision},now(),str(uuid4()))
+                      {"decision":decision,"task_id":row["task_id"],"agent_run_id":row["agent_run_id"]},now(),str(uuid4()))
         return self.db.one("SELECT * FROM agent_output_reviews WHERE id=?",(review_id,))
 
     def get(self,review_id):
