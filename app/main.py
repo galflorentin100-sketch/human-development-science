@@ -172,6 +172,15 @@ def synthesize_research_workspace(workspace_id: str, req: ResearchSynthesisReque
     except ValueError as exc:
         raise HTTPException(400,str(exc)) from exc
 
+@app.post("/api/science/research-syntheses/{synthesis_id}/candidate-finding")
+def promote_research_synthesis_to_finding(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.research_engine import ResearchEngine
+    try:
+        return ResearchEngine(db).promote_to_candidate_finding(synthesis_id,principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
 @app.post("/api/science/research-syntheses/{synthesis_id}/review")
 def review_research_synthesis(synthesis_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
