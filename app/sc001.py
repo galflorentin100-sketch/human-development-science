@@ -55,13 +55,21 @@ class SC001Protocol:
         hypothesis=repo.hypothesis(project_id,protocol.question)
         experiment=repo.experiment(project_id,hypothesis["statement"],protocol.intervention)
         study=repo.study(None,protocol.title,"Controlled pilot with baseline/post/follow-up","To be defined","No results recorded; study execution pending.")
+        from app.measurement import MeasurementRegistry
+        measurements=MeasurementRegistry(db)
+        definitions=[]
+        for outcome in (protocol.primary_outcome,)+protocol.transfer_outcomes:
+            definitions.append(measurements.define(study["id"],outcome.name,outcome.definition,"Predefined behavioral outcome protocol","PROPORTION" if outcome.unit=="proportion" else "DURATION",outcome.unit,"To be established","To be established"))
+        for definition in definitions:
+            for observation_type,timepoint in (("TRAINING","baseline"),("TRAINING","post"),("REAL_WORLD","follow-up"),("RETENTION","8-week follow-up"),("RETENTION","12-week follow-up")):
+                measurements.bind(study["id"],definition["id"],observation_type,timepoint,required=(definition["name"]==protocol.primary_outcome.name or observation_type=="REAL_WORLD"))
         snapshot=json.dumps(asdict(protocol),sort_keys=True)
         digest=hashlib.sha256(snapshot.encode("utf-8")).hexdigest()
         db.execute("INSERT INTO study_protocol_versions(id,study_id,version,snapshot,content_hash,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),study["id"],1,snapshot,digest,now()))
         approval=ApprovalService(db).request(action="SC001:STUDY:"+study["id"],requested_by="study-designer",reason="Founder approval is required before participant data collection or study execution.",risk_level="HIGH",context={"study_id":study["id"],"protocol_id":protocol.id,"protocol_hash":digest},correlation_id=protocol.id)
         db.execute("UPDATE studies SET status=?,protocol_snapshot=?,protocol_hash=?,approval_id=? WHERE id=?",("PENDING_APPROVAL",snapshot,digest,approval["id"],study["id"]))
         db.audit("research.protocol_registered","study",study["id"],"experiment-designer",{"protocol_id":protocol.id,"quality_gates":gates,"protocol_hash":digest,"approval_id":approval["id"]},now(),str(uuid4()))
-        return {"protocol":protocol,"quality_gates":gates,"hypothesis":hypothesis,"experiment":experiment,"study":db.one("SELECT * FROM studies WHERE id=?",(study["id"],)),"approval":approval}
+        return {"protocol":protocol,"quality_gates":gates,"hypothesis":hypothesis,"experiment":experiment,"measurements":definitions,"study":db.one("SELECT * FROM studies WHERE id=?",(study["id"],)),"approval":approval}
     def quality_gates(self,protocol:StudyProtocol):
         return {
             "falsifiable_question":bool(protocol.question),
@@ -75,5 +83,6 @@ class SC001Protocol:
             "sample_size_defined":protocol.sample_size_target>0,
             "allocation_defined":bool(protocol.allocation),
             "analysis_plan_defined":bool(protocol.analysis_plan),
-            "status":"READY_FOR_REVIEW" if all([bool(protocol.question),bool(protocol.primary_outcome.definition),len(protocol.transfer_outcomes)>=1,len(protocol.retention_timepoints)>=1,bool(protocol.control),bool(protocol.population),bool(protocol.inclusion_criteria),bool(protocol.exclusion_criteria),protocol.sample_size_target>0,bool(protocol.allocation),bool(protocol.analysis_plan)]) else "BLOCKED"
+            "measurement_schema_defined":all(bool(o.name and o.definition and o.unit) for o in (protocol.primary_outcome,)+protocol.transfer_outcomes),
+            "status":"READY_FOR_REVIEW" if all([bool(protocol.question),bool(protocol.primary_outcome.definition),len(protocol.transfer_outcomes)>=1,len(protocol.retention_timepoints)>=1,bool(protocol.control),bool(protocol.population),bool(protocol.inclusion_criteria),bool(protocol.exclusion_criteria),protocol.sample_size_target>0,bool(protocol.allocation),bool(protocol.analysis_plan),all(bool(o.name and o.definition and o.unit) for o in (protocol.primary_outcome,)+protocol.transfer_outcomes)]) else "BLOCKED"
         }
