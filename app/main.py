@@ -132,6 +132,36 @@ def evidence(project_id: str, principal: Principal = Depends(principal_from_head
 def intelligence(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     s = IntelligenceService(db); return {"findings": s.findings(), "timeline": s.timeline(), "workforce": s.workforce(), "health": s.health(), "brief": FounderBriefService(db).build()}
+@app.post("/api/improvement/proposals")
+def create_improvement_proposal(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).propose(body["title"],body["area"],body["hypothesis"],body["success_metric"],principal.user_id)
+
+@app.post("/api/improvement/proposals/{proposal_id}/experiment")
+def start_improvement_experiment(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).start_experiment(proposal_id,body["experiment_design"],body["baseline_note"],principal.user_id)
+
+@app.post("/api/improvement/proposals/{proposal_id}/result")
+def record_improvement_result(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).record_result(proposal_id,body["result"],body["outcome_note"],body.get("evidence_ref"))
+
+@app.post("/api/improvement/proposals/{proposal_id}/adopt")
+def adopt_improvement(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).adopt(proposal_id,principal.user_id,body["rationale"])
+
+@app.get("/api/improvement/backlog")
+def improvement_backlog(area: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).backlog(area)
+
 @app.get("/api/agents")
 def agents(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
