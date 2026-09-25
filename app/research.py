@@ -115,6 +115,20 @@ class StudyExecution:
         return self.db.one("SELECT * FROM study_adherence WHERE id=?",(i,))
     def freeze_analysis_plan(self,study_id,analysis_spec,version=1):
         if not analysis_spec or not str(analysis_spec).strip(): raise ValueError("analysis_spec is required")
+        try:
+            parsed=json.loads(analysis_spec)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("analysis_spec must be valid JSON") from exc
+        if not isinstance(parsed,dict):
+            raise ValueError("analysis_spec must be a JSON object")
+        required=("outcome_name","estimand","population","estimator","ci_method",
+                  "missing_data_policy","multiplicity_policy","subgroup_policy",
+                  "stopping_rule","allowed_methods")
+        missing=[k for k in required if not parsed.get(k)]
+        if missing:
+            raise ValueError("analysis_spec missing required fields: "+", ".join(missing))
+        if not isinstance(parsed["allowed_methods"],list) or not parsed["allowed_methods"]:
+            raise ValueError("analysis_spec.allowed_methods must be a non-empty list")
         existing=self.db.one("SELECT * FROM study_analysis_plans WHERE study_id=? AND version=?",(study_id,int(version)))
         if existing: raise ValueError("analysis plan version already exists")
         frozen=self.db.one("SELECT 1 FROM study_analysis_plans WHERE study_id=? AND frozen=1",(study_id,))
