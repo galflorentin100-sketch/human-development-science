@@ -725,3 +725,60 @@ def science_approve_research(item_id: str, principal: Principal = Depends(princi
         return ResearchQueue(db).approve(item_id, principal.user_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/science/contradictions/{project_id}")
+def science_contradictions(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.contradiction_engine import ContradictionEngine
+    return ContradictionEngine(db).list(project_id)
+
+@app.post("/api/science/claims/{claim_id}/scan-contradictions")
+def science_scan_contradictions(claim_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.contradiction_engine import ContradictionEngine
+    try:
+        return ContradictionEngine(db).scan_claim(claim_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/science/contradictions/{contradiction_id}/resolve")
+def science_resolve_contradiction(contradiction_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    from app.contradiction_engine import ContradictionEngine
+    try:
+        return ContradictionEngine(db).resolve(contradiction_id, principal.user_id, body["resolution"])
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/science/claims/{claim_id}/revisions")
+def science_propose_claim_revision(claim_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.claim_revision import ClaimRevisionService
+    try:
+        return ClaimRevisionService(db).propose(
+            claim_id, body["new_statement"], body["new_status"],
+            body["rationale"], body.get("evidence_refs", ()), principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.get("/api/science/claims/{claim_id}/revisions")
+def science_claim_revision_history(claim_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.claim_revision import ClaimRevisionService
+    return ClaimRevisionService(db).history(claim_id)
+
+@app.post("/api/science/revisions/{revision_id}/approve")
+def science_approve_claim_revision(revision_id: str, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    from app.claim_revision import ClaimRevisionService
+    try:
+        return ClaimRevisionService(db).approve(revision_id, principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/science/research-cycle/{project_id}")
+def science_research_cycle(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.autonomous_research_cycle import AutonomousResearchCycle
+    return AutonomousResearchCycle(db).run(project_id)
