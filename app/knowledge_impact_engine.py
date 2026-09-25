@@ -52,6 +52,27 @@ class KnowledgeImpactEngine:
     def propagate(self,project_id,source_type,source_id,reason="upstream scientific state changed"):
         if source_type not in self.ROOT_TABLES:
             raise ValueError("unsupported source_type")
+        # Prefer the explicit knowledge graph. The legacy schema scanner remains
+        # only as a fallback for root records that have not yet been materialized.
+        from app.knowledge_graph import KnowledgeDependencyGraph
+        graph=KnowledgeDependencyGraph(self.db)
+        type_map={"claims":"CLAIM","evidence":"EVIDENCE","research_findings":"FINDING",
+                  "interventions":"INTERVENTION","training_protocols":"TRAINING_PROTOCOL"}
+        graph_type=type_map[source_type]
+        trace=graph.impacted(project_id,graph_type,source_id)
+        if trace["affected"]:
+            impacts=[{"type":n["type"],"id":n["id"],"depth":None,"reason":reason} for n in trace["affected"]]
+            for x in impacts:
+                self.db.execute("""INSERT OR IGNORE INTO knowledge_impact_reviews
+                    (id,project_id,source_type,source_id,impact_type,affected_type,
+                     affected_id,reason,status,created_at)
+                    VALUES (lower(hex(randomblob(16))),?,?,?,?,?,?,?,?,?)""",
+                    (project_id,source_type,str(source_id),"GRAPH_DEPENDENCY",
+                     x["type"],x["id"],reason,"PROPOSED",now()))
+            return {"project_id":project_id,"source":{"type":source_type,"id":str(source_id)},
+                    "affected_count":len(impacts),"affected":impacts,
+                    "guardrail":"Potential impact only; human review is required before scientific state changes.",
+                    "engine":"explicit_knowledge_graph"}
         tables=self._tables()
         queue=deque([(source_type,str(source_id),0)])
         seen={(source_type,str(source_id))}
