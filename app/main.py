@@ -136,7 +136,7 @@ def intelligence(principal: Principal = Depends(principal_from_header)):
 def create_improvement_proposal(body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
     from app.continuous_improvement import ContinuousImprovementService
-    return ContinuousImprovementService(db).propose(body["title"],body["area"],body["hypothesis"],body["success_metric"],principal.user_id)
+    return ContinuousImprovementService(db).propose(body["title"],body["area"],body["hypothesis"],body["success_metric"],principal.user_id,body.get("evidence_ref"))
 
 @app.post("/api/improvement/proposals/{proposal_id}/experiment")
 def start_improvement_experiment(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
@@ -155,6 +155,12 @@ def adopt_improvement(proposal_id: str, body: dict, principal: Principal = Depen
     require_write(principal)
     from app.continuous_improvement import ContinuousImprovementService
     return ContinuousImprovementService(db).adopt(proposal_id,principal.user_id,body["rationale"])
+
+@app.get("/api/improvement/health")
+def improvement_health(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.continuous_improvement import ContinuousImprovementService
+    return ContinuousImprovementService(db).health()
 
 @app.get("/api/improvement/backlog")
 def improvement_backlog(area: str | None = None, principal: Principal = Depends(principal_from_header)):
