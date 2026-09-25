@@ -19,6 +19,21 @@ CREATE TABLE IF NOT EXISTS research_questions (id TEXT PRIMARY KEY, project_id T
 CREATE TABLE IF NOT EXISTS agent_runs (id TEXT PRIMARY KEY, agent_id TEXT NOT NULL REFERENCES agents(id), task_id TEXT REFERENCES tasks(id), status TEXT NOT NULL, input_payload TEXT NOT NULL, output_payload TEXT NOT NULL, started_at TEXT NOT NULL, completed_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS evaluations (id TEXT PRIMARY KEY, agent_run_id TEXT NOT NULL REFERENCES agent_runs(id), evaluator TEXT NOT NULL, passed INTEGER NOT NULL, score REAL NOT NULL, details TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, actor TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS maintenance_work (
+ id TEXT PRIMARY KEY,
+ kind TEXT NOT NULL,
+ entity_type TEXT NOT NULL,
+ entity_id TEXT NOT NULL,
+ title TEXT NOT NULL,
+ reason TEXT NOT NULL,
+ success_criteria TEXT NOT NULL,
+ status TEXT NOT NULL,
+ approval_id TEXT,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_maintenance_work_status ON maintenance_work(status);
+CREATE INDEX IF NOT EXISTS idx_maintenance_work_entity ON maintenance_work(entity_type,entity_id,status);
 CREATE TABLE IF NOT EXISTS knowledge_freshness (
  id TEXT PRIMARY KEY,
  entity_type TEXT NOT NULL,
