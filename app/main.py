@@ -782,3 +782,26 @@ def science_research_cycle(project_id: str, principal: Principal = Depends(princ
     require_write(principal)
     from app.autonomous_research_cycle import AutonomousResearchCycle
     return AutonomousResearchCycle(db).run(project_id)
+
+
+@app.get("/api/founder/{project_id}")
+def founder_snapshot(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
+        raise HTTPException(404, "project not found")
+    from app.founder_intelligence import FounderIntelligence
+    return FounderIntelligence(db).snapshot(project_id)
+
+@app.get("/api/agents/registry")
+def agent_registry(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.agent_registry import AgentRegistry
+    return AgentRegistry().list()
+
+@app.post("/api/science/orchestrate/{project_id}")
+def science_orchestrate(project_id: str, body: dict = None, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
+        raise HTTPException(404, "project not found")
+    from app.scientific_orchestrator import ScientificOrchestrator
+    return ScientificOrchestrator(db).cycle(project_id, (body or {}).get("protocol_ids", ()))
