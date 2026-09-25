@@ -434,6 +434,24 @@ def organization_self_audit_actions(principal: Principal = Depends(principal_fro
     from app.audit_action_planner import AuditActionPlanner
     return AuditActionPlanner(db).plan()
 
+@app.get("/api/science/admission/claim/{claim_id}")
+def scientific_claim_admission(claim_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.scientific_admission import ScientificAdmissionGate
+    return ScientificAdmissionGate(db).claim(claim_id)
+
+@app.get("/api/science/admission/intervention/{intervention_id}")
+def scientific_intervention_admission(intervention_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.scientific_admission import ScientificAdmissionGate
+    return ScientificAdmissionGate(db).intervention(intervention_id)
+
+@app.post("/api/science/interventions/{intervention_id}/promote")
+def promote_intervention(intervention_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.intervention_lifecycle import InterventionLifecycle
+    return InterventionLifecycle(db).promote(intervention_id,body["status"],principal.user_id,body["rationale"])
+
 @app.post("/api/science/feedback/study/{study_id}")
 def outcome_feedback_study(study_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
