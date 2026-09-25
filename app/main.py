@@ -876,3 +876,22 @@ def delegate_scientific_work(project_id: str, limit: int = 5, principal: Princip
         raise HTTPException(404, "project not found")
     from app.agent_delegation import AgentDelegation
     return {"project_id":project_id,"tasks":AgentDelegation(db).delegate_pending(project_id,limit)}
+
+
+@app.post("/api/science/agent-runs/{agent_run_id}/submit-output")
+def submit_agent_output(agent_run_id: str, project_id: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.agent_output_gate import AgentOutputGate
+    return AgentOutputGate(db).submit(agent_run_id, project_id)
+
+@app.get("/api/science/agent-output/{project_id}")
+def list_agent_outputs(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.agent_output_gate import AgentOutputGate
+    return {"items":AgentOutputGate(db).list(project_id,status)}
+
+@app.post("/api/science/agent-output/{review_id}/review")
+def review_agent_output(review_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    from app.agent_output_gate import AgentOutputGate
+    return AgentOutputGate(db).review(review_id,principal.user_id,decision,rationale)
