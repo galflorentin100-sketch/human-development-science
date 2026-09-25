@@ -25,3 +25,15 @@ def test_retention_does_not_impute(tmp_path):
     assert out['n_complete_trajectories']==1
     assert out['post_to_retention_change']['mean']==-2
     assert 'No imputation' in out['missing_data_policy']
+
+
+def test_freeze_analysis_plan_rejects_incomplete_spec(tmp_path):
+    db=Database(str(tmp_path/"f.db")); db.migrate()
+    from app.research import ResearchRepository
+    db.execute("INSERT INTO studies(id,title,design,population,findings,created_at) VALUES ('s','s','RCT','adults','','2026')")
+    repo=ResearchRepository(db)
+    try:
+        repo.freeze_analysis_plan('s','{"outcome_name":"x"}')
+        assert False
+    except ValueError as exc:
+        assert 'missing required fields' in str(exc)
