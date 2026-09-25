@@ -28,7 +28,7 @@ class ResearchRepository:
         i=str(uuid4()); self.db.execute("INSERT INTO knowledge_items(id,project_id,kind,content,provenance,created_at) VALUES (?,?,?,?,?,?)",(i,project_id,kind,content,provenance,now())); return self.db.one("SELECT * FROM knowledge_items WHERE id=?",(i,))
 
 class ResearchFindingService:
-    VALID_SOURCES={"STUDY_RESULT","LITERATURE","MEASUREMENT","ANALYSIS","OBSERVATION"}
+    VALID_SOURCES={"STUDY_RESULT","LITERATURE","MEASUREMENT","ANALYSIS","OBSERVATION","AGENT_OUTPUT"}
     VALID_CLASSIFICATIONS={"FACT","INFERENCE","HYPOTHESIS","OPINION"}
     VALID_STATUSES={"CANDIDATE","UNDER_REVIEW","ACCEPTED","REJECTED"}
 
