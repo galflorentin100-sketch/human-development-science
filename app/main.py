@@ -416,6 +416,12 @@ def list_improvements(area: str | None = None, principal: Principal = Depends(pr
     from app.continuous_improvement import ContinuousImprovementService
     return ContinuousImprovementService(db).backlog(area)
 
+@app.get("/api/organization/self-audit")
+def organization_self_audit(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.self_audit import SelfAuditEngine
+    return SelfAuditEngine(db).run()
+
 @app.get("/api/science/ai-constraints")
 def science_ai_constraints(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
