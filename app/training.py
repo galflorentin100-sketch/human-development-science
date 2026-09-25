@@ -38,7 +38,10 @@ class TrainingProtocolService:
             (i,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,challenge_domain,dosage,
              progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,int(version),now())
         )
-        return self.db.one("SELECT * FROM training_protocols WHERE id=?",(i,))
+        result=self.db.one("SELECT * FROM training_protocols WHERE id=?",(i,))
+        from app.knowledge_graph import KnowledgeDependencyGraph
+        KnowledgeDependencyGraph(self.db).sync_project(project_id)
+        return result
 
     def link_basis(self,protocol_id,source_claim_id=None,intervention_id=None):
         protocol=self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
