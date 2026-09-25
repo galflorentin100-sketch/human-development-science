@@ -37,6 +37,49 @@ class ScientificAnalysisEngine:
         if pooled<=0: return None
         return (mean(a)-mean(b))/(pooled**0.5)
 
+    def missingness_report(self, study_id, outcome_name):
+        """Report missingness by observation type without imputing or assuming its mechanism."""
+        participants=self.db.all("SELECT id FROM study_participants WHERE study_id=?",(study_id,))
+        rows=self.db.all("SELECT participant_id,observation_type,value,missing_reason FROM study_outcomes WHERE study_id=? AND outcome_name=?",(study_id,outcome_name))
+        by={(p["id"],t):[] for p in participants for t in ("TRAINING","NEAR_TRANSFER","FAR_TRANSFER","REAL_WORLD","RETENTION")}
+        for r in rows:
+            if (r["participant_id"],r["observation_type"]) in by: by[(r["participant_id"],r["observation_type"])].append(r)
+        report={}
+        for t in ("TRAINING","NEAR_TRANSFER","FAR_TRANSFER","REAL_WORLD","RETENTION"):
+            observed=sum(any(x["value"] is not None for x in by[(p["id"],t)]) for p in participants)
+            missing=len(participants)-observed
+            reasons={}
+            for p in participants:
+                for x in by[(p["id"],t)]:
+                    if x["value"] is None and x["missing_reason"]:
+                        reasons[x["missing_reason"]]=reasons.get(x["missing_reason"],0)+1
+            report[t]={"n_total":len(participants),"n_observed":observed,"n_missing":missing,
+                       "observation_rate":observed/len(participants) if participants else None,
+                       "missing_reasons":reasons}
+        return report
+
+    def longitudinal_retention_analysis(self, study_id, analysis_plan_id, outcome_name):
+        """Describe post-to-retention trajectories without fitting an unregistered repeated-measures model."""
+        self._plan(study_id,analysis_plan_id)
+        rows=self.db.all(
+            "SELECT participant_id,observation_type,value,recorded_at FROM study_outcomes "
+            "WHERE study_id=? AND outcome_name=? AND value IS NOT NULL "
+            "ORDER BY participant_id,recorded_at",(study_id,outcome_name))
+        grouped={}
+        for r in rows:
+            grouped.setdefault(r["participant_id"],{}).setdefault(r["observation_type"],[]).append(r["value"])
+        trajectories=[]
+        for pid,v in grouped.items():
+            post=(v.get("TRAINING") or [None])[-1]
+            retention=(v.get("RETENTION") or [None])[-1]
+            if post is not None and retention is not None:
+                trajectories.append(retention-post)
+        summary=self._mean_ci95(trajectories)
+        return {"post_to_retention_change":summary,
+                "n_complete_trajectories":len(trajectories),
+                "missing_data_policy":"No imputation; only participants with observed post and retention values are included.",
+                "interpretation":"Descriptive trajectory among complete post/retention cases; does not establish durable intervention effects or rule out informative dropout."}
+
     def inferential_randomized_arm_analysis(self, study_id, analysis_plan_id, outcome_name):
         """
         Inferential layer for a two-arm randomized study.
