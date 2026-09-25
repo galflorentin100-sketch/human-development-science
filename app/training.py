@@ -55,12 +55,7 @@ class TrainingProtocolService:
     def attach_evidence(self,protocol_id,evidence_kind,evidence_ref,notes=""):
         if not self.db.one("SELECT 1 FROM training_protocols WHERE id=?",(protocol_id,)):
             raise ValueError("training protocol not found")
-        # Governed sessions require explicit participant consent when a governance record exists.
-        # Legacy/internal sessions without a governance record remain supported for migration compatibility.
-        from app.participant_governance import ParticipantGovernance
-        governance=ParticipantGovernance(self.db)
-        if governance.get(participant_ref) is not None:
-            governance.assert_active(participant_ref)
+        # Evidence attachment has no participant context; participant governance is enforced on session creation.
         if not evidence_kind or not evidence_ref:
             raise ValueError("evidence kind and reference are required")
         i=str(uuid4())
