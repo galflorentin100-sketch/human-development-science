@@ -416,6 +416,12 @@ def list_improvements(area: str | None = None, principal: Principal = Depends(pr
     from app.continuous_improvement import ContinuousImprovementService
     return ContinuousImprovementService(db).backlog(area)
 
+@app.get("/api/organization/self-audit/actions")
+def organization_self_audit_actions(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.audit_action_planner import AuditActionPlanner
+    return AuditActionPlanner(db).plan()
+
 @app.get("/api/organization/lab-board")
 def organization_lab_board(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
