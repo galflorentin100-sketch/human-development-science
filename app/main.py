@@ -512,6 +512,24 @@ def scientific_control_plane(principal: Principal = Depends(principal_from_heade
     from app.scientific_control_plane import ScientificControlPlane
     return ScientificControlPlane(db).snapshot()
 
+@app.get("/api/science/system-status")
+def scientific_system_status(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.scientific_system_status import ScientificSystemStatus
+    return ScientificSystemStatus(db).snapshot()
+
+@app.post("/api/science/training/{protocol_id}/safety")
+def training_safety(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.safety import SafetyGate
+    return SafetyGate(db).assess(protocol_id,body["participant_ref"],body["checks"])
+
+@app.get("/api/science/training/{protocol_id}/next-session")
+def training_next_session(protocol_id: str, participant_ref: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.protocol_engine import ProtocolEngine
+    return ProtocolEngine(db).next_session(protocol_id,participant_ref)
+
 @app.get("/api/science/knowledge-review-queue")
 def knowledge_review_queue(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
