@@ -983,6 +983,25 @@ def founder_workflow(project_id: str, principal: Principal = Depends(principal_f
         "impact_reviews": db.all("SELECT * FROM knowledge_impact_reviews WHERE project_id=? ORDER BY created_at DESC LIMIT 25",(project_id,)),
     }
 
+@app.post("/api/founder/{project_id}/decisions/{decision_type}/{decision_id}/execute-next")
+def execute_next_decision(project_id: str, decision_type: str, decision_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.decision_center import DecisionCenter
+    from app.agent_delegation import AgentDelegation
+    items=[x for x in DecisionCenter(db).list(project_id) if x["type"]==decision_type.upper() and x["id"]==decision_id]
+    if not items:
+        raise HTTPException(404,"decision not found")
+    item=items[0]
+    if item["type"]=="AGENT_OUTPUT":
+        from app.knowledge_update_proposer import KnowledgeUpdateProposer
+        try:
+            return {"action":"candidate_finding","result":KnowledgeUpdateProposer(db).propose_from_output(decision_id)}
+        except ValueError as exc:
+            raise HTTPException(400,str(exc)) from exc
+    if item["type"]=="IMPACT":
+        raise HTTPException(400,"impact decisions require explicit review via the impact-review endpoint")
+    return {"action":"delegated","task":AgentDelegation(db).delegate(project_id,item)}
+
 @app.post("/api/science/delegate/{project_id}")
 def delegate_scientific_work(project_id: str, limit: int = 5, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
