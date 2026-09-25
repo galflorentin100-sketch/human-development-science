@@ -134,3 +134,59 @@ def test_training_protocol_cannot_be_supported_without_transfer_and_retention(tm
         assert False
     except ValueError as exc:
         assert "evidence" in str(exc) or "sessions" in str(exc)
+
+
+def test_evidence_uncertain_plus_verified_remains_uncertain(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    import uuid
+    from app.models import now
+    db=Database(str(tmp_path/"mixed-review.db")); ResearchCycle(db)
+    cid,aid,pid=[str(uuid.uuid4()) for _ in range(3)]
+    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",(cid,"c","m","v","p",now()))
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(aid,"a","r","m","[]","[]","1","ACTIVE",now()))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(pid,cid,"o","ACTIVE",aid,now()))
+    claim_id=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim_id,pid,"x","HYPOTHESIS","PRELIMINARY",0.5,"PROPOSED",now()))
+    p=EvidencePipeline(db)
+    sid=str(uuid.uuid4())
+    db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(sid,"s","https://example.com/"+sid,"PAPER","","test"))
+    p.ingest_text(sid,"mixed")
+    e=p.attach(claim_id,sid,"excerpt")
+    p.review(e["id"],"r1","VERIFIED","checked")
+    p.review(e["id"],"r2","UNCERTAIN","uncertain")
+    assert p.resolve(e["id"])["state"]=="UNCERTAIN"
+
+
+def test_knowledge_freshness_flags_due_review(tmp_path):
+    from app.knowledge_freshness import KnowledgeFreshness
+    import uuid
+    from app.models import now
+    db=Database(str(tmp_path/"fresh.db")); ResearchCycle(db)
+    cid,aid,pid=[str(uuid.uuid4()) for _ in range(3)]
+    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",(cid,"c","m","v","p",now()))
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(aid,"a","r","m","[]","[]","1","ACTIVE",now()))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(pid,cid,"o","ACTIVE",aid,now()))
+    claim_id=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim_id,pid,"x","HYPOTHESIS","PRELIMINARY",0.5,"PROPOSED",now()))
+    k=KnowledgeFreshness(db)
+    k.register("CLAIM",claim_id,1)
+    db.execute("UPDATE knowledge_freshness SET next_review_at=? WHERE entity_type='CLAIM' AND entity_id=?",( "2000-01-01T00:00:00+00:00",claim_id))
+    scan=k.scan()
+    assert scan["stale_count"]==1
+
+
+def test_knowledge_impact_finds_downstream_training(tmp_path):
+    from app.knowledge_impact import KnowledgeImpactAnalyzer
+    import uuid
+    from app.models import now
+    db=Database(str(tmp_path/"impact.db")); ResearchCycle(db)
+    cid,aid,pid,claim_id=[str(uuid.uuid4()) for _ in range(4)]
+    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",(cid,"c","m","v","p",now()))
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(aid,"a","r","m","[]","[]","1","ACTIVE",now()))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(pid,cid,"o","ACTIVE",aid,now()))
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim_id,pid,"x","HYPOTHESIS","PRELIMINARY",0.5,"PROPOSED",now()))
+    from app.training import TrainingProtocolService
+    p=TrainingProtocolService(db).create(pid,"t","mechanism","stress","dose","progress","transfer","retention","safety",source_claim_id=claim_id)
+    impact=KnowledgeImpactAnalyzer(db).claim_impact(claim_id)
+    assert any(x["id"]==p["id"] for x in impact["downstream"]["training_protocols"])
+    assert impact["review_required"] is True
