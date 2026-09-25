@@ -102,17 +102,10 @@ class TrainingProtocolService:
         old=protocol["status"]
         allowed={"DRAFT":{"PILOT","RETIRED"},"PILOT":{"SUPPORTED","RETIRED"},"SUPPORTED":{"RETIRED"},"RETIRED":set()}
         if new_status not in allowed.get(old,set()): raise ValueError(f"invalid training protocol transition: {old} -> {new_status}")
-        if new_status in {"PILOT","SUPPORTED"} and not (protocol["source_claim_id"] or protocol["intervention_id"]):
-            raise ValueError("PILOT/SUPPORTED training protocol requires explicit scientific basis")
+        if new_status in {"PILOT","SUPPORTED"}:
+            from app.scientific_admission import ScientificAdmissionGate
+            ScientificAdmissionGate(self.db).assert_training_admissible(protocol_id,new_status)
         if new_status=="SUPPORTED":
-            if protocol["source_claim_id"]:
-                claim=self.db.one("SELECT status FROM claims WHERE id=?",(protocol["source_claim_id"],))
-                if not claim or claim["status"] != "SUPPORTED":
-                    raise ValueError("SUPPORTED training protocol requires a SUPPORTED source claim")
-            if protocol["intervention_id"]:
-                intervention=self.db.one("SELECT status FROM interventions WHERE id=?",(protocol["intervention_id"],))
-                if not intervention or intervention["status"] != "SUPPORTED":
-                    raise ValueError("SUPPORTED training protocol requires a SUPPORTED intervention")
             evidence=self._evidence_readiness(protocol_id)
             if not evidence or any(x["state"]!="VERIFIED" for x in evidence):
                 raise ValueError("SUPPORTED training protocol requires all attached evidence to be VERIFIED")
