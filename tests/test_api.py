@@ -183,3 +183,14 @@ def test_task_retry_escalates_after_limit(tmp_path):
     second=TaskEngine(db).retry_or_escalate(task["id"],"repeat failure")
     assert second["action"]=="ESCALATE"
     assert TaskEngine(db).get(task["id"])["escalation_required"]==1
+
+def test_sc001_registration_creates_preregistered_measurements(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.sc001 import SC001Protocol
+    db=Database(str(tmp_path/"sc001_measure.db")); ResearchCycle(db)
+    p=ResearchCycle(db).run("SC001 measurement")["project"]
+    out=SC001Protocol().register(db,p["id"])
+    assert len(out["measurements"])==4
+    assert db.one("SELECT COUNT(*) AS n FROM study_measure_definitions WHERE study_id=?",(out["study"]["id"],))["n"]==4
+    assert db.one("SELECT COUNT(*) AS n FROM study_measure_bindings WHERE study_id=?",(out["study"]["id"],))["n"]==20
