@@ -49,6 +49,13 @@ class EvidencePipeline:
         verdicts={row["verdict"] for row in previous} | {normalized}
         if "REJECTED" in verdicts and "VERIFIED" in verdicts:
             verified=0
+            claim_id=evidence["claim_id"]
+            claim=self.db.one("SELECT status FROM claims WHERE id=?",(claim_id,))
+            if claim and claim["status"] in {"SUPPORTED","CONTRADICTED"}:
+                ts=now()
+                self.db.execute("UPDATE claims SET status='UNCERTAIN',review_required=1,updated_at=? WHERE id=?",(ts,claim_id))
+                self.db.execute("INSERT INTO claim_state_transitions(id,claim_id,prior_status,new_status,actor,rationale,evidence_id,created_at) VALUES (?,?,?,?,?,?,?,?)",
+                    (str(uuid4()),claim_id,claim["status"],"UNCERTAIN",reviewer,"conflicting evidence review verdicts",evidence_id,ts))
         else:
             verified=1 if normalized=="VERIFIED" else 0
         self.db.execute("UPDATE evidence SET verified=? WHERE id=?",(verified,evidence_id))
