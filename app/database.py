@@ -79,6 +79,19 @@ CREATE TABLE IF NOT EXISTS study_adherence (id TEXT PRIMARY KEY, study_id TEXT N
 CREATE TABLE IF NOT EXISTS study_analysis_plans (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), version INTEGER NOT NULL, analysis_spec TEXT NOT NULL, frozen INTEGER NOT NULL DEFAULT 0, frozen_at TEXT, created_at TEXT NOT NULL, UNIQUE(study_id,version));
 CREATE TABLE IF NOT EXISTS study_analysis_results (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), analysis_plan_id TEXT NOT NULL REFERENCES study_analysis_plans(id), outcome_name TEXT NOT NULL, n_total INTEGER NOT NULL, n_observed INTEGER NOT NULL, estimate REAL, uncertainty TEXT, missing_data_note TEXT, interpretation TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS study_analysis_metrics (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), analysis_plan_id TEXT NOT NULL REFERENCES study_analysis_plans(id), outcome_name TEXT NOT NULL, metric_name TEXT NOT NULL, metric_value REAL, denominator INTEGER, note TEXT, created_at TEXT NOT NULL, UNIQUE(study_id,analysis_plan_id,outcome_name,metric_name));
+CREATE TABLE IF NOT EXISTS study_analysis_audit (
+ id TEXT PRIMARY KEY,
+ study_id TEXT NOT NULL REFERENCES studies(id),
+ analysis_plan_id TEXT NOT NULL REFERENCES study_analysis_plans(id),
+ analysis_result_id TEXT REFERENCES study_analysis_results(id),
+ protocol_hash TEXT NOT NULL,
+ analysis_plan_hash TEXT NOT NULL,
+ dataset_hash TEXT NOT NULL,
+ method TEXT NOT NULL,
+ population_note TEXT NOT NULL,
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_study_analysis_audit_study ON study_analysis_audit(study_id,created_at);
 
 CREATE INDEX IF NOT EXISTS idx_goals_company_status ON goals(company_id,status);
 CREATE INDEX IF NOT EXISTS idx_decisions_company_created ON decisions(company_id,created_at);
