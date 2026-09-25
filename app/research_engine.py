@@ -95,6 +95,28 @@ class ResearchEngine:
                       {"decision":decision,"rationale":rationale},now(),str(uuid4()))
         return self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
 
+    def promote_to_candidate_finding(self,synthesis_id,actor):
+        syn=self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
+        if not syn: raise ValueError("synthesis not found")
+        if syn["status"]!="ACCEPTED": raise ValueError("only an ACCEPTED synthesis can become a finding candidate")
+        workspace=self._get(syn["workspace_id"])
+        from app.research import ResearchFindingService
+        existing=self.db.one(
+            "SELECT * FROM research_findings WHERE project_id=? AND source_type='LITERATURE' AND source_id=? LIMIT 1",
+            (workspace["project_id"],synthesis_id))
+        if existing: return existing
+        interpretation=json.dumps({
+            "synthesis":syn["synthesis"],
+            "limitations":syn["limitations"],
+            "uncertainty":syn["uncertainty"],
+            "provenance_hash":syn["provenance_hash"],
+            "note":"Candidate only; scientific acceptance still requires evidence review."
+        },sort_keys=True)
+        return ResearchFindingService(self.db).create(
+            workspace["project_id"],syn["synthesis"],classification="INFERENCE",
+            source_type="LITERATURE",source_id=synthesis_id,evidence_refs=(),
+            interpretation=interpretation,created_by=actor)
+
     def get(self,workspace_id):
         row=self._get(workspace_id)
         row["sources"]=self.db.all("SELECT * FROM research_workspace_sources WHERE workspace_id=? ORDER BY created_at",(workspace_id,))
