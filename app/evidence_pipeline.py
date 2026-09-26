@@ -56,7 +56,7 @@ class EvidencePipeline:
         return {"claim_id":claim_id,"evidence":resolved,
                 "verified_support":sum(x["state"]=="VERIFIED" and x["stance"]=="SUPPORTS" for x in resolved),
                 "verified_contradict":sum(x["state"]=="VERIFIED" and x["stance"]=="CONTRADICTS" for x in resolved),
-                "conflicted":sum(x["state"]=="CONFLICTED" for x in resolved)}
+                "conflicted":int(any(x["state"]=="CONFLICTED" for x in resolved) or (any(x["state"]=="VERIFIED" and x["stance"]=="SUPPORTS" for x in resolved) and any(x["state"]=="VERIFIED" and x["stance"]=="CONTRADICTS" for x in resolved)))}
 
     def review(self,evidence_id,reviewer,verdict,rationale):
         evidence=self.db.one("SELECT * FROM evidence WHERE id=?",(evidence_id,))
@@ -72,7 +72,8 @@ class EvidencePipeline:
         self.db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES (?,?,?,?,?,?)",(rid,evidence_id,reviewer,normalized,rationale,now()))
         resolved=self.resolve(evidence_id)
         self.db.execute("UPDATE evidence SET verified=? WHERE id=?",(1 if resolved["state"]=="VERIFIED" else 0,evidence_id))
-        if resolved["state"]=="CONFLICTED":
+        claim_state=self.claim_evidence_state(evidence["claim_id"])
+        if claim_state["conflicted"]:
             claim=self.db.one("SELECT status FROM claims WHERE id=?",(evidence["claim_id"],))
             if claim and claim["status"] in {"SUPPORTED","CONTRADICTED"}:
                 ts=now()
