@@ -93,8 +93,9 @@ class ResearchEngine:
         workspace=self._get(syn["workspace_id"])
         if workspace["status"]!="SYNTHESIS_READY": raise ValueError("workspace is not ready for synthesis review")
         new_status="REVIEWED" if decision=="ACCEPTED" else "ACTIVE"
-        self.db.execute("UPDATE research_syntheses SET status=? WHERE id=? AND status='CANDIDATE'",(decision,synthesis_id))
-        self.db.execute("UPDATE research_workspaces SET status=?,updated_at=? WHERE id=?",(new_status,now(),workspace["id"]))
+        updated=self.db.execute("UPDATE research_syntheses SET status=? WHERE id=? AND status='CANDIDATE'",(decision,synthesis_id))
+        if getattr(updated,"rowcount",1)!=1: raise ValueError("synthesis review was already resolved")
+        self.db.execute("UPDATE research_workspaces SET status=?,updated_at=? WHERE id=? AND status='SYNTHESIS_READY'",(new_status,now(),workspace["id"]))
         self.db.audit("research_synthesis.reviewed","research_synthesis",synthesis_id,reviewer,
                       {"decision":decision,"rationale":rationale},now(),str(uuid4()))
         return self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
