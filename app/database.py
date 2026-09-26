@@ -319,6 +319,16 @@ def _migrate_phase4(self):
         if duplicate_queue:
             raise RuntimeError("cannot enforce unique active research queue items: existing duplicate project/question items found")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_research_queue_active_identity ON hds_research_queue(project_id,question) WHERE status IN ('PROPOSED','APPROVED','IN_PROGRESS')")
+        duplicate_active_tasks=con.execute("""
+            SELECT project_id,title,COUNT(*) AS n
+            FROM tasks
+            WHERE status IN ('PLANNED','ASSIGNED','RUNNING','REVIEW','BLOCKED')
+            GROUP BY project_id,title HAVING COUNT(*) > 1
+        """).fetchall()
+        if duplicate_active_tasks:
+            raise RuntimeError("cannot enforce unique active task titles: existing duplicate project/title tasks found")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_active_project_title ON tasks(project_id,title) WHERE status IN ('PLANNED','ASSIGNED','RUNNING','REVIEW','BLOCKED')")
+
         duplicate_agent_reviews=con.execute("""
             SELECT agent_run_id,COUNT(*) AS n FROM agent_output_reviews
             GROUP BY agent_run_id HAVING COUNT(*) > 1
@@ -395,6 +405,16 @@ class PostgreSQLDatabase:
             if duplicate_maintenance:
                 raise RuntimeError("cannot enforce unique active maintenance work: existing duplicate active items found")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_maintenance_active_identity ON maintenance_work(kind,entity_type,entity_id) WHERE status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS')")
+                    duplicate_active_tasks=con.execute("""
+                        SELECT project_id,title,COUNT(*) AS n
+                        FROM tasks
+                        WHERE status IN ('PLANNED','ASSIGNED','RUNNING','REVIEW','BLOCKED')
+                        GROUP BY project_id,title HAVING COUNT(*) > 1
+                    """).fetchall()
+                    if duplicate_active_tasks:
+                        raise RuntimeError("cannot enforce unique active task titles: existing duplicate project/title tasks found")
+                    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_active_project_title ON tasks(project_id,title) WHERE status IN ('PLANNED','ASSIGNED','RUNNING','REVIEW','BLOCKED')")
+            
             duplicate_research_queue=con.execute("""
                 SELECT project_id,question,COUNT(*) AS n FROM hds_research_queue
                 WHERE status IN ('PROPOSED','APPROVED','IN_PROGRESS')
