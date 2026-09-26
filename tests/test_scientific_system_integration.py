@@ -15,6 +15,14 @@ def _setup(db):
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(p,c,"o","ACTIVE",a,now()))
     return p
 
+def test_claim_state_accepts_review_required_status(tmp_path):
+    db=Database(str(tmp_path/"claim-state.db")); ResearchCycle(db); pid=_setup(db)
+    claim=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,pid,"x","HYPOTHESIS","UNVERIFIED",0.0,"REVIEW_REQUIRED",now()))
+    row=ClaimStateService(db).evidence_state(claim)
+    assert row["state"] == "UNVERIFIED"
+
+
 def test_freshness_registration_rejects_cross_project_entity(tmp_path):
     db=Database(str(tmp_path/"freshness.db")); ResearchCycle(db)
     p1=_setup(db); p2=_setup(db)
