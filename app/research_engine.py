@@ -80,7 +80,7 @@ class ResearchEngine:
                 EvidencePipeline(self.db)._ingest_text_in_transaction(con,source_id,str(content))
             i=str(uuid4())
             con.execute(
-                "INSERT OR IGNORE INTO research_workspace_sources(id,workspace_id,source_id,relevance,notes,content_hash,reviewed,created_at) VALUES (?,?,?,?,?,?,0,?)",
+                "INSERT INTO research_workspace_sources(id,workspace_id,source_id,relevance,notes,content_hash,reviewed,created_at) VALUES (?,?,?,?,?,?,0,?) ON CONFLICT(workspace_id,source_id) DO NOTHING",
                 (i,workspace_id,source_id,relevance,notes,digest,now()))
             return dict(con.execute(
                 "SELECT * FROM research_workspace_sources WHERE workspace_id=? AND source_id=?",
