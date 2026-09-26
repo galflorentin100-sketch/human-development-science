@@ -60,7 +60,7 @@ class ResearchAgentService:
         return {"task":task,"workspace_id":workspace_id,"agent_id":agent,"input":payload}
 
     def _researcher_agent(self):
-        row=self.db.one("SELECT id FROM agents WHERE role=? AND status='ACTIVE' ORDER BY created_at LIMIT 1",(self.ROLE,))
+        row=self.db.one("SELECT id FROM agents WHERE status='ACTIVE' AND (id=? OR role=?) ORDER BY created_at LIMIT 1",(self.ROLE,"research"))
         return row["id"] if row else None
 
     def finalize_review(self,review_id,actor):
