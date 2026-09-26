@@ -51,7 +51,7 @@ class ResearchRepository:
         i=str(uuid4()); self.db.execute("INSERT INTO knowledge_items(id,project_id,kind,content,provenance,created_at) VALUES (?,?,?,?,?,?)",(i,project_id,kind,content,provenance,now())); return self.db.one("SELECT * FROM knowledge_items WHERE id=?",(i,))
 
 class ResearchFindingService:
-    VALID_SOURCES={"STUDY_RESULT","LITERATURE","MEASUREMENT","ANALYSIS","OBSERVATION","AGENT_OUTPUT"}
+    VALID_SOURCES={"STUDY_RESULT","LITERATURE","MEASUREMENT","TRAINING_PROTOCOL","ANALYSIS","OBSERVATION","AGENT_OUTPUT"}
     VALID_CLASSIFICATIONS={"FACT","INFERENCE","HYPOTHESIS","OPINION"}
     VALID_STATUSES={"CANDIDATE","UNDER_REVIEW","ACCEPTED","REJECTED"}
 
@@ -74,6 +74,7 @@ class ResearchFindingService:
                 "LITERATURE":"SELECT rw.project_id FROM research_syntheses rs JOIN research_workspaces rw ON rw.id=rs.workspace_id WHERE rs.id=?",
                 "STUDY_RESULT":"SELECT project_id FROM studies WHERE id=?",
                 "MEASUREMENT":"SELECT project_id FROM hds_experiments WHERE id=?",
+                "TRAINING_PROTOCOL":"SELECT project_id FROM training_protocols WHERE id=?",
                 "ANALYSIS":"SELECT project_id FROM study_analysis_results WHERE id=?",
                 "AGENT_OUTPUT":"SELECT project_id FROM agent_output_reviews WHERE agent_run_id=? ORDER BY created_at DESC LIMIT 1",
             }
@@ -108,26 +109,55 @@ class ResearchFindingService:
                 retention_observed=False,
                 transfer_observed=False,
             )
-        if decision=="ACCEPTED":
-            if not refs:
-                raise ValueError("ACCEPTED finding requires at least one evidence reference")
-            from app.evidence_pipeline import EvidencePipeline
-            pipeline=EvidencePipeline(self.db)
-            evidence_snapshot=[]
-            for ref in refs:
-                evidence=self.db.one("SELECT id,claim_id,source_id,stance,excerpt,excerpt_hash FROM evidence WHERE id=?",(str(ref),))
-                if not evidence: raise ValueError("finding references unknown evidence")
-                resolution=pipeline.resolve(str(ref))
-                if resolution["state"]!="VERIFIED":
-                    raise ValueError("ACCEPTED finding requires all referenced evidence to be VERIFIED")
-                evidence_snapshot.append({"evidence_id":str(ref),"claim_id":evidence["claim_id"],"source_id":evidence["source_id"],"stance":evidence["stance"],"excerpt_hash":evidence["excerpt_hash"],"state_at_review":resolution["state"]})
         status=decision
         ts=now()
         with self.db.transaction() as con:
-            updated=con.execute("UPDATE research_findings SET status=?,reviewed_by=?,reviewed_at=? WHERE id=? AND status IN ('CANDIDATE','UNDER_REVIEW')",(status,reviewer,ts,finding_id))
-            if updated.rowcount != 1: raise ValueError("finding review was already resolved")
-            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
-                (str(uuid4()),"research_finding.reviewed","research_finding",finding_id,reviewer,json.dumps({"decision":decision,"rationale":rationale,"evidence_refs":refs,"evidence_snapshot":evidence_snapshot if decision=="ACCEPTED" else []},sort_keys=True),ts))
+            evidence_snapshot=[]
+            if decision=="ACCEPTED":
+                if not refs:
+                    raise ValueError("ACCEPTED finding requires at least one evidence reference")
+                for ref in refs:
+                    evidence=con.execute(
+                        "SELECT id,claim_id,source_id,stance,excerpt_hash FROM evidence WHERE id=?",
+                        (str(ref),)).fetchone()
+                    if not evidence:
+                        raise ValueError("finding references unknown evidence")
+                    evidence=dict(evidence)
+                    reviews=con.execute(
+                        "SELECT verdict FROM evidence_reviews WHERE evidence_id=?",
+                        (str(ref),)).fetchall()
+                    verdicts={str(r["verdict"]).upper() for r in reviews}
+                    if "VERIFIED" in verdicts and "REJECTED" in verdicts:
+                        state="CONFLICTED"
+                    elif "CONFLICTED" in verdicts:
+                        state="CONFLICTED"
+                    elif "UNCERTAIN" in verdicts:
+                        state="UNCERTAIN"
+                    elif "VERIFIED" in verdicts:
+                        state="VERIFIED"
+                    elif "REJECTED" in verdicts:
+                        state="REJECTED"
+                    else:
+                        state="UNREVIEWED"
+                    if state!="VERIFIED":
+                        raise ValueError("ACCEPTED finding requires all referenced evidence to be VERIFIED")
+                    evidence_snapshot.append({
+                        "evidence_id":str(ref),
+                        "claim_id":evidence["claim_id"],
+                        "source_id":evidence["source_id"],
+                        "stance":evidence["stance"],
+                        "excerpt_hash":evidence["excerpt_hash"],
+                        "state_at_review":state,
+                    })
+            updated=con.execute(
+                "UPDATE research_findings SET status=?,reviewed_by=?,reviewed_at=? WHERE id=? AND status IN ('CANDIDATE','UNDER_REVIEW')",
+                (status,reviewer,ts,finding_id))
+            if updated.rowcount != 1:
+                raise ValueError("finding review was already resolved")
+            con.execute(
+                "INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                (str(uuid4()),"research_finding.reviewed","research_finding",finding_id,reviewer,
+                 json.dumps({"decision":decision,"rationale":rationale,"evidence_refs":refs,"evidence_snapshot":evidence_snapshot},sort_keys=True),ts))
         return self.db.one("SELECT * FROM research_findings WHERE id=?",(finding_id,))
 
     def list(self,project_id,status=None):
