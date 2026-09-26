@@ -63,7 +63,9 @@ CREATE TABLE IF NOT EXISTS research_skeptic_reviews (id TEXT PRIMARY KEY, worksp
 CREATE TABLE IF NOT EXISTS organizational_decisions (id TEXT PRIMARY KEY, project_id TEXT, decision_type TEXT NOT NULL, decision TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
 """
 class Database:
-    def __init__(self,path="company_os.db"): self.path=Path(path)
+    def __init__(self,path="company_os.db"):
+        self.path=Path(path)
+        self.migrate()
     @contextmanager
     def connect(self)->Iterator[sqlite3.Connection]:
         con=sqlite3.connect(self.path,timeout=10); con.row_factory=sqlite3.Row
