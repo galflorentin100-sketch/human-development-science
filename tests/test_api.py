@@ -177,7 +177,9 @@ def test_task_retry_escalates_after_limit(tmp_path):
     from app.tasks import TaskEngine
     db=Database(str(tmp_path/"retry.db")); ResearchCycle(db)
     p=ResearchCycle(db).run("retry")["project"]
-    task=TaskEngine(db).create_task("retry","test",p["id"],"researcher",priority=1.0)\n    TaskEngine(db).transition(task["id"],"ASSIGNED")\n    TaskEngine(db).transition(task["id"],"RUNNING")
+    task=TaskEngine(db).create_task("retry","test",p["id"],"researcher",priority=1.0)
+    TaskEngine(db).transition(task["id"],"ASSIGNED")
+    TaskEngine(db).transition(task["id"],"RUNNING")
     db.execute("UPDATE tasks SET retry_limit=1 WHERE id=?",(task["id"],))
     first=TaskEngine(db).retry_or_escalate(task["id"],"transient failure")
     assert first["action"]=="RETRY"
