@@ -65,18 +65,26 @@ class ResearchEngine:
         return self.get(workspace_id)
 
     def add_source(self,workspace_id,source_id,relevance="UNASSESSED",notes="",content=None):
-        row=self._get(workspace_id)
-        if row["status"] not in {"DRAFT","ACTIVE"}: raise ValueError("sources can only be added before synthesis")
-        if not self.db.one("SELECT id FROM sources WHERE id=?",(source_id,)): raise ValueError("source not found")
         digest=None
         if content is not None:
             digest=hashlib.sha256(str(content).encode("utf-8")).hexdigest()
-            EvidencePipeline(self.db).ingest_text(source_id,str(content))
-        i=str(uuid4())
-        self.db.execute(
-            "INSERT OR IGNORE INTO research_workspace_sources(id,workspace_id,source_id,relevance,notes,content_hash,reviewed,created_at) VALUES (?,?,?,?,?,?,0,?)",
-            (i,workspace_id,source_id,relevance,notes,digest,now()))
-        return self.db.one("SELECT * FROM research_workspace_sources WHERE workspace_id=? AND source_id=?",(workspace_id,source_id))
+        with self.db.transaction() as con:
+            row=con.execute("SELECT * FROM research_workspaces WHERE id=?",(workspace_id,)).fetchone()
+            if not row: raise ValueError("research workspace not found")
+            row=dict(row)
+            if row["status"] not in {"DRAFT","ACTIVE"}:
+                raise ValueError("sources can only be added before synthesis")
+            if not con.execute("SELECT id FROM sources WHERE id=?",(source_id,)).fetchone():
+                raise ValueError("source not found")
+            if content is not None:
+                EvidencePipeline(self.db).ingest_text(source_id,str(content))
+            i=str(uuid4())
+            con.execute(
+                "INSERT OR IGNORE INTO research_workspace_sources(id,workspace_id,source_id,relevance,notes,content_hash,reviewed,created_at) VALUES (?,?,?,?,?,?,0,?)",
+                (i,workspace_id,source_id,relevance,notes,digest,now()))
+            return dict(con.execute(
+                "SELECT * FROM research_workspace_sources WHERE workspace_id=? AND source_id=?",
+                (workspace_id,source_id)).fetchone())
 
     def synthesize(self,workspace_id,synthesis,limitations="",uncertainty="",created_by="system",evidence_refs=()):
         row=self._get(workspace_id)
