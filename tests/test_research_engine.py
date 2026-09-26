@@ -136,3 +136,18 @@ def test_research_review_pipeline_creates_two_independent_tasks(tmp_path):
     assert len(result["tasks"])==2
     roles={x["owner"] for x in result["tasks"]}
     assert len(roles)==2
+
+
+def test_add_source_with_content_ingests_atomically(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    from app.research_engine import ResearchEngine
+    db=Database(str(tmp_path/"source_content.db")); ResearchCycle(db); pid=_setup(db)
+    engine=ResearchEngine(db)
+    ws=engine.create(pid,"Question",owner="researcher")
+    engine.activate(ws["id"],"researcher")
+    source=EvidencePipeline(db).register_source("Paper","https://example.org/content","Author",2025)
+    linked=engine.add_source(ws["id"],source["id"],content="Verified source text")
+    assert linked["content_hash"]
+    parsed=db.one("SELECT content,state FROM evidence_sources WHERE source_id=?",(source["id"],))
+    assert parsed["content"]=="Verified source text"
+    assert parsed["state"]=="PARSED"
