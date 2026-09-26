@@ -151,6 +151,7 @@ class ResearchEngine:
                 "evidence_audit":evidence,"skeptic_status":skeptic_status}
 
     def promote_to_candidate_finding(self,synthesis_id,actor):
+        if not str(actor or "").strip(): raise ValueError("actor is required")
         syn=self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
         if not syn: raise ValueError("synthesis not found")
         readiness=self.readiness(synthesis_id)
