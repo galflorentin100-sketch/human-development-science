@@ -58,10 +58,12 @@ class ResearchQueue:
             raise ValueError("research item is not awaiting approval")
         if not str(actor or "").strip():
             raise ValueError("actor is required")
-        self.db.execute(
-            "UPDATE hds_research_queue SET status='APPROVED', updated_at=? WHERE id=?",
+        updated=self.db.execute(
+            "UPDATE hds_research_queue SET status='APPROVED', updated_at=? WHERE id=? AND status='PROPOSED'",
             (now(), item_id),
         )
+        if updated.rowcount != 1:
+            raise ValueError("research item was changed concurrently")
         return self.get(item_id)
 
     def begin(self, item_id, actor):
@@ -79,9 +81,13 @@ class ResearchQueue:
             owner=actor)
         if workspace["status"]=="DRAFT":
             workspace=engine.activate(workspace["id"],actor)
-        self.db.execute("UPDATE hds_research_queue SET status='IN_PROGRESS',updated_at=? WHERE id=? AND status='APPROVED'",(now(),item_id))
-        self.db.audit("research_queue.started","research_queue",item_id,actor,
-                       {"workspace_id":workspace["id"]},now(),str(uuid4()))
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE hds_research_queue SET status='IN_PROGRESS',updated_at=? WHERE id=? AND status='APPROVED'",(now(),item_id))
+            if updated.rowcount != 1:
+                raise ValueError("research item was changed concurrently")
+            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                        (str(uuid4()),"research_queue.started","research_queue",item_id,actor,
+                         json.dumps({"workspace_id":workspace["id"]},sort_keys=True),now()))
         return {"queue_item":self.get(item_id),"workspace":workspace}
 
     def list(self, project_id, status=None):
