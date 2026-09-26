@@ -84,14 +84,12 @@ class ResearchQueue:
             row=con.execute("SELECT * FROM hds_research_queue WHERE id=? AND status='APPROVED'",(item_id,)).fetchone()
             if not row:
                 raise ValueError("research item must be APPROVED before work begins")
-            columns=[d[0] for d in con.description]
-            row=dict(zip(columns,row))
+            row=dict(row)
             existing=con.execute(
                 "SELECT * FROM research_workspaces WHERE project_id=? AND question=? AND status IN ('DRAFT','ACTIVE','SYNTHESIS_READY','REVIEWED') LIMIT 1",
                 (row["project_id"],row["question"])).fetchone()
             if existing:
-                workspace_columns=[d[0] for d in con.description]
-                workspace=dict(zip(workspace_columns,existing))
+                workspace=dict(existing)
             else:
                 workspace_id=str(uuid4()); ts=now()
                 con.execute(
