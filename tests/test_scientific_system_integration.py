@@ -82,6 +82,8 @@ def test_training_provenance_trace_reaches_protocol_evidence_and_sessions(tmp_pa
         "transfer","retention","safety",evidence_level="SUPPORTED",
         source_claim_id=claim
     )
+    from app.participant_governance import ParticipantGovernance
+    ParticipantGovernance(db).register("participant-1","CONSENTED","v1")
     TrainingProtocolService(db).session(
         protocol["id"],"participant-1",1,"load","1",
         task_success=1.0,transfer_score=0.7,retention_score=0.6
