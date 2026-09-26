@@ -34,7 +34,9 @@ class KnowledgeDependencyGraph:
                 ("research_findings","FINDING"),("evidence","EVIDENCE"),("research_questions","QUESTION"),("hds_experiments","EXPERIMENT")]
         for table,typ in tables:
             try:
-                rows=self.db.all(f"SELECT * FROM {table}"+((" WHERE project_id=?" if "project_id" in {x["name"] for x in self.db.all(f"PRAGMA table_info({table})")} else "")),((project_id,) if project_id else ()))
+                columns=set(self.db.table_columns(table))
+                where=" WHERE project_id=?" if project_id and "project_id" in columns else ""
+                rows=self.db.all(f"SELECT * FROM {table}{where}",(project_id,) if where else ())
             except Exception:
                 rows=[]
             for row in rows:
