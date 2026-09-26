@@ -62,3 +62,17 @@ def test_maintenance_task_has_stable_identity_link(tmp_path):
     assert link["kind"]=="REVALIDATION"
     assert service.create_tasks(pid,owner=owner)==[]
     assert db.one("SELECT COUNT(*) AS n FROM tasks WHERE id=?",(created[0],))["n"]==1
+
+
+def test_maintenance_approval_request_uses_single_transaction(tmp_path):
+    from app.scientific_maintenance_controller import ScientificMaintenanceController
+    from app.models import now
+    db=Database(str(tmp_path/"maintenance-approval.db")); ResearchCycle(db); pid=_setup(db)
+    wid=str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO maintenance_work(id,kind,entity_type,entity_id,title,reason,success_criteria,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (wid,"REVALIDATION","CLAIM",str(uuid.uuid4()),"review","reason","criteria","PROPOSED",now(),now()))
+    result=ScientificMaintenanceController(db).request_approval(wid,"founder")
+    assert result["status"]=="APPROVAL_PENDING"
+    assert result["approval_id"] is not None
+    assert db.one("SELECT status FROM approvals WHERE id=?",(result["approval_id"],))["status"]=="PENDING"
