@@ -18,8 +18,10 @@ class ResearchReviewAgentAdapter:
         role=link["role"]
         if role=="skeptic":
             from app.skeptic import SkepticService
-            row=SkepticService(self.db).create(link["workspace_id"],link["synthesis_id"],None)
-            SkepticService(self.db).record(row["id"],result.get("objections",[]),result.get("missing_evidence",[]),result.get("alternative_explanations",[]))
+            existing=self.db.one("SELECT id FROM research_skeptic_reviews WHERE workspace_id=? AND synthesis_id=? ORDER BY created_at DESC LIMIT 1",(link["workspace_id"],link["synthesis_id"]))
+            row=SkepticService(self.db).get(existing["id"]) if existing else SkepticService(self.db).create(link["workspace_id"],link["synthesis_id"],None)
+            if row["status"]=="READY_FOR_REVIEW":
+                SkepticService(self.db).record(row["id"],result.get("objections",[]),result.get("missing_evidence",[]),result.get("alternative_explanations",[]))
             return SkepticService(self.db).get(row["id"])
         if role=="evidence-auditor":
             from app.research_evidence_auditor import ResearchEvidenceAuditor
