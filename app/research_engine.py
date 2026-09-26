@@ -99,10 +99,26 @@ class ResearchEngine:
                       {"decision":decision,"rationale":rationale},now(),str(uuid4()))
         return self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
 
+    def readiness(self,synthesis_id):
+        syn=self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
+        if not syn: raise ValueError("synthesis not found")
+        from app.research_evidence_auditor import ResearchEvidenceAuditor
+        evidence=ResearchEvidenceAuditor(self.db).audit_synthesis(synthesis_id)
+        from app.skeptic import SkepticService
+        skeptic=self.db.one("SELECT * FROM research_skeptic_reviews WHERE synthesis_id=? ORDER BY created_at DESC LIMIT 1",(synthesis_id,))
+        skeptic_status=skeptic["status"] if skeptic else "MISSING"
+        blockers=[]
+        if evidence["status"]!="PASS": blockers.append("evidence_audit")
+        if skeptic_status not in {"ACCEPTED"}: blockers.append("skeptic_review")
+        if syn["status"]!="ACCEPTED": blockers.append("synthesis_review")
+        return {"synthesis_id":synthesis_id,"ready":not blockers,"blockers":blockers,
+                "evidence_audit":evidence,"skeptic_status":skeptic_status}
+
     def promote_to_candidate_finding(self,synthesis_id,actor):
         syn=self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
         if not syn: raise ValueError("synthesis not found")
-        if syn["status"]!="ACCEPTED": raise ValueError("only an ACCEPTED synthesis can become a finding candidate")
+        readiness=self.readiness(synthesis_id)
+        if not readiness["ready"]: raise ValueError("research synthesis is not ready: "+",".join(readiness["blockers"]))
         workspace=self._get(syn["workspace_id"])
         from app.research import ResearchFindingService
         existing=self.db.one(
