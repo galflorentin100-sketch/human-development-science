@@ -80,8 +80,13 @@ class TrainingProtocolService:
                 task_success=None,transfer_score=None,retention_score=None,
                 decision_accuracy=None,initiation_latency=None,recovery_score=None,
                 fatigue_note=""):
-        if not self.db.one("SELECT 1 FROM training_protocols WHERE id=?",(protocol_id,)):
+        protocol=self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
+        if not protocol:
             raise ValueError("training protocol not found")
+        from app.participant_governance import ParticipantGovernance
+        ParticipantGovernance(self.db).assert_active(str(participant_ref))
+        if protocol["status"]=="RETIRED":
+            raise ValueError("retired training protocols cannot accept new sessions")
         if int(session_number)<1:
             raise ValueError("session_number must be positive")
         if int(adherence) not in {0,1}:
@@ -128,9 +133,12 @@ class TrainingProtocolService:
             if not any(s["retention_score"] is not None for s in sessions):
                 raise ValueError("SUPPORTED training protocol requires observed retention data")
         ts=now()
-        self.db.execute("UPDATE training_protocols SET status=? WHERE id=?",(new_status,protocol_id))
-        self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
-            (str(uuid4()),"training_protocol.status_changed","training_protocol",protocol_id,actor,json.dumps({"from":old,"to":new_status,"rationale":rationale},sort_keys=True),ts))
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE training_protocols SET status=? WHERE id=? AND status=?",(new_status,protocol_id,old))
+            if updated.rowcount != 1:
+                raise ValueError("training protocol state changed concurrently")
+            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                (str(uuid4()),"training_protocol.status_changed","training_protocol",protocol_id,actor,json.dumps({"from":old,"to":new_status,"rationale":rationale},sort_keys=True),ts))
         return self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
 
     def readiness(self,protocol_id):
