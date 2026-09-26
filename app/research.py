@@ -57,7 +57,15 @@ class ResearchFindingService:
         if not statement or not statement.strip(): raise ValueError("finding statement is required")
         if classification=="FACT": raise ValueError("new findings cannot enter as FACT; submit as a candidate for review")
         i=str(uuid4())
-        refs=json.dumps(list(evidence_refs),sort_keys=True)
+        refs_list=list(evidence_refs or ())
+        for ref in refs_list:
+            ev=self.db.one("SELECT e.id,c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(str(ref),))
+            if not ev: raise ValueError("finding evidence reference not found")
+            if str(ev["project_id"])!=str(project_id): raise ValueError("finding evidence reference belongs to another project")
+        if source_type=="LITERATURE" and source_id:
+            syn=self.db.one("SELECT rw.project_id FROM research_syntheses rs JOIN research_workspaces rw ON rw.id=rs.workspace_id WHERE rs.id=?",(str(source_id),))
+            if syn and str(syn["project_id"])!=str(project_id): raise ValueError("finding source belongs to another project")
+        refs=json.dumps(refs_list,sort_keys=True)
         self.db.execute("INSERT INTO research_findings(id,project_id,source_type,source_id,statement,classification,status,evidence_refs,interpretation,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (i,project_id,source_type,source_id,statement,classification,"CANDIDATE",refs,interpretation,created_by,now()))
         result=self.db.one("SELECT * FROM research_findings WHERE id=?",(i,))
