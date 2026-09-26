@@ -35,13 +35,6 @@ class ClaimStateService:
         if evidence_id:
             ev=self.db.one("SELECT * FROM evidence WHERE id=? AND claim_id=?",(evidence_id,claim_id))
             if not ev: raise ValueError("evidence does not belong to claim")
-        support,contradict,_=self._evidence_summary(claim_id)
-        if new_status=="SUPPORTED":
-            if support < 1 or evidence_id is None: raise ValueError("SUPPORTED requires verified supporting evidence")
-            if contradict > 0: raise ValueError("conflicting verified evidence requires UNCERTAIN status")
-        if new_status=="CONTRADICTED":
-            if contradict < 1 or evidence_id is None: raise ValueError("CONTRADICTED requires verified contradicting evidence")
-            if support > 0: raise ValueError("conflicting verified evidence requires UNCERTAIN status")
         ts=now(); tid=str(uuid4())
         with self.db.transaction() as con:
             current=con.execute("SELECT status FROM claims WHERE id=?", (claim_id,)).fetchone()
@@ -51,6 +44,28 @@ class ClaimStateService:
                 ev=con.execute("SELECT id FROM evidence WHERE id=? AND claim_id=?", (evidence_id,claim_id)).fetchone()
                 if not ev:
                     raise ValueError("evidence does not belong to claim")
+            rows=con.execute(
+                "SELECT e.id,e.stance,er.verdict FROM evidence e LEFT JOIN evidence_reviews er ON er.evidence_id=e.id WHERE e.claim_id=?",
+                (claim_id,)).fetchall()
+            states={}
+            for r in rows:
+                eid=dict(r)["id"]; stance=dict(r)["stance"]
+                verdicts={str(x["verdict"]).upper() for x in rows if dict(x)["id"]==eid}
+                if "VERIFIED" in verdicts and "REJECTED" in verdicts: state="CONFLICTED"
+                elif "CONFLICTED" in verdicts: state="CONFLICTED"
+                elif "UNCERTAIN" in verdicts: state="UNCERTAIN"
+                elif "VERIFIED" in verdicts: state="VERIFIED"
+                elif "REJECTED" in verdicts: state="REJECTED"
+                else: state="UNREVIEWED"
+                states[eid]=(stance,state)
+            support=sum(stance=="SUPPORTS" and state=="VERIFIED" for stance,state in states.values())
+            contradict=sum(stance=="CONTRADICTS" and state=="VERIFIED" for stance,state in states.values())
+            if new_status=="SUPPORTED":
+                if support < 1 or evidence_id is None: raise ValueError("SUPPORTED requires verified supporting evidence")
+                if contradict > 0: raise ValueError("conflicting verified evidence requires UNCERTAIN status")
+            if new_status=="CONTRADICTED":
+                if contradict < 1 or evidence_id is None: raise ValueError("CONTRADICTED requires verified contradicting evidence")
+                if support > 0: raise ValueError("conflicting verified evidence requires UNCERTAIN status")
             updated=con.execute("UPDATE claims SET status=?,updated_at=?,review_required=? WHERE id=? AND status=?",
                 (new_status,ts,1 if new_status in {"PROPOSED","UNCERTAIN"} else 0,claim_id,old))
             if updated.rowcount != 1:
