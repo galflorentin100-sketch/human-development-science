@@ -50,7 +50,7 @@ def test_evidence_reviewer_must_be_independent_and_unique(tmp_path):
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",("p","c","o","RUNNING","a","2026-01-01"))
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",("c1","p","claim","FACT","PRIMARY",0.8,"OPEN","2026-01-01"))
     db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",("src","source","https://example.com","PAPER","",""))
-    db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?)",(("es","src","PARSED","hash","excerpt evidence","now","now","now")))
+    db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,content,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?,?)",(("es","src","PARSED","hash","excerpt evidence","now","now","now")))
     pipe=EvidencePipeline(db); ev=pipe.attach("c1","src","excerpt",actor="alice")
     try: pipe.review(ev["id"],"alice","VERIFIED","self review"); assert False
     except ValueError as exc: assert "independent" in str(exc)
@@ -67,7 +67,7 @@ def test_evidence_excerpt_has_provenance_hash(tmp_path):
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",("p2","c2","o","RUNNING","a2","2026-01-01"))
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",("c2","p2","claim","FACT","PRIMARY",0.8,"OPEN","2026-01-01"))
     db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",("src2","source","https://example.org","PAPER","",""))
-    db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?)",(("es2","src2","PARSED","hash","excerpt evidence","now","now","now")))
+    db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,content,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?,?)",(("es2","src2","PARSED","hash","excerpt evidence","now","now","now")))
     ev=EvidencePipeline(db).attach("c2","src2","excerpt",actor="alice")
     assert ev["excerpt_hash"]==hashlib.sha256(b"excerpt").hexdigest()
 
@@ -79,7 +79,7 @@ def test_conflicting_evidence_reviews_do_not_remain_verified(tmp_path):
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",("p3","c3","o","RUNNING","a3","2026-01-01"))
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",("c3","p3","claim","FACT","PRIMARY",0.8,"OPEN","2026-01-01"))
     db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",("src3","source","https://example.net","PAPER","",""))
-    db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?)",(("es3","src3","PARSED","hash","excerpt evidence","now","now","now")))
+    db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,content,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?,?)",(("es3","src3","PARSED","hash","excerpt evidence","now","now","now")))
     pipe=EvidencePipeline(db); ev=pipe.attach("c3","src3","excerpt",actor="alice")
     pipe.review(ev["id"],"bob","VERIFIED","supports")
     pipe.review(ev["id"],"carol","REJECTED","contradictory")
