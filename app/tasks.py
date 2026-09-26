@@ -14,15 +14,18 @@ class TaskEngine:
         return self.db.one("SELECT * FROM tasks WHERE id=?",(i,))
     def get(self,i): return self.db.one("SELECT * FROM tasks WHERE id=?",(i,))
     def transition(self,i,status):
-        row=self.get(i)
-        if not row: raise ValueError("task not found")
         allowed={"PLANNED":{"ASSIGNED","CANCELLED"},"ASSIGNED":{"RUNNING","CANCELLED"},"RUNNING":{"COMPLETED","FAILED","BLOCKED","REVIEW"},"REVIEW":{"COMPLETED","FAILED","BLOCKED"},"BLOCKED":{"PLANNED","CANCELLED"},"FAILED":{"PLANNED","CANCELLED"}}
-        current=row["status"]; target=status.value if isinstance(status,TaskStatus) else status
-        if target!=current and target not in allowed.get(current,set()): raise ValueError(f"invalid task transition {current}->{target}")
-        updated=self.db.execute("UPDATE tasks SET status=?,updated_at=? WHERE id=? AND status=?",(target,now(),i,current))
-        if getattr(updated,"rowcount",1) != 1:
-            raise ValueError("task transition lost due to concurrent state change")
-        return self.get(i)
+        target=status.value if isinstance(status,TaskStatus) else status
+        with self.db.transaction() as con:
+            row=con.execute("SELECT status FROM tasks WHERE id=?",(i,)).fetchone()
+            if not row: raise ValueError("task not found")
+            current=dict(row)["status"]
+            if target!=current and target not in allowed.get(current,set()):
+                raise ValueError(f"invalid task transition {current}->{target}")
+            updated=con.execute("UPDATE tasks SET status=?,updated_at=? WHERE id=? AND status=?",(target,now(),i,current))
+            if getattr(updated,"rowcount",1) != 1:
+                raise ValueError("task transition lost due to concurrent state change")
+            return dict(con.execute("SELECT * FROM tasks WHERE id=?",(i,)).fetchone())
     def ready(self,i): return self.get(i)
     def retry_or_escalate(self,task_id,reason):
         if not reason or not str(reason).strip(): raise ValueError("retry reason is required")
