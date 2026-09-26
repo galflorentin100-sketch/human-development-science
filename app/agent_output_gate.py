@@ -50,6 +50,8 @@ class AgentOutputGate:
         status={"ACCEPT":"ACCEPTED","REJECT":"REJECTED","NEEDS_EVIDENCE":"NEEDS_EVIDENCE"}[decision]
         run=self.db.one("SELECT * FROM agent_runs WHERE id=?",(row["agent_run_id"],))
         if not run: raise ValueError("agent run not found")
+        if str(reviewer) == str(run["agent_id"]) and str(reviewer) != "system":
+            raise ValueError("agent cannot review its own output")
         try: refs=json.loads(row["evidence_refs"] or "[]")
         except (TypeError,ValueError): refs=[]
         if decision=="ACCEPT":
