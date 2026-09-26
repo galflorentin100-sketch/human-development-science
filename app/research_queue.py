@@ -31,34 +31,35 @@ class ResearchQueue:
                 evidence_refs=(), priority="NORMAL"):
         if not str(project_id or "").strip():
             raise ValueError("project_id is required")
-        if not self.db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
-            raise ValueError("project not found")
         if not str(question or "").strip() or not str(rationale or "").strip():
             raise ValueError("question and rationale are required")
-        existing=self.db.one(
-            "SELECT * FROM hds_research_queue WHERE project_id=? AND question=? AND status IN ('PROPOSED','APPROVED','IN_PROGRESS') LIMIT 1",
-            (project_id,question))
-        if existing:
-            return existing
         if priority not in {"LOW", "NORMAL", "HIGH", "CRITICAL"}:
             raise ValueError("invalid priority")
         refs=[str(x) for x in (evidence_refs or ())]
-        for ref in refs:
-            evidence=self.db.one(
-                "SELECT e.id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=? AND c.project_id=?",
-                (ref, project_id))
-            if not evidence:
-                raise ValueError("research queue evidence belongs to another project or does not exist")
-        i = str(uuid4())
-        ts = now()
-        self.db.execute("""
-            INSERT INTO hds_research_queue
-            (id,project_id,question,rationale,trigger_type,evidence_refs,priority,status,created_at,updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            (i, project_id, question, rationale, trigger_type,
-             json.dumps(refs, sort_keys=True), priority, "PROPOSED", ts, ts)
-        )
-        return self.get(i)
+        with self.db.transaction() as con:
+            if not con.execute("SELECT 1 FROM projects WHERE id=?",(project_id,)).fetchone():
+                raise ValueError("project not found")
+            for ref in refs:
+                evidence=con.execute(
+                    "SELECT e.id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=? AND c.project_id=?",
+                    (ref,project_id)).fetchone()
+                if not evidence:
+                    raise ValueError("research queue evidence belongs to another project or does not exist")
+            existing=con.execute(
+                "SELECT * FROM hds_research_queue WHERE project_id=? AND question=? AND status IN ('PROPOSED','APPROVED','IN_PROGRESS') LIMIT 1",
+                (project_id,question)).fetchone()
+            if existing:
+                return dict(existing)
+            i=str(uuid4()); ts=now()
+            self.db._sql if False else None
+            con.execute("""
+                INSERT INTO hds_research_queue
+                (id,project_id,question,rationale,trigger_type,evidence_refs,priority,status,created_at,updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (i,project_id,question,rationale,trigger_type,
+                 json.dumps(refs,sort_keys=True),priority,"PROPOSED",ts,ts))
+            return dict(con.execute("SELECT * FROM hds_research_queue WHERE id=?",(i,)).fetchone())
+
 
     def get(self, item_id):
         return self.db.one("SELECT * FROM hds_research_queue WHERE id=?", (item_id,))
