@@ -311,12 +311,11 @@ class PostgreSQLDatabase:
 
     def one(self,sql,params=None):
         with self.connect() as con:
-            cur=con.execute(self._sql(sql),params or ()); row=cur.fetchone()
-            return dict(zip([d.name for d in cur.description],row)) if row is not None else None
+            row=con.execute(self._sql(sql),params or ()).fetchone()
+            return dict(row) if row is not None else None
     def all(self,sql,params=None):
         with self.connect() as con:
-            cur=con.execute(self._sql(sql),params or ()); names=[d.name for d in cur.description]
-            return [dict(zip(names,row)) for row in cur.fetchall()]
+            return [dict(row) for row in con.execute(self._sql(sql),params or ()).fetchall()]
     def audit(self,event_type,entity_type,entity_id,actor,payload,created_at,audit_id): self.execute("INSERT INTO audit_logs VALUES (?, ?, ?, ?, ?, ?, ?)",(audit_id,event_type,entity_type,entity_id,actor,json.dumps(payload),created_at))
     def migrate(self):
         statements=[]
