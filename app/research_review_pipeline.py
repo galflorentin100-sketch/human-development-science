@@ -15,10 +15,10 @@ class ResearchReviewPipeline:
         ws=self.db.one("SELECT * FROM research_workspaces WHERE id=?",(syn["workspace_id"],))
         if not ws: raise ValueError("workspace not found")
         created=[]
-        for role,title in (("skeptic","[SKEPTIC] Challenge synthesis"),("evidence_auditor","[EVIDENCE_AUDIT] Audit synthesis")):
+        for role,title in (("skeptic","[SKEPTIC] Challenge synthesis"),("evidence-auditor","[EVIDENCE_AUDIT] Audit synthesis")):
             existing=self.db.one("SELECT task_id FROM research_review_tasks WHERE workspace_id=? AND synthesis_id=? AND role=?",(ws["id"],synthesis_id,role))
             if existing: continue
-            aliases={"skeptic":["skeptic","critique"],"evidence_auditor":["evidence-auditor","evidence"]}[role]
+            aliases={"skeptic":["skeptic","critique"],"evidence-auditor":["evidence-auditor","evidence"]}[role]
             placeholders=",".join("?" for _ in aliases)
             agent=self.db.one(f"SELECT id FROM agents WHERE status IN ('ACTIVE','IDLE') AND (id IN ({placeholders}) OR role IN ({placeholders})) LIMIT 1",tuple(aliases)+tuple(aliases))
             if not agent: raise ValueError("review agent not found")
