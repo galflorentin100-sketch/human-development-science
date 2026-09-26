@@ -278,15 +278,20 @@ class DatabaseConfigurationError(RuntimeError): pass
 class PostgreSQLDatabase:
     def __init__(self,url):
         self.url=url
-        try: import psycopg
-        except ImportError as exc: raise DatabaseConfigurationError("PostgreSQL support requires the optional psycopg dependency") from exc
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as exc:
+            raise DatabaseConfigurationError("PostgreSQL support requires the optional psycopg dependency") from exc
         self._psycopg=psycopg
+        self._row_factory=dict_row
     @contextmanager
     def connect(self):
-        with self._psycopg.connect(self.url) as con: yield con
+        with self._psycopg.connect(self.url, row_factory=self._row_factory) as con:
+            yield con
     @contextmanager
     def transaction(self):
-        with self._psycopg.connect(self.url) as con:
+        with self._psycopg.connect(self.url, row_factory=self._row_factory) as con:
             with con.transaction():
                 yield con
     @staticmethod
