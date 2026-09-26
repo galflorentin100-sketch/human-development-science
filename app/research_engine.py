@@ -49,10 +49,19 @@ class ResearchEngine:
         return self.get(i)
 
     def activate(self,workspace_id,actor):
-        row=self._get(workspace_id)
-        if row["status"]!="DRAFT": raise ValueError("workspace must be DRAFT")
-        self.db.execute("UPDATE research_workspaces SET status='ACTIVE',updated_at=? WHERE id=? AND status='DRAFT'",(now(),workspace_id))
-        self.db.audit("research_workspace.activated","research_workspace",workspace_id,actor,{},now(),str(uuid4()))
+        ts=now()
+        with self.db.transaction() as con:
+            row=con.execute("SELECT status FROM research_workspaces WHERE id=?",(workspace_id,)).fetchone()
+            if not row: raise ValueError("research workspace not found")
+            if dict(row)["status"]!="DRAFT": raise ValueError("workspace must be DRAFT")
+            updated=con.execute(
+                "UPDATE research_workspaces SET status='ACTIVE',updated_at=? WHERE id=? AND status='DRAFT'",
+                (ts,workspace_id))
+            if updated.rowcount != 1:
+                raise ValueError("workspace changed concurrently; retry")
+            con.execute(
+                "INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                (str(uuid4()),"research_workspace.activated","research_workspace",workspace_id,actor,"{}",ts))
         return self.get(workspace_id)
 
     def add_source(self,workspace_id,source_id,relevance="UNASSESSED",notes="",content=None):
