@@ -25,8 +25,8 @@ def test_intervention_evidence_is_structured(tmp_path):
     db=Database(str(tmp_path/"science3.db")); ResearchCycle(db)
     registry=ScientificRegistry(db)
     i=registry.intervention("x","rationale","mechanism","PLAUSIBLE","daily","adults")
-    ev=registry.intervention_evidence(i["id"],"PILOT","study-001","pilot evidence")
-    assert ev["evidence_kind"]=="PILOT"
+    ev=registry.intervention_evidence(i["id"],"EXPERT_JUDGMENT","expert-001","expert evidence")
+    assert ev["evidence_kind"]=="EXPERT_JUDGMENT"
 
 
 def test_scientific_interpretation_blocks_unsupported_causality():
@@ -212,3 +212,27 @@ def test_autonomous_maintenance_materializes_only_auditable_work(tmp_path):
     for wid in result["created"]:
         row=db.one("SELECT status FROM maintenance_work WHERE id=?",(wid,))
         assert row["status"]=="PROPOSED"
+
+
+def test_scientific_integrity_rejects_supported_claim_without_verified_support(tmp_path):
+    from app.scientific_integrity import ScientificIntegrityChecker
+    from app.models import now
+    import uuid
+    db=Database(str(tmp_path/"integrity.db")); ResearchCycle(db)
+    company,agent,project,claim=[str(uuid.uuid4()) for _ in range(4)]
+    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",(company,"c","m","v","p",now()))
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(agent,"a","r","m","[]","[]","1","ACTIVE",now()))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(project,company,"o","ACTIVE",agent,now()))
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,project,"x","FACT","SUPPORTED",1.0,"SUPPORTED",now()))
+    result=ScientificIntegrityChecker(db).project(project)
+    assert result["integrity"]=="REVIEW_REQUIRED"
+    assert any(x["type"]=="SUPPORTED_CLAIM_WITHOUT_EVIDENCE" for x in result["issues"])
+
+
+def test_scientific_interpretation_does_not_flag_frameworks_as_works(tmp_path):
+    from app.scientific_ai import ScientificAIGuard
+    statement=ScientificAIGuard().validate_interpretation(
+        "The frameworks were compared descriptively.",
+        causal_design=False,
+    )
+    assert statement.classification=="INFERENCE"
