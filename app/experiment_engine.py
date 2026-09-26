@@ -71,7 +71,7 @@ class ExperimentEngine:
         if row["status"] != "DRAFT":
             raise ValueError("only DRAFT experiments can be preregistered")
         updated=self.db.execute("UPDATE hds_experiments SET status='READY', preregistered=1, updated_at=? WHERE id=? AND status='DRAFT'",(now(),experiment_id))
-        if getattr(updated,"rowcount",1)!=1: raise ValueError("experiment state changed concurrently")
+        if updated.rowcount!=1: raise ValueError("experiment state changed concurrently")
         return self.get(experiment_id)
 
     def start(self, experiment_id):
@@ -100,13 +100,14 @@ class ExperimentEngine:
                 raise ValueError("experiment result evidence must reference verified evidence")
             if str(ev["project_id"])!=str(row["project_id"]):
                 raise ValueError("experiment result evidence belongs to another project")
-        if self.db.one("SELECT id FROM hds_experiment_results WHERE experiment_id=?",(experiment_id,)):
-            raise ValueError("experiment already has a result")
-        i=str(uuid4())
-        self.db.execute(
-            "INSERT INTO hds_experiment_results(id,experiment_id,outcome,interpretation,evidence_refs,created_at) VALUES (?,?,?,?,?,?)",
-            (i,experiment_id,outcome,interpretation,json.dumps(list(evidence_refs),sort_keys=True),now()),
-        )
+        i=str(uuid4()); ts=now()
+        with self.db.transaction() as con:
+            if con.execute("SELECT id FROM hds_experiment_results WHERE experiment_id=?",(experiment_id,)).fetchone():
+                raise ValueError("experiment already has a result")
+            con.execute(
+                "INSERT INTO hds_experiment_results(id,experiment_id,outcome,interpretation,evidence_refs,created_at) VALUES (?,?,?,?,?,?)",
+                (i,experiment_id,outcome,interpretation,json.dumps(list(evidence_refs),sort_keys=True),ts),
+            )
         from app.knowledge_graph import KnowledgeDependencyGraph
         KnowledgeDependencyGraph(self.db).sync_project(row["project_id"])
         return self.db.one("SELECT * FROM hds_experiment_results WHERE id=?",(i,))
