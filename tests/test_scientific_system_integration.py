@@ -111,7 +111,7 @@ def test_training_provenance_trace_reaches_protocol_evidence_and_sessions(tmp_pa
         "INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",
         (source,"s","https://x/"+source,"PAPER","","test")
     )
-    ep=EvidencePipeline(db); ep.ingest_text(source,"evidence text")
+    ep=EvidencePipeline(db); ep.ingest_text(source,"evidence text; excerpt")
     ev=ep.attach(claim,source,"excerpt")
     ep.review(ev["id"],"reviewer","VERIFIED","independent verification")
 
