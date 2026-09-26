@@ -39,6 +39,8 @@ class ResearchEngine:
             self.db.execute("ALTER TABLE research_syntheses ADD COLUMN evidence_refs TEXT NOT NULL DEFAULT '[]'")
 
     def create(self,project_id,question,scope="",inclusion_rules=(),exclusion_rules=(),owner="system"):
+        if not str(project_id or "").strip(): raise ValueError("project_id is required")
+        if not self.db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)): raise ValueError("project not found")
         if not str(question or "").strip(): raise ValueError("research question is required")
         i=str(uuid4()); ts=now()
         self.db.execute(
@@ -73,15 +75,22 @@ class ResearchEngine:
         sources=self.db.all("SELECT * FROM research_workspace_sources WHERE workspace_id=?",(workspace_id,))
         if not sources: raise ValueError("synthesis requires at least one source")
         if not str(synthesis or "").strip(): raise ValueError("synthesis is required")
+        refs=[str(x) for x in (evidence_refs or ())]
+        for ref in refs:
+            evidence=self.db.one(
+                "SELECT e.id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=? AND c.project_id=?",
+                (ref, row["project_id"]))
+            if not evidence:
+                raise ValueError("research synthesis evidence belongs to another project or does not exist")
         provenance={"workspace_id":workspace_id,"source_ids":sorted(x["source_id"] for x in sources),
                     "source_hashes":sorted(x["content_hash"] for x in sources if x.get("content_hash")),
-            "evidence_refs":sorted(str(x) for x in evidence_refs)}
+            "evidence_refs":sorted(refs)}
         ph=hashlib.sha256(json.dumps(provenance,sort_keys=True).encode()).hexdigest()
         i=str(uuid4()); ts=now()
         with self.db.transaction() as con:
             con.execute(
                 "INSERT INTO research_syntheses(id,workspace_id,synthesis,limitations,uncertainty,provenance_hash,evidence_refs,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (i,workspace_id,synthesis,limitations,uncertainty,ph,json.dumps(list(evidence_refs),sort_keys=True),"CANDIDATE",created_by,ts))
+                (i,workspace_id,synthesis,limitations,uncertainty,ph,json.dumps(refs,sort_keys=True),"CANDIDATE",created_by,ts))
             updated=con.execute("UPDATE research_workspaces SET status='SYNTHESIS_READY',updated_at=? WHERE id=? AND status='ACTIVE'",(ts,workspace_id))
             if updated.rowcount != 1: raise ValueError("workspace changed before synthesis could be committed")
         return self.db.one("SELECT * FROM research_syntheses WHERE id=?",(i,))
