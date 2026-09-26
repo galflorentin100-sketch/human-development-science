@@ -1,4 +1,5 @@
 from uuid import uuid4
+import json
 import hashlib
 from app.models import now
 class EvidencePipeline:
@@ -69,16 +70,30 @@ class EvidencePipeline:
         if self.db.one("SELECT 1 FROM evidence_reviews WHERE evidence_id=? AND reviewer=?",(evidence_id,reviewer)):
             raise ValueError("reviewer has already reviewed this evidence")
         rid=str(uuid4())
-        self.db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES (?,?,?,?,?,?)",(rid,evidence_id,reviewer,normalized,rationale,now()))
-        resolved=self.resolve(evidence_id)
-        self.db.execute("UPDATE evidence SET verified=? WHERE id=?",(1 if resolved["state"]=="VERIFIED" else 0,evidence_id))
-        claim_state=self.claim_evidence_state(evidence["claim_id"])
-        if claim_state["conflicted"]:
-            claim=self.db.one("SELECT status FROM claims WHERE id=?",(evidence["claim_id"],))
-            if claim and claim["status"] in {"SUPPORTED","CONTRADICTED"}:
-                ts=now()
-                self.db.execute("UPDATE claims SET status='UNCERTAIN',review_required=1,updated_at=? WHERE id=?",(ts,evidence["claim_id"]))
-                self.db.execute("INSERT INTO claim_state_transitions(id,claim_id,prior_status,new_status,actor,rationale,evidence_id,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        ts=now()
+        with self.db.transaction() as con:
+            if con.execute("SELECT 1 FROM evidence_reviews WHERE evidence_id=? AND reviewer=?",(evidence_id,reviewer)).fetchone():
+                raise ValueError("reviewer has already reviewed this evidence")
+            con.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES (?,?,?,?,?,?)",(rid,evidence_id,reviewer,normalized,rationale,ts))
+            reviews=con.execute("SELECT verdict FROM evidence_reviews WHERE evidence_id=?",(evidence_id,)).fetchall()
+            verdicts={str(r["verdict"]).upper() for r in reviews}
+            if ("VERIFIED" in verdicts and "REJECTED" in verdicts) or "CONFLICTED" in verdicts:
+                state="CONFLICTED"
+            elif "UNCERTAIN" in verdicts: state="UNCERTAIN"
+            elif "VERIFIED" in verdicts: state="VERIFIED"
+            elif "REJECTED" in verdicts: state="REJECTED"
+            else: state="UNREVIEWED"
+            con.execute("UPDATE evidence SET verified=? WHERE id=?",(1 if state=="VERIFIED" else 0,evidence_id))
+            stance_rows=con.execute("SELECT e.stance FROM evidence e WHERE e.claim_id=? AND e.verified=1",(evidence["claim_id"],)).fetchall()
+            stances={r["stance"] for r in stance_rows}
+            conflicted=state=="CONFLICTED" or ("SUPPORTS" in stances and "CONTRADICTS" in stances)
+            claim=con.execute("SELECT status FROM claims WHERE id=?",(evidence["claim_id"],)).fetchone()
+            if conflicted and claim and claim["status"] in {"SUPPORTED","CONTRADICTED"}:
+                con.execute("UPDATE claims SET status='UNCERTAIN',review_required=1,updated_at=? WHERE id=?",(ts,evidence["claim_id"]))
+                con.execute("INSERT INTO claim_state_transitions(id,claim_id,prior_status,new_status,actor,rationale,evidence_id,created_at) VALUES (?,?,?,?,?,?,?,?)",
                     (str(uuid4()),evidence["claim_id"],claim["status"],"UNCERTAIN",reviewer,"conflicting evidence review verdicts",evidence_id,ts))
+            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                (str(uuid4()),"evidence.reviewed","evidence",evidence_id,reviewer,
+                 json.dumps({"verdict":normalized,"rationale":rationale,"state":state},sort_keys=True),ts))
         return self.db.one("SELECT * FROM evidence_reviews WHERE id=?",(rid,))
 
