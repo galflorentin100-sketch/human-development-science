@@ -58,7 +58,7 @@ def test_uncertain_verdict_cannot_resolve_verified(tmp_path):
     claim=str(uuid.uuid4()); source=str(uuid.uuid4())
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,pid,"x","HYPOTHESIS","PRELIMINARY",0.0,"PROPOSED",now()))
     db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(source,"s","https://x/"+source,"PAPER","","test"))
-    ep=EvidencePipeline(db); ep.ingest_text(source,"text"); ev=ep.attach(claim,source,"excerpt")
+    ep=EvidencePipeline(db); ep.ingest_text(source,"text; excerpt"); ev=ep.attach(claim,source,"excerpt")
     ep.review(ev["id"],"r1","VERIFIED","checked")
     ep.review(ev["id"],"r2","UNCERTAIN","uncertain")
     assert ep.resolve(ev["id"])["state"]=="UNCERTAIN"
