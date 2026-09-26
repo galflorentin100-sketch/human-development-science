@@ -44,9 +44,15 @@ class SkepticService:
         row=self.get(review_id)
         if decision not in {"ACCEPTED","NEEDS_EVIDENCE","REJECTED"}: raise ValueError("invalid skeptic decision")
         if not str(rationale or "").strip(): raise ValueError("review rationale is required")
-        self.db.execute("UPDATE research_skeptic_reviews SET status=?,reviewed_at=? WHERE id=? AND status='READY_FOR_REVIEW'",(decision,now(),review_id))
-        self.db.audit("scientific.skeptic_reviewed","research_skeptic_review",review_id,reviewer,
-                      {"decision":decision,"rationale":rationale},now(),str(uuid4()))
+        if row.get("reviewer_agent_id") and str(row["reviewer_agent_id"])==str(reviewer):
+            raise ValueError("skeptic review requires an independent reviewer")
+        ts=now()
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE research_skeptic_reviews SET status=?,reviewed_at=? WHERE id=? AND status='READY_FOR_REVIEW'",(decision,ts,review_id))
+            if updated.rowcount != 1: raise ValueError("skeptic review was already resolved")
+            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                        (str(uuid4()),"scientific.skeptic_reviewed","research_skeptic_review",review_id,reviewer,
+                         json.dumps({"decision":decision,"rationale":rationale},sort_keys=True),ts))
         return self.get(review_id)
 
     def get(self,review_id):
