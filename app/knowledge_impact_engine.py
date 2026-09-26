@@ -17,25 +17,19 @@ class KnowledgeImpactEngine:
         self._ensure()
 
     def _ensure(self):
-        self.db.execute("""CREATE TABLE IF NOT EXISTS knowledge_impact_reviews (
-            id TEXT PRIMARY KEY,
-            project_id TEXT NOT NULL,
-            source_type TEXT NOT NULL,
-            source_id TEXT NOT NULL,
-            impact_type TEXT NOT NULL,
-            affected_type TEXT NOT NULL,
-            affected_id TEXT NOT NULL,
-            reason TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'PROPOSED',
-            created_at TEXT NOT NULL,
-            UNIQUE(project_id,source_type,source_id,affected_type,affected_id)
-        )""")
+        # knowledge_impact_reviews is part of the canonical migration schema.
+        # Do not run ad-hoc SQLite DDL here; production may use PostgreSQL.
+        return None
 
     def _tables(self):
+        if hasattr(self.db, "table_columns"):
+            return set(self.db.all("SELECT table_name AS name FROM information_schema.tables WHERE table_schema='public'"))
         rows=self.db.all("SELECT name FROM sqlite_master WHERE type='table'")
         return {r["name"] for r in rows}
 
     def _columns(self,table):
+        if hasattr(self.db, "table_columns"):
+            return set(self.db.table_columns(table))
         return {r["name"] for r in self.db.all(f"PRAGMA table_info({table})")}
 
     def _rows_with_ref(self,table,source_id):
@@ -67,8 +61,8 @@ class KnowledgeImpactEngine:
                 self.db.execute("""INSERT OR IGNORE INTO knowledge_impact_reviews
                     (id,project_id,source_type,source_id,impact_type,affected_type,
                      affected_id,reason,status,created_at)
-                    VALUES (lower(hex(randomblob(16))),?,?,?,?,?,?,?,?,?)""",
-                    (project_id,source_type,str(source_id),"GRAPH_DEPENDENCY",
+                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (str(uuid4()),project_id,source_type,str(source_id),"GRAPH_DEPENDENCY",
                      x["type"],x["id"],reason,"PROPOSED",now()))
             return {"project_id":project_id,"source":{"type":source_type,"id":str(source_id)},
                     "affected_count":len(impacts),"affected":impacts,
@@ -100,8 +94,8 @@ class KnowledgeImpactEngine:
             self.db.execute("""INSERT OR IGNORE INTO knowledge_impact_reviews
                 (id,project_id,source_type,source_id,impact_type,affected_type,
                  affected_id,reason,status,created_at)
-                VALUES (lower(hex(randomblob(16))),?,?,?,?,?,?,?,?,?)""",
-                (project_id,source_type,str(source_id),"DEPENDENCY",x["type"],
+                VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (str(uuid4()),project_id,source_type,str(source_id),"DEPENDENCY",x["type"],
                  x["id"],reason,"PROPOSED",now()))
         return {"project_id":project_id,"source":{"type":source_type,"id":str(source_id)},
                 "affected_count":len(impacts),"affected":impacts,
