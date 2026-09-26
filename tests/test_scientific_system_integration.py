@@ -161,7 +161,8 @@ def test_agent_output_rejects_cross_project_evidence(tmp_path):
     claim=str(uuid.uuid4()); source=str(uuid.uuid4())
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,p2,"other","FACT","SUPPORTED",1.0,"SUPPORTED",now()))
     db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(source,"s","https://x/"+source,"PAPER","","test"))
-    ev=EvidencePipeline(db); ev.ingest_text(source,"evidence"); evidence=ev.attach(claim,source,"excerpt",verified=True)
+    ev=EvidencePipeline(db); ev.ingest_text(source,"evidence excerpt"); evidence=ev.attach(claim,source,"evidence excerpt")
+    ev.review(evidence["id"],"independent-reviewer","VERIFIED","checked")
     db.execute("INSERT INTO agent_runs(id,agent_id,task_id,status,input_payload,output_payload,started_at,completed_at) VALUES (?,?,?,?,?,?,?,?)",(run,agent_id,task,"REVIEW","{}",json.dumps({"result":"x","evidence_refs":[evidence["id"]]}),now(),now()))
     review=AgentOutputGate(db).submit(run)
     try:
