@@ -15,6 +15,19 @@ def _setup(db):
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(p,c,"o","ACTIVE",a,now()))
     return p
 
+def test_freshness_registration_rejects_cross_project_entity(tmp_path):
+    db=Database(str(tmp_path/"freshness.db")); ResearchCycle(db)
+    p1=_setup(db); p2=_setup(db)
+    claim=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,p2,"x","HYPOTHESIS","PRELIMINARY",0.0,"PROPOSED",now()))
+    from app.knowledge_freshness import KnowledgeFreshness
+    try:
+        KnowledgeFreshness(db).register("CLAIM",claim,project_id=p1)
+        assert False
+    except ValueError as exc:
+        assert "another project" in str(exc)
+
+
 def test_evidence_excerpt_must_match_parsed_source(tmp_path):
     from app.models import now
     db=Database(str(tmp_path/"evidence-provenance.db")); ResearchCycle(db); pid=_setup(db)
