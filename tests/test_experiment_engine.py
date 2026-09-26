@@ -32,6 +32,7 @@ def test_experiment_analysis_stays_descriptive(tmp_path):
     source=EvidencePipeline(db).register_source("Paper","https://example.org","Author",2025)
     claim=str(uuid.uuid4())
     db.execute("INSERT INTO claims(id,project_id,statement,status,classification,confidence,review_required,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",(claim,pid,"claim","SUPPORTED","INFERENCE",1.0,0,now(),now()))
+    EvidencePipeline(db).ingest_text(source["id"],"excerpt")
     ev=EvidencePipeline(db).attach(claim,source["id"],"excerpt","SUPPORTS",actor="researcher")
     EvidencePipeline(db).review(ev["id"],"founder","VERIFIED","verified")
     result=ExperimentEngine(db).record_result(exp["id"],"observed change","descriptive interpretation",[ev["id"]])
