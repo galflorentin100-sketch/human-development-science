@@ -116,21 +116,30 @@ class KnowledgeImpactEngine:
         if decision not in {"ACCEPT","REJECT"}:
             raise ValueError("decision must be ACCEPT or REJECT")
         status="ACCEPTED" if decision=="ACCEPT" else "REJECTED"
-        self.db.execute("UPDATE knowledge_impact_reviews SET status=? WHERE id=? AND status='PROPOSED'",(status,review_id))
-        if decision=="ACCEPT":
-            from app.research_queue import ResearchQueue
-            ResearchQueue(self.db).propose(
-                row["project_id"],
-                question=f"Reassess knowledge affected by {row['source_type']}:{row['source_id']} ({row['affected_type']}:{row['affected_id']})",
-                rationale="Founder-approved impact review identified a dependency that should be reassessed.",
-                trigger_type="KNOWLEDGE_IMPACT_REVIEW",
-                evidence_refs=(),
-                priority="HIGH",
-            )
-        self.db.audit("scientific.impact_reviewed","knowledge_impact_review",review_id,reviewer,
-                      {"decision":decision,"rationale":rationale},now(),None)
-        from app.company_memory import CompanyMemory
-        CompanyMemory(self.db).record(row["project_id"],"KNOWLEDGE_IMPACT",f"Impact review {review_id}",f"{decision}: {rationale}",reviewer,"knowledge_impact_review",review_id)
+        ts=now()
+        question=f"Reassess knowledge affected by {row['source_type']}:{row['source_id']} ({row['affected_type']}:{row['affected_id']})"
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE knowledge_impact_reviews SET status=? WHERE id=? AND status='PROPOSED'",(status,review_id))
+            if updated.rowcount != 1: raise ValueError("impact review was already resolved")
+            if decision=="ACCEPT":
+                existing=con.execute(
+                    "SELECT id FROM hds_research_queue WHERE project_id=? AND question=? AND status IN ('PROPOSED','APPROVED','IN_PROGRESS') LIMIT 1",
+                    (row["project_id"],question)).fetchone()
+                if not existing:
+                    con.execute("""INSERT INTO hds_research_queue
+                        (id,project_id,question,rationale,trigger_type,evidence_refs,priority,status,created_at,updated_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                        (str(uuid4()),row["project_id"],question,
+                         "Founder-approved impact review identified a dependency that should be reassessed.",
+                         "KNOWLEDGE_IMPACT_REVIEW","[]","HIGH","PROPOSED",ts,ts))
+            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                        (str(uuid4()),"scientific.impact_reviewed","knowledge_impact_review",review_id,reviewer,
+                         json.dumps({"decision":decision,"rationale":rationale},sort_keys=True),ts))
+            con.execute("""INSERT INTO company_memory
+                (id,project_id,memory_type,title,content,source_type,source_id,created_by,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?)""",
+                (str(uuid4()),row["project_id"],"KNOWLEDGE_IMPACT",f"Impact review {review_id}",
+                 f"{decision}: {rationale}","knowledge_impact_review",review_id,reviewer,ts))
         return self.db.one("SELECT * FROM knowledge_impact_reviews WHERE id=?",(review_id,))
 
     def list(self,project_id,status=None):
