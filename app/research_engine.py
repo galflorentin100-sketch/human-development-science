@@ -78,10 +78,12 @@ class ResearchEngine:
             "evidence_refs":sorted(str(x) for x in evidence_refs)}
         ph=hashlib.sha256(json.dumps(provenance,sort_keys=True).encode()).hexdigest()
         i=str(uuid4()); ts=now()
-        self.db.execute(
-            "INSERT INTO research_syntheses(id,workspace_id,synthesis,limitations,uncertainty,provenance_hash,evidence_refs,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (i,workspace_id,synthesis,limitations,uncertainty,ph,json.dumps(list(evidence_refs),sort_keys=True),"CANDIDATE",created_by,ts))
-        self.db.execute("UPDATE research_workspaces SET status='SYNTHESIS_READY',updated_at=? WHERE id=? AND status='ACTIVE'",(ts,workspace_id))
+        with self.db.transaction() as con:
+            con.execute(
+                "INSERT INTO research_syntheses(id,workspace_id,synthesis,limitations,uncertainty,provenance_hash,evidence_refs,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (i,workspace_id,synthesis,limitations,uncertainty,ph,json.dumps(list(evidence_refs),sort_keys=True),"CANDIDATE",created_by,ts))
+            updated=con.execute("UPDATE research_workspaces SET status='SYNTHESIS_READY',updated_at=? WHERE id=? AND status='ACTIVE'",(ts,workspace_id))
+            if updated.rowcount != 1: raise ValueError("workspace changed before synthesis could be committed")
         return self.db.one("SELECT * FROM research_syntheses WHERE id=?",(i,))
 
     def review(self,synthesis_id,reviewer,decision,rationale):
@@ -93,11 +95,15 @@ class ResearchEngine:
         workspace=self._get(syn["workspace_id"])
         if workspace["status"]!="SYNTHESIS_READY": raise ValueError("workspace is not ready for synthesis review")
         new_status="REVIEWED" if decision=="ACCEPTED" else "ACTIVE"
-        updated=self.db.execute("UPDATE research_syntheses SET status=? WHERE id=? AND status='CANDIDATE'",(decision,synthesis_id))
-        if getattr(updated,"rowcount",1)!=1: raise ValueError("synthesis review was already resolved")
-        self.db.execute("UPDATE research_workspaces SET status=?,updated_at=? WHERE id=? AND status='SYNTHESIS_READY'",(new_status,now(),workspace["id"]))
-        self.db.audit("research_synthesis.reviewed","research_synthesis",synthesis_id,reviewer,
-                      {"decision":decision,"rationale":rationale},now(),str(uuid4()))
+        ts=now()
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE research_syntheses SET status=? WHERE id=? AND status='CANDIDATE'",(decision,synthesis_id))
+            if updated.rowcount != 1: raise ValueError("synthesis review was already resolved")
+            workspace_updated=con.execute("UPDATE research_workspaces SET status=?,updated_at=? WHERE id=? AND status='SYNTHESIS_READY'",(new_status,ts,workspace["id"]))
+            if workspace_updated.rowcount != 1: raise ValueError("workspace review state changed concurrently")
+            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                        (str(uuid4()),"research_synthesis.reviewed","research_synthesis",synthesis_id,reviewer,
+                         json.dumps({"decision":decision,"rationale":rationale},sort_keys=True),ts))
         return self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
 
     def readiness(self,synthesis_id):
