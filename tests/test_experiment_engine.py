@@ -14,7 +14,7 @@ def test_experiment_result_requires_verified_evidence(tmp_path):
     from app.experiment_engine import ExperimentEngine
     db=Database(str(tmp_path/"exp.db")); ResearchCycle(db); pid=setup(db)
     exp=ExperimentEngine(db).create(pid,"Question","Hypothesis","RCT","population","intervention","comparison","outcome",'{"primary":"outcome"}')
-    ExperimentEngine(db).preregister(exp["id"]); ExperimentEngine(db).start(exp["id"])
+    ExperimentEngine(db).preregister(exp["id"]); from app.experiment_safety import ExperimentSafetyReviewer; ExperimentSafetyReviewer(db).review(exp["id"],"ACCEPT","safe to execute","founder"); ExperimentEngine(db).start(exp["id"])
     try:
         ExperimentEngine(db).record_result(exp["id"],"observed","descriptive",["missing"])
         assert False
@@ -28,11 +28,11 @@ def test_experiment_analysis_stays_descriptive(tmp_path):
     from app.models import now
     db=Database(str(tmp_path/"analysis.db")); ResearchCycle(db); pid=setup(db)
     exp=ExperimentEngine(db).create(pid,"Question","Hypothesis","RCT","population","intervention","comparison","outcome",'{"primary":"outcome"}')
-    ExperimentEngine(db).preregister(exp["id"]); ExperimentEngine(db).start(exp["id"])
+    ExperimentEngine(db).preregister(exp["id"]); from app.experiment_safety import ExperimentSafetyReviewer; ExperimentSafetyReviewer(db).review(exp["id"],"ACCEPT","safe to execute","founder"); ExperimentEngine(db).start(exp["id"])
     source=EvidencePipeline(db).register_source("Paper","https://example.org","Author",2025)
     claim=str(uuid.uuid4())
     db.execute("INSERT INTO claims(id,project_id,statement,status,classification,confidence,review_required,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",(claim,pid,"claim","SUPPORTED","INFERENCE",1.0,0,now(),now()))
-    ev=EvidencePipeline(db).attach(claim,source["id"],"excerpt","SUPPORTS","researcher")
+    ev=EvidencePipeline(db).attach(claim,source["id"],"excerpt","SUPPORTS",actor="researcher")
     EvidencePipeline(db).review(ev["id"],"founder","VERIFIED","verified")
     result=ExperimentEngine(db).record_result(exp["id"],"observed change","descriptive interpretation",[ev["id"]])
     analysis=ExperimentAnalyzer(db).analyze(exp["id"])
