@@ -84,7 +84,20 @@ class Database:
         else: con.commit()
         finally: con.close()
     def migrate(self):
-        with self.connect() as con: con.executescript(SCHEMA); con.executescript(OPTIONAL_SCIENCE_SCHEMA)
+        with self.connect() as con:
+            con.executescript(SCHEMA)
+            con.executescript(PHASE2_SCHEMA)
+            con.executescript(PHASE3_SCHEMA)
+            con.executescript(PHASE4_SCHEMA)
+            con.executescript(PHASE5_SCHEMA)
+            con.executescript(PHASE6_SCHEMA)
+            con.executescript(PHASE7_SCHEMA)
+            con.executescript(OPTIONAL_SCIENCE_SCHEMA)
+            _add_phase2_columns(con)
+            for table,columns in _PHASE3_COLUMNS.items():
+                for name,definition in columns.items():
+                    existing={row[1] for row in con.execute(f"PRAGMA table_info({table})").fetchall()}
+                    if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
     def execute(self,sql,params=()):
         with self.connect() as con: con.execute(sql,params)
     def one(self,sql,params=()):
