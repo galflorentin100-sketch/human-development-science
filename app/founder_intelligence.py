@@ -13,6 +13,9 @@ class FounderIntelligence:
         contradictions=ContradictionEngine(self.db).list(project_id)
         queue=ResearchQueue(self.db).list(project_id)
         experiments=ExperimentEngine(self.db).list(project_id)
+        workspaces=self.db.all("SELECT status, COUNT(*) n FROM research_workspaces WHERE project_id=? GROUP BY status",(project_id,))
+        syntheses=self.db.all("SELECT rs.status, COUNT(*) n FROM research_syntheses rs JOIN research_workspaces rw ON rw.id=rs.workspace_id WHERE rw.project_id=? GROUP BY rs.status",(project_id,))
+        review_tasks=self.db.all("SELECT rrt.role, t.status, COUNT(*) n FROM research_review_tasks rrt JOIN tasks t ON t.id=rrt.task_id JOIN research_workspaces rw ON rw.id=rrt.workspace_id WHERE rw.project_id=? GROUP BY rrt.role,t.status",(project_id,))
         tasks=self.db.all("SELECT status, COUNT(*) n FROM tasks WHERE project_id=? GROUP BY status",(project_id,))
         decisions=DecisionCenter(self.db).list(project_id)
         return {
@@ -30,6 +33,9 @@ class FounderIntelligence:
                 "in_progress":sum(1 for x in queue if x["status"]=="IN_PROGRESS"),
                 "completed":sum(1 for x in queue if x["status"]=="DONE"),
             },
+            "research_workspaces":{str(x["status"]).lower():x["n"] for x in workspaces},
+            "research_syntheses":{str(x["status"]).lower():x["n"] for x in syntheses},
+            "review_tasks":[dict(x) for x in review_tasks],
             "experiments":{
                 "draft":sum(1 for x in experiments if x["status"]=="DRAFT"),
                 "ready":sum(1 for x in experiments if x["status"]=="READY"),
