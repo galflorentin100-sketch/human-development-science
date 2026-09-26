@@ -316,6 +316,13 @@ def _migrate_phase4(self):
         if duplicate_queue:
             raise RuntimeError("cannot enforce unique active research queue items: existing duplicate project/question items found")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_research_queue_active_identity ON hds_research_queue(project_id,question) WHERE status IN ('PROPOSED','APPROVED','IN_PROGRESS')")
+        duplicate_agent_reviews=con.execute("""
+            SELECT agent_run_id,COUNT(*) AS n FROM agent_output_reviews
+            GROUP BY agent_run_id HAVING COUNT(*) > 1
+        """).fetchall()
+        if duplicate_agent_reviews:
+            raise RuntimeError("cannot enforce unique agent output reviews: existing duplicate agent runs found")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_output_review_run ON agent_output_reviews(agent_run_id)")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
         con.execute("DROP INDEX IF EXISTS idx_study_outcome_observation_no_session")
 Database.migrate=_migrate_phase4
@@ -390,6 +397,13 @@ class PostgreSQLDatabase:
             if duplicate_research_queue:
                 raise RuntimeError("cannot enforce unique active research queue items: existing duplicate project/question items found")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_research_queue_active_identity ON hds_research_queue(project_id,question) WHERE status IN ('PROPOSED','APPROVED','IN_PROGRESS')")
+        duplicate_agent_reviews=con.execute("""
+            SELECT agent_run_id,COUNT(*) AS n FROM agent_output_reviews
+            GROUP BY agent_run_id HAVING COUNT(*) > 1
+        """).fetchall()
+        if duplicate_agent_reviews:
+            raise RuntimeError("cannot enforce unique agent output reviews: existing duplicate agent runs found")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_output_review_run ON agent_output_reviews(agent_run_id)")
             duplicate_assignments=con.execute("""
                 SELECT study_id,participant_id,COUNT(*) AS n
                 FROM study_assignments
