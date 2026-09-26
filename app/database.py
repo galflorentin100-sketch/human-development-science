@@ -119,6 +119,9 @@ class Database:
         if not str(table).replace("_","").isalnum(): raise ValueError("invalid table name")
         return [row["name"] for row in self.all(f"PRAGMA table_info({table})")]
 
+    def table_names(self):
+        return [row["name"] for row in self.all("SELECT name FROM sqlite_master WHERE type='table'")]
+
     def one(self,sql,params=()):
         with self.connect() as con: row=con.execute(sql,params).fetchone()
         return dict(row) if row else None
@@ -360,6 +363,9 @@ class PostgreSQLDatabase:
         if not str(table).replace("_","").isalnum(): raise ValueError("invalid table name")
         rows=self.all("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=?",(table,))
         return [row["column_name"] for row in rows]
+
+    def table_names(self):
+        return [row["table_name"] for row in self.all("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")]
 
     def one(self,sql,params=None):
         with self.connect() as con:
