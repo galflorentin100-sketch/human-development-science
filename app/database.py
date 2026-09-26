@@ -395,3 +395,8 @@ CREATE TABLE IF NOT EXISTS intervention_evidence (id TEXT PRIMARY KEY, intervent
 CREATE TABLE IF NOT EXISTS construct_versions (id TEXT PRIMARY KEY, construct_id TEXT NOT NULL REFERENCES scientific_constructs(id), version INTEGER NOT NULL, definition TEXT NOT NULL, operational_scope TEXT NOT NULL, change_reason TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(construct_id,version));
 CREATE TABLE IF NOT EXISTS study_measure_definitions (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), name TEXT NOT NULL, construct_id TEXT REFERENCES scientific_constructs(id), operational_definition TEXT NOT NULL, method TEXT NOT NULL, scale_type TEXT NOT NULL, unit TEXT, reliability_note TEXT NOT NULL, validity_note TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(study_id,name));
 CREATE TABLE IF NOT EXISTS study_measure_bindings (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), measure_id TEXT NOT NULL REFERENCES study_measure_definitions(id), observation_type TEXT NOT NULL, timepoint TEXT NOT NULL, required INTEGER NOT NULL DEFAULT 1, UNIQUE(study_id,measure_id,observation_type,timepoint));"""
+
+
+# Keep a single authoritative SQLite migration path. The function is defined above
+# but resolves PHASE6/PHASE7 globals at runtime, after all schema constants exist.
+Database.migrate = _migrate_phase4
