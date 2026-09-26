@@ -5,6 +5,7 @@ relationships and reports potentially affected records. It never changes
 scientific claims, protocols, or knowledge automatically.
 """
 import json
+from uuid import uuid4
 from collections import deque
 from app.models import now
 
