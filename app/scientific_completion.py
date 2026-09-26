@@ -7,6 +7,9 @@ class ScientificCompletionGate:
     def __init__(self,db):
         self.db=db
 
+    def check(self,project_id):
+        return self.evaluate(project_id)
+
     def evaluate(self,project_id):
         project=self.db.one("SELECT id,status,objective FROM projects WHERE id=?",(project_id,))
         if not project: raise ValueError("project not found")
