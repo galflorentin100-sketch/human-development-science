@@ -6,6 +6,7 @@ agent work. It never upgrades evidence or findings without the existing gates.
 from __future__ import annotations
 import json
 from uuid import uuid4
+from app.models import now
 from app.tasks import TaskEngine
 from app.models import now
 
@@ -14,6 +15,13 @@ class ResearchAgentService:
 
     def __init__(self,db):
         self.db=db
+        self._ensure()
+    
+    def _ensure(self):
+        self.db.execute("""CREATE TABLE IF NOT EXISTS research_agent_tasks (
+            task_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, agent_id TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )""")
 
     def create_task(self,workspace_id,agent_id=None,owner="researcher"):
         ws=self.db.one("SELECT * FROM research_workspaces WHERE id=?",(workspace_id,))
@@ -45,8 +53,27 @@ class ResearchAgentService:
         task=TaskEngine(self.db).create_task(
             ws["project_id"],f"[RESEARCH] {ws['question']}",owner,
             ["READ"],agent,metadata={"workspace_id":workspace_id,"agent_role":self.ROLE,"input":payload})
+        self.db.execute("INSERT OR REPLACE INTO research_agent_tasks(task_id,workspace_id,agent_id,created_at) VALUES (?,?,?,?)",(task["id"],workspace_id,agent,now()))
         return {"task":task,"workspace_id":workspace_id,"agent_id":agent,"input":payload}
 
     def _researcher_agent(self):
         row=self.db.one("SELECT id FROM agents WHERE role=? AND status='ACTIVE' ORDER BY created_at LIMIT 1",(self.ROLE,))
         return row["id"] if row else None
+
+    def finalize_review(self,review_id,actor):
+        review=self.db.one("SELECT * FROM agent_output_reviews WHERE id=?",(review_id,))
+        if not review: raise ValueError("output review not found")
+        if review["status"]!="ACCEPTED": raise ValueError("agent output must be ACCEPTED first")
+        link=self.db.one("SELECT * FROM research_agent_tasks WHERE task_id=?",(review["task_id"],))
+        if not link: raise ValueError("research agent task mapping not found")
+        from app.research_engine import ResearchEngine
+        payload=json.loads(self.db.one("SELECT output_payload FROM agent_runs WHERE id=?",(review["agent_run_id"],))["output_payload"] or "{}")
+        result=payload.get("result") or payload.get("synthesis") or ""
+        if isinstance(result,(dict,list)): result=json.dumps(result,sort_keys=True)
+        refs=json.loads(review["evidence_refs"] or "[]")
+        engine=ResearchEngine(self.db)
+        synthesis=engine.synthesize(link["workspace_id"],str(result),
+            limitations=str(payload.get("limitations") or ""),
+            uncertainty=str(payload.get("uncertainty") or "Agent output was independently evidence-reviewed; interpretation remains bounded."),
+            created_by=actor)
+        return {"review":review,"synthesis":synthesis,"workspace_id":link["workspace_id"],"evidence_refs":refs}
