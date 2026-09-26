@@ -42,6 +42,7 @@ class EvidencePipeline:
         reviews=self.db.all("SELECT verdict FROM evidence_reviews WHERE evidence_id=?",(evidence_id,))
         verdicts={str(r["verdict"]).upper() for r in reviews}
         if "VERIFIED" in verdicts and "REJECTED" in verdicts: state="CONFLICTED"
+        elif "CONFLICTED" in verdicts: state="CONFLICTED"
         elif "UNCERTAIN" in verdicts: state="UNCERTAIN"
         elif "VERIFIED" in verdicts: state="VERIFIED"
         elif "REJECTED" in verdicts: state="REJECTED"
@@ -61,7 +62,7 @@ class EvidencePipeline:
         evidence=self.db.one("SELECT * FROM evidence WHERE id=?",(evidence_id,))
         if not evidence: raise ValueError("evidence not found")
         normalized=str(verdict).upper()
-        if normalized not in {"VERIFIED","REJECTED","UNCERTAIN"}: raise ValueError("invalid evidence verdict")
+        if normalized not in {"VERIFIED","REJECTED","UNCERTAIN","CONFLICTED"}: raise ValueError("invalid evidence verdict")
         if not rationale or not str(rationale).strip(): raise ValueError("review rationale is required")
         if evidence.get("created_by") not in (None, "", "system") and reviewer == evidence["created_by"]:
             raise ValueError("reviewer must be independent from the evidence creator")
