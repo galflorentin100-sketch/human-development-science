@@ -207,3 +207,23 @@ def test_agent_output_rejects_cross_project_evidence(tmp_path):
         assert False
     except ValueError as exc:
         assert "another project" in str(exc)
+
+
+def test_sc001_registration_compensates_partial_failure(tmp_path, monkeypatch):
+    from app.sc001 import SC001Protocol
+    from app.approvals import ApprovalService
+    db=Database(str(tmp_path/"sc001-rollback.db")); ResearchCycle(db); pid=_setup(db)
+
+    def fail_request(*args, **kwargs):
+        raise RuntimeError("simulated approval outage")
+
+    monkeypatch.setattr(ApprovalService, "request", fail_request)
+    try:
+        SC001Protocol().register(db, pid)
+        assert False, "registration should fail"
+    except RuntimeError as exc:
+        assert "approval outage" in str(exc)
+
+    assert db.one("SELECT COUNT(*) AS n FROM studies WHERE project_id=?", (pid,))["n"] == 0
+    assert db.one("SELECT COUNT(*) AS n FROM hypotheses WHERE project_id=?", (pid,))["n"] == 0
+    assert db.one("SELECT COUNT(*) AS n FROM experiments WHERE project_id=?", (pid,))["n"] == 0
