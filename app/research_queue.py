@@ -78,27 +78,47 @@ class ResearchQueue:
         return self.get(item_id)
 
     def begin(self, item_id, actor):
-        row=self.get(item_id)
-        if not row or row["status"]!="APPROVED":
-            raise ValueError("research item must be APPROVED before work begins")
-        from app.research_engine import ResearchEngine
-        engine=ResearchEngine(self.db)
-        existing=self.db.one(
-            "SELECT * FROM research_workspaces WHERE project_id=? AND question=? AND status IN ('DRAFT','ACTIVE','SYNTHESIS_READY','REVIEWED') LIMIT 1",
-            (row["project_id"],row["question"]))
-        workspace=existing or engine.create(
-            row["project_id"],row["question"],
-            scope="Created from founder-approved research queue item.",
-            owner=actor)
-        if workspace["status"]=="DRAFT":
-            workspace=engine.activate(workspace["id"],actor)
+        if not str(actor or "").strip():
+            raise ValueError("actor is required")
         with self.db.transaction() as con:
-            updated=con.execute("UPDATE hds_research_queue SET status='IN_PROGRESS',updated_at=? WHERE id=? AND status='APPROVED'",(now(),item_id))
+            row=con.execute("SELECT * FROM hds_research_queue WHERE id=? AND status='APPROVED'",(item_id,)).fetchone()
+            if not row:
+                raise ValueError("research item must be APPROVED before work begins")
+            columns=[d[0] for d in con.description]
+            row=dict(zip(columns,row))
+            existing=con.execute(
+                "SELECT * FROM research_workspaces WHERE project_id=? AND question=? AND status IN ('DRAFT','ACTIVE','SYNTHESIS_READY','REVIEWED') LIMIT 1",
+                (row["project_id"],row["question"])).fetchone()
+            if existing:
+                workspace_columns=[d[0] for d in con.description]
+                workspace=dict(zip(workspace_columns,existing))
+            else:
+                workspace_id=str(uuid4()); ts=now()
+                con.execute(
+                    "INSERT INTO research_workspaces(id,project_id,question,scope,inclusion_rules,exclusion_rules,status,owner,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (workspace_id,row["project_id"],row["question"],
+                     "Created from founder-approved research queue item.","[]","[]","DRAFT",actor,ts,ts))
+                workspace=dict(zip(
+                    ["id","project_id","question","scope","inclusion_rules","exclusion_rules","status","owner","created_at","updated_at"],
+                    [workspace_id,row["project_id"],row["question"],
+                     "Created from founder-approved research queue item.","[]","[]","DRAFT",actor,ts,ts]))
+            if workspace["status"]=="DRAFT":
+                ts=now()
+                updated_ws=con.execute(
+                    "UPDATE research_workspaces SET status='ACTIVE',updated_at=? WHERE id=? AND status='DRAFT'",
+                    (ts,workspace["id"]))
+                if updated_ws.rowcount != 1:
+                    raise ValueError("research workspace changed concurrently")
+                workspace["status"]="ACTIVE"; workspace["updated_at"]=ts
+            updated=con.execute(
+                "UPDATE hds_research_queue SET status='IN_PROGRESS',updated_at=? WHERE id=? AND status='APPROVED'",
+                (now(),item_id))
             if updated.rowcount != 1:
                 raise ValueError("research item was changed concurrently")
-            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
-                        (str(uuid4()),"research_queue.started","research_queue",item_id,actor,
-                         json.dumps({"workspace_id":workspace["id"]},sort_keys=True),now()))
+            con.execute(
+                "INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                (str(uuid4()),"research_queue.started","research_queue",item_id,actor,
+                 json.dumps({"workspace_id":workspace["id"]},sort_keys=True),now()))
         return {"queue_item":self.get(item_id),"workspace":workspace}
 
     def list(self, project_id, status=None):
