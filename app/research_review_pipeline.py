@@ -17,8 +17,8 @@ class ResearchReviewPipeline:
         for role,title in (("skeptic","[SKEPTIC] Challenge synthesis"),("evidence-auditor","[EVIDENCE_AUDIT] Audit synthesis")):
             existing=self.db.one("SELECT task_id FROM research_review_tasks WHERE workspace_id=? AND synthesis_id=? AND role=?",(ws["id"],synthesis_id,role))
             if existing: continue
-            agent=self.db.one("SELECT id FROM agents WHERE role=? AND status='ACTIVE' ORDER BY created_at LIMIT 1",(role,))
-            if not agent: raise ValueError("active review agent not found")
+            agent=self.db.one("SELECT id FROM agents WHERE id=? AND status IN ('ACTIVE','IDLE') LIMIT 1",(role,))
+            if not agent: raise ValueError("review agent not found")
             task=self.tasks.create_task(title=title+" "+synthesis_id,description="Review research synthesis "+synthesis_id,project_id=ws["project_id"],owner=agent["id"],required_permissions=["READ"],priority=1.8,retry_limit=1)
             self.db.execute("INSERT INTO research_review_tasks(task_id,workspace_id,synthesis_id,role,created_at) VALUES (?,?,?,?,?)",(task["id"],ws["id"],synthesis_id,role,now()))
             self.db.audit("scientific.research_review_task_created","task",task["id"],"research-orchestrator",{"role":role,"synthesis_id":synthesis_id},now(),str(uuid4()))
