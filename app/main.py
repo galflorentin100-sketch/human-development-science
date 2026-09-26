@@ -446,12 +446,6 @@ def create_research_finding(payload: dict, principal: Principal = Depends(princi
         payload.get("source_type","OBSERVATION"),payload.get("source_id"),
         payload.get("evidence_refs",()),payload.get("interpretation"),principal.user_id)
 
-@app.post("/api/science/findings/{finding_id}/review")
-def review_research_finding(finding_id: str, payload: dict, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
-    from app.research import ResearchFindingService
-    return ResearchFindingService(db).review(finding_id,principal.user_id,payload["decision"],payload["rationale"])
-
 @app.get("/api/science/projects/{project_id}/findings")
 def list_research_findings(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
@@ -1031,29 +1025,6 @@ def science_research_cycle(project_id: str, principal: Principal = Depends(princ
     require_write(principal)
     from app.autonomous_research_cycle import AutonomousResearchCycle
     return AutonomousResearchCycle(db).run(project_id)
-
-
-@app.get("/api/founder/{project_id}")
-def founder_snapshot(project_id: str, principal: Principal = Depends(principal_from_header)):
-    require_read(principal)
-    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
-        raise HTTPException(404, "project not found")
-    from app.founder_intelligence import FounderIntelligence
-    return FounderIntelligence(db).snapshot(project_id)
-
-@app.get("/api/agents/registry")
-def agent_registry(principal: Principal = Depends(principal_from_header)):
-    require_read(principal)
-    from app.agent_registry import AgentRegistry
-    return AgentRegistry().list()
-
-@app.post("/api/science/orchestrate/{project_id}")
-def science_orchestrate(project_id: str, body: dict = None, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
-    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
-        raise HTTPException(404, "project not found")
-    from app.scientific_orchestrator import ScientificOrchestrator
-    return ScientificOrchestrator(db).cycle(project_id, (body or {}).get("protocol_ids", ()))
 
 
 @app.get("/api/founder/{project_id}")
