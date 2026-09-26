@@ -22,8 +22,13 @@ class ResearchRepository:
             updated=con.execute("UPDATE experiments SET result=?,status='COMPLETED' WHERE id=? AND status!='COMPLETED'",(interpretation,experiment_id))
             if getattr(updated,"rowcount",1) != 1: raise ValueError("experiment completion lost due to concurrent state change")
         return self.db.one("SELECT * FROM experiment_results WHERE id=?",(i,))
-    def study(self,source_id,title,design,population,findings):
-        i=str(uuid4()); self.db.execute("INSERT INTO studies(id,source_id,title,design,population,findings,created_at) VALUES (?,?,?,?,?,?,?)",(i,source_id,title,design,population,findings,now())); return self.db.one("SELECT * FROM studies WHERE id=?",(i,))
+    def study(self,source_id,title,design,population,findings,project_id=None):
+        if project_id is not None and not self.db.one("SELECT id FROM projects WHERE id=?",(project_id,)):
+            raise ValueError("project does not exist")
+        i=str(uuid4())
+        self.db.execute("INSERT INTO studies(id,source_id,title,design,population,findings,created_at,project_id) VALUES (?,?,?,?,?,?,?,?)",
+            (i,source_id,title,design,population,findings,now(),project_id))
+        return self.db.one("SELECT * FROM studies WHERE id=?",(i,))
     def freeze_analysis_plan(self,study_id,analysis_spec,version=1):
         if not analysis_spec or not str(analysis_spec).strip(): raise ValueError("analysis_spec is required")
         try: parsed=json.loads(analysis_spec)
