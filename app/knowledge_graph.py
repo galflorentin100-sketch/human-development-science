@@ -58,13 +58,13 @@ class KnowledgeDependencyGraph:
         nodes=[]; edges=[]
         tables=[("claims","CLAIM"),("interventions","INTERVENTION"),("training_protocols","TRAINING_PROTOCOL"),
                 ("research_findings","FINDING"),("evidence","EVIDENCE"),("research_questions","QUESTION"),("hds_experiments","EXPERIMENT")]
+        available=self.db.table_names()
         for table,typ in tables:
-            try:
-                columns=set(self.db.table_columns(table))
-                where=" WHERE project_id=?" if project_id and "project_id" in columns else ""
-                rows=self.db.all(f"SELECT * FROM {table}{where}",(project_id,) if where else ())
-            except Exception:
-                rows=[]
+            if table not in available:
+                continue
+            columns=set(self.db.table_columns(table))
+            where=" WHERE project_id=?" if project_id and "project_id" in columns else ""
+            rows=self.db.all(f"SELECT * FROM {table}{where}",(project_id,) if where else ())
             for row in rows:
                 nodes.append({"id":row["id"],"type":typ,"status":row.get("status")})
         if project_id:
