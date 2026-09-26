@@ -34,9 +34,12 @@ class AutonomousScientificMaintenance:
             existing=self.db.one("SELECT id FROM tasks WHERE project_id=? AND title=? AND status NOT IN ('COMPLETED','FAILED')",(project_id,p["title"]))
             if existing: continue
             task_id=str(uuid4())
-            self.db.execute("INSERT INTO tasks(id,project_id,title,assigned_agent_id,priority,status,success_criteria,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
-                (task_id,project_id,p["title"],owner,1.0,"PLANNED","Produce an evidence-backed review with explicit uncertainty and no silent state mutation.",now(),now()))
-            created.append(task_id)
+            with self.db.transaction() as con:
+                inserted=con.execute(
+                    "INSERT OR IGNORE INTO tasks(id,project_id,title,assigned_agent_id,priority,status,success_criteria,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (task_id,project_id,p["title"],owner,1.0,"PLANNED","Produce an evidence-backed review with explicit uncertainty and no silent state mutation.",now(),now()))
+                if inserted.rowcount == 1:
+                    created.append(task_id)
         return created
     def materialize(self,actor="system"):
         proposals=self.propose()["proposals"]
@@ -44,15 +47,14 @@ class AutonomousScientificMaintenance:
         for p in proposals:
             if self._entity_project(p["entity_type"],p["entity_id"]) is None:
                 continue
-            exists=self.db.one("SELECT id FROM maintenance_work WHERE kind=? AND entity_type=? AND entity_id=? AND status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','RUNNING')",(p["kind"],p["entity_type"],p["entity_id"]))
-            if exists:
-                continue
             wid=str(uuid4())
-            self.db.execute(
-                "INSERT INTO maintenance_work(id,kind,entity_type,entity_id,title,reason,success_criteria,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (wid,p["kind"],p["entity_type"],p["entity_id"],p["title"],p["reason"],
-                 "Produce an evidence-backed review and explicit recommendation; do not silently mutate scientific state.",
-                 "PROPOSED",now(),now()))
-            created.append(wid)
+            with self.db.transaction() as con:
+                inserted=con.execute(
+                    "INSERT OR IGNORE INTO maintenance_work(id,kind,entity_type,entity_id,title,reason,success_criteria,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (wid,p["kind"],p["entity_type"],p["entity_id"],p["title"],p["reason"],
+                     "Produce an evidence-backed review and explicit recommendation; do not silently mutate scientific state.",
+                     "PROPOSED",now(),now()))
+                if inserted.rowcount == 1:
+                    created.append(wid)
         return {"created":created,"count":len(created),"policy":"materialization creates auditable work only"}
 
