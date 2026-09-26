@@ -58,7 +58,6 @@ class ClaimRevisionService:
             ev=self.db.one("SELECT e.id,e.verified,c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(str(ref),))
             if not ev or not ev["verified"]: raise ValueError("claim revision evidence must reference verified evidence")
             if str(ev["project_id"])!=str(claim_project["project_id"]): raise ValueError("claim revision evidence belongs to another project")
-        evidence_snapshot=[{"evidence_id":str(x),"state_at_approval":"VERIFIED"} for x in refs]
         if rev["revised_by"]==reviewer and reviewer!="system":
             raise ValueError("revision requires an independent reviewer")
         with self.db.transaction() as con:
@@ -66,6 +65,14 @@ class ClaimRevisionService:
             if not current: raise ValueError("claim not found")
             if current["statement"]!=rev["previous_statement"] or current["status"]!=rev["previous_status"]:
                 raise ValueError("claim changed since revision was proposed")
+            evidence_snapshot=[]
+            for ref in refs:
+                ev=con.execute("SELECT e.id,e.verified,c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(str(ref),)).fetchone()
+                if not ev or not ev["verified"]:
+                    raise ValueError("claim revision evidence must reference verified evidence")
+                if str(ev["project_id"])!=str(current["project_id"]):
+                    raise ValueError("claim revision evidence belongs to another project")
+                evidence_snapshot.append({"evidence_id":str(ref),"state_at_approval":"VERIFIED"})
             con.execute("UPDATE claims SET statement=?,status=?,updated_at=? WHERE id=?",
                         (rev["new_statement"],rev["new_status"],now(),rev["claim_id"]))
             con.execute("UPDATE claim_revisions SET status='APPROVED' WHERE id=?",(revision_id,))
