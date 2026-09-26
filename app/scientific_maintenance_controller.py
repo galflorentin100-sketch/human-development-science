@@ -39,7 +39,8 @@ class ScientificMaintenanceController:
             work=dict(work)
             if work["status"]!="PROPOSED":
                 raise ValueError("maintenance work is not awaiting approval")
-            approval=ApprovalService(self.db).request(
+            approval=ApprovalService(self.db)._request_in_transaction(
+                con,
                 action="EXECUTE_SCIENTIFIC_MAINTENANCE",
                 requested_by=actor,
                 reason=work["reason"],
