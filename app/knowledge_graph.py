@@ -70,12 +70,14 @@ class KnowledgeDependencyGraph:
         # Protocol -> observed training sessions/outcomes is an explicit protocol_id reference.
         for r in self.db.all("SELECT id,protocol_id FROM training_sessions WHERE protocol_id IN (SELECT id FROM training_protocols WHERE project_id=?)",(project_id,)):
             edge("TRAINING_PROTOCOL",r["protocol_id"],"HAS_SESSION","TRAINING_SESSION",r["id"])
-        # Research findings have machine-readable evidence refs; only create edges when refs resolve.
+        # Research findings have machine-readable evidence refs. Resolve them only
+        # through evidence joined to a claim in the same project; an ID alone is
+        # insufficient because IDs may be supplied from another project.
         for r in self.db.all("SELECT id,evidence_refs FROM research_findings WHERE project_id=?",(project_id,)):
             try: refs=json.loads(r.get("evidence_refs") or "[]")
             except (TypeError,ValueError): refs=[]
             for ref in refs:
-                if self.db.one("SELECT id FROM evidence WHERE id=?",(str(ref),)):
+                if self.db.one("SELECT e.id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=? AND c.project_id=?",(str(ref),project_id)):
                     edge("EVIDENCE",str(ref),"SUPPORTS_FINDING","FINDING",r["id"],[str(ref)])
         for r in self.db.all("SELECT id,research_question,intervention FROM hds_experiments WHERE project_id=?",(project_id,)):
             edge("PROJECT",project_id,"HAS_EXPERIMENT","EXPERIMENT",r["id"])
@@ -89,7 +91,7 @@ class KnowledgeDependencyGraph:
             try: refs=json.loads(r.get("evidence_refs") or "[]")
             except (TypeError,ValueError): refs=[]
             for ref in refs:
-                if self.db.one("SELECT id FROM evidence WHERE id=?",(str(ref),)):
+                if self.db.one("SELECT e.id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=? AND c.project_id=?",(str(ref),project_id)):
                     edge("EVIDENCE",str(ref),"SUPPORTS_OR_INFORMS","EXPERIMENT_RESULT",r["id"],[str(ref)])
         for r in self.db.all("SELECT e.id,e.hypothesis FROM experiments e WHERE e.project_id=?",(project_id,)):
             edge("HYPOTHESIS",r.get("hypothesis"),"TESTED_BY","EXPERIMENT",r["id"])
