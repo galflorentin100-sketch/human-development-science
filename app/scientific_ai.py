@@ -49,7 +49,7 @@ class ScientificAIGuard:
         if not text or not text.strip():
             raise ValueError("scientific interpretation cannot be empty")
         lowered=text.casefold()
-        blocked=[p for p in self.BLOCKED_CERTAINTY_PATTERNS if re.search(r"(?<!\\w)"+re.escape(p)+r"(?!\\w)", lowered)]
+        blocked=[p for p in self.BLOCKED_CERTAINTY_PATTERNS if re.search(r"(?<!\w)"+re.escape(p)+r"(?!\w)", lowered)]
         if blocked and not causal_design:
             raise ValueError("interpretation contains causal/overconfident language unsupported by the declared design")
         if any(p in lowered for p in ("durable","נשמר","נשמרה")) and not retention_observed:
