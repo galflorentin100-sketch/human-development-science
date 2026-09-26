@@ -48,9 +48,12 @@ class ClaimRevisionService:
         if rev.get("status","PROPOSED")!="PROPOSED": raise ValueError("revision is no longer pending")
         if not str(reviewer or "").strip(): raise ValueError("reviewer is required")
         refs=json.loads(rev.get("evidence_refs") or "[]")
+        claim_project=self.db.one("SELECT project_id FROM claims WHERE id=?",(rev["claim_id"],))
+        if not claim_project: raise ValueError("claim not found")
         for ref in refs:
-            ev=self.db.one("SELECT id,verified FROM evidence WHERE id=?",(str(ref),))
+            ev=self.db.one("SELECT e.id,e.verified,c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(str(ref),))
             if not ev or not ev["verified"]: raise ValueError("claim revision evidence must reference verified evidence")
+            if str(ev["project_id"])!=str(claim_project["project_id"]): raise ValueError("claim revision evidence belongs to another project")
         if rev["revised_by"]==reviewer and reviewer!="system":
             raise ValueError("revision requires an independent reviewer")
         with self.db.transaction() as con:
