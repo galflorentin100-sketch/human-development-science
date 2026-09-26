@@ -81,7 +81,7 @@ class KnowledgeDependencyGraph:
             edge("PROJECT",project_id,"HAS_EXPERIMENT","EXPERIMENT",r["id"])
             if self.db.one("SELECT id FROM research_questions WHERE id=? AND project_id=?",(r.get("research_question"),project_id)):
                 edge("QUESTION",r["research_question"],"TESTED_BY","EXPERIMENT",r["id"])
-            if self.db.one("SELECT id FROM interventions WHERE id=?",(r.get("intervention"),)):
+            if self.db.one("SELECT id FROM interventions WHERE id=? AND project_id=?",(r.get("intervention"),project_id)):
                 edge("INTERVENTION",r["intervention"],"TESTED_BY","EXPERIMENT",r["id"])
         for r in self.db.all("SELECT er.id,er.experiment_id FROM hds_experiment_results er JOIN hds_experiments e ON e.id=er.experiment_id WHERE e.project_id=?",(project_id,)):
             edge("EXPERIMENT",r["experiment_id"],"HAS_RESULT","EXPERIMENT_RESULT",r["id"])
