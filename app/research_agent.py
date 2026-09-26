@@ -5,7 +5,6 @@ agent work. It never upgrades evidence or findings without the existing gates.
 """
 from __future__ import annotations
 import json
-from uuid import uuid4
 from app.models import now
 from app.tasks import TaskEngine
 from app.models import now
@@ -51,8 +50,13 @@ class ResearchAgentService:
             ]
         }
         task=TaskEngine(self.db).create_task(
-            ws["project_id"],f"[RESEARCH] {ws['question']}",owner,
-            ["READ"],agent,metadata={"workspace_id":workspace_id,"agent_role":self.ROLE,"input":payload})
+            title=f"[RESEARCH] {ws['question']}",
+            description=json.dumps(payload,sort_keys=True),
+            project_id=ws["project_id"],
+            owner=agent,
+            required_permissions=["READ"],
+            priority=2.0,
+            retry_limit=1)
         self.db.execute("INSERT OR REPLACE INTO research_agent_tasks(task_id,workspace_id,agent_id,created_at) VALUES (?,?,?,?)",(task["id"],workspace_id,agent,now()))
         return {"task":task,"workspace_id":workspace_id,"agent_id":agent,"input":payload}
 
