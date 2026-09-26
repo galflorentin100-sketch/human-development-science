@@ -58,3 +58,17 @@ def test_accepted_synthesis_becomes_candidate_finding_not_claim(tmp_path):
     finding=engine.promote_to_candidate_finding(syn["id"],"knowledge-manager")
     assert finding["status"]=="CANDIDATE"
     assert finding["classification"]=="INFERENCE"
+
+def test_research_agent_task_is_governed(tmp_path):
+    from app.research_engine import ResearchEngine
+    from app.research_agent import ResearchAgentService
+    from app.models import now
+    db=Database(str(tmp_path/"agent.db")); ResearchCycle(db); pid=_setup(db)
+    aid=str(uuid.uuid4())
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(aid,"researcher","researcher","research","[]","[\"READ\"]","1","ACTIVE",now()))
+    ws=ResearchEngine(db).create(pid,"What develops resilience?",owner="founder")
+    ResearchEngine(db).activate(ws["id"],"founder")
+    result=ResearchAgentService(db).create_task(ws["id"],aid)
+    assert result["task"]["project_id"]==pid
+    assert result["task"]["assigned_agent_id"]==aid
+    assert result["workspace_id"]==ws["id"]
