@@ -213,8 +213,6 @@ def _migrate_phase3(self):
             for name,definition in columns.items():
                 if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
         con.executescript(PHASE3_SCHEMA)
-Database.migrate=_migrate_phase4
-
 def _migrate_phase4(self):
     with self.connect() as con:
         con.executescript(SCHEMA); _add_phase2_columns(con); con.executescript(PHASE2_SCHEMA)
