@@ -20,11 +20,14 @@ class ScientificMaintenanceController:
             if existing:
                 created.append(existing); continue
             i=str(uuid4())
-            self.db.execute("""INSERT INTO maintenance_work
+            self.db.execute("""INSERT OR IGNORE INTO maintenance_work
                 (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                 (i,p["kind"],p["entity_type"],p["entity_id"],p["title"],p["reason"],p["success_criteria"],"PROPOSED",None,now(),now()))
-            created.append(self.db.one("SELECT * FROM maintenance_work WHERE id=?",(i,)))
+            existing_after=self.db.one("SELECT * FROM maintenance_work WHERE kind=? AND entity_type=? AND entity_id=? AND status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS') ORDER BY created_at LIMIT 1",
+                                       (p["kind"],p["entity_type"],p["entity_id"]))
+            if not existing_after: raise RuntimeError("maintenance work could not be created")
+            created.append(existing_after)
         return {"created_or_existing":created,"count":len(created)}
 
     def request_approval(self,work_id,actor):
@@ -55,5 +58,10 @@ class ScientificMaintenanceController:
         from app.approvals import ApprovalService
         if work["status"]!="APPROVED": raise ValueError("maintenance work requires approval")
         ApprovalService(self.db).require(work["approval_id"])
-        self.db.execute("UPDATE maintenance_work SET status='IN_PROGRESS',updated_at=? WHERE id=? AND status='APPROVED'",(now(),work_id))
-        return {"status":"DISPATCHED","work":self.db.one("SELECT * FROM maintenance_work WHERE id=?",(work_id,)),"policy":"dispatch creates/assigns research work; it does not mutate scientific truth"}
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE maintenance_work SET status='IN_PROGRESS',updated_at=? WHERE id=? AND status='APPROVED'",(now(),work_id))
+            if updated.rowcount != 1:
+                current=con.execute("SELECT status FROM maintenance_work WHERE id=?",(work_id,)).fetchone()
+                raise ValueError(f"maintenance work changed concurrently; current status={current['status'] if current else 'MISSING'}")
+            dispatched=dict(con.execute("SELECT * FROM maintenance_work WHERE id=?",(work_id,)).fetchone())
+        return {"status":"DISPATCHED","work":dispatched,"policy":"dispatch creates/assigns research work; it does not mutate scientific truth"}
