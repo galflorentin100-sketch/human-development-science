@@ -115,6 +115,10 @@ class Database:
         with self.connect() as con:
             cursor=con.execute(sql,params)
             return cursor
+    def table_columns(self,table):
+        if not str(table).replace("_","").isalnum(): raise ValueError("invalid table name")
+        return [row[1] for row in self.all(f"PRAGMA table_info({table})")]
+
     def one(self,sql,params=()):
         with self.connect() as con: row=con.execute(sql,params).fetchone()
         return dict(row) if row else None
@@ -295,6 +299,11 @@ class PostgreSQLDatabase:
         with self.connect() as con:
             cursor=con.execute(self._sql(sql),params)
             return cursor
+    def table_columns(self,table):
+        if not str(table).replace("_","").isalnum(): raise ValueError("invalid table name")
+        rows=self.all("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=?",(table,))
+        return [row["column_name"] for row in rows]
+
     def one(self,sql,params=None):
         with self.connect() as con:
             cur=con.execute(self._sql(sql),params or ()); row=cur.fetchone()
