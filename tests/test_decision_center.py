@@ -20,6 +20,7 @@ def test_decision_center_pending_approvals(tmp_path):
 
 def test_decision_items_expose_next_action(tmp_path):
     from app.database import Database
+    from app.decision_center import DecisionCenter
     db=Database(str(tmp_path/"x.db"))
     from app.workflow import ResearchCycle
     project_id=ResearchCycle(db).run("decision next action")["project"]["id"]
