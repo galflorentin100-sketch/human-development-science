@@ -77,11 +77,12 @@ class ApprovalService:
                 return self.get(row["id"])
             con.execute("INSERT INTO approval_events(id,approval_id,actor,action,payload,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),row["id"],actor,"EXPIRED","{}",resolved_at))
         return self.get(row["id"])
-    def require(self,i,correlation_id=None):
+    def require(self,i,correlation_id=None,expected_action=None):
         row=self.get(i)
         if row is None: raise ApprovalRequired(i)
         if row["status"]=="PENDING" and row["expires_at"] and datetime.fromisoformat(row["expires_at"])<=datetime.now(timezone.utc): self._expire(row); raise ApprovalRequired(i)
         if row["status"]!="APPROVED": raise ApprovalRequired(i)
         if row["expires_at"] and datetime.fromisoformat(row["expires_at"])<=datetime.now(timezone.utc): self._expire(row); raise ApprovalRequired(i)
         if correlation_id is not None and row.get("correlation_id")!=correlation_id: raise ApprovalRequired(i)
+        if expected_action is not None and str(row.get("action")) != str(expected_action): raise ApprovalRequired(i)
         return row
