@@ -34,7 +34,7 @@ class ResearchEngine:
             provenance_hash TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]',
             status TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL
         )""")
-        cols={x["name"] for x in self.db.all("PRAGMA table_info(research_syntheses)")}
+        cols=set(self.db.table_columns("research_syntheses"))
         if "evidence_refs" not in cols:
             self.db.execute("ALTER TABLE research_syntheses ADD COLUMN evidence_refs TEXT NOT NULL DEFAULT '[]'")
 
