@@ -18,7 +18,7 @@ def test_claim_revision_requires_independent_approval(tmp_path):
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
                (cid,pid,"old","HYPOTHESIS","PRELIMINARY",0.2,"PROPOSED",now()))
     s=ClaimRevisionService(db)
-    rev=s.propose(cid,"new","UNCERTAIN","new evidence","ev","system")
+    rev=s.propose(cid,"new","UNCERTAIN","new evidence",None,"system")
     assert s.approve(rev["id"],"reviewer")["statement"]=="new"
 
 def test_contradiction_scan_flags_verified_vs_conflicted(tmp_path):
