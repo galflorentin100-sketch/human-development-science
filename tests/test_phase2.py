@@ -32,3 +32,19 @@ def test_approval_event_is_audited(tmp_path):
     a=ApprovalService(db).request("DEPLOY","ceo")
     ApprovalService(db).resolve(a["id"],ApprovalStatus.REJECTED,"founder")
     assert db.one("SELECT COUNT(*) AS n FROM approval_events WHERE approval_id=?",(a["id"],))["n"]==1
+
+def test_database_migration_materializes_all_scientific_phases(tmp_path):
+    db=Database(str(tmp_path/"all-phases.db"))
+    db.migrate()
+    required={
+        "roles","idempotency_keys","model_calls","research_findings",
+        "budgets","cost_events","scientific_constructs","training_protocols",
+        "research_workspaces","hds_experiments","agent_output_reviews",
+        "company_memory","knowledge_impact_reviews",
+    }
+    rows=db.all("SELECT name FROM sqlite_master WHERE type='table'")
+    tables={r["name"] for r in rows}
+    assert required <= tables
+    db.migrate()
+    rows2=db.all("SELECT name FROM sqlite_master WHERE type='table'")
+    assert tables <= {r["name"] for r in rows2}
