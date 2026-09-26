@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS research_skeptic_reviews (id TEXT PRIMARY KEY, worksp
 CREATE TABLE IF NOT EXISTS organizational_decisions (id TEXT PRIMARY KEY, project_id TEXT, decision_type TEXT NOT NULL, decision TEXT NOT NULL, evidence TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS hds_research_queue (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, question TEXT NOT NULL, rationale TEXT NOT NULL, trigger_type TEXT NOT NULL, priority TEXT NOT NULL, status TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS experiment_safety_reviews (id TEXT PRIMARY KEY, experiment_id TEXT NOT NULL UNIQUE, reviewer TEXT NOT NULL, decision TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS knowledge_impact_reviews (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, affected_type TEXT NOT NULL, affected_id TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS knowledge_impact_reviews (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, impact_type TEXT NOT NULL DEFAULT 'DEPENDENCY', affected_type TEXT NOT NULL, affected_id TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS research_review_tasks (task_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, synthesis_id TEXT NOT NULL, role TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(workspace_id,synthesis_id,role));
 CREATE TABLE IF NOT EXISTS company_memory (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, memory_type TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT, created_by TEXT NOT NULL, created_at TEXT NOT NULL);
 """
@@ -101,6 +101,9 @@ class Database:
             con.executescript(PHASE7_SCHEMA)
             con.executescript(OPTIONAL_SCIENCE_SCHEMA)
             _add_phase2_columns(con)
+            existing_impact={row[1] for row in con.execute("PRAGMA table_info(knowledge_impact_reviews)")}
+            if "impact_type" not in existing_impact:
+                con.execute("ALTER TABLE knowledge_impact_reviews ADD COLUMN impact_type TEXT NOT NULL DEFAULT 'DEPENDENCY'")
             existing_interventions={row[1] for row in con.execute("PRAGMA table_info(interventions)")}
             if "project_id" not in existing_interventions:
                 con.execute("ALTER TABLE interventions ADD COLUMN project_id TEXT")
