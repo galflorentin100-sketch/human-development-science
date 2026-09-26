@@ -31,8 +31,12 @@ class ScientificAnalysisEngine:
             raise ValueError("analysis_spec must be an object")
         # freeze_analysis_plan stores the canonical payload as {spec, sha256}.
         if "spec" in spec and isinstance(spec["spec"],str):
+            raw_spec=spec["spec"]
+            stored_hash=spec.get("sha256")
+            if stored_hash and hashlib.sha256(raw_spec.encode("utf-8")).hexdigest() != stored_hash:
+                raise ValueError("frozen analysis plan integrity hash mismatch")
             try:
-                spec=json.loads(spec["spec"])
+                spec=json.loads(raw_spec)
             except (TypeError, ValueError) as exc:
                 raise ValueError("frozen analysis plan contains invalid nested spec") from exc
         if not isinstance(spec,dict):
