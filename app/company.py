@@ -9,4 +9,10 @@ class CompanyState:
     def decision(self,decision,owner,alternatives,evidence,assumptions,confidence,expected_outcome,follow_up=None):
         i=str(uuid4()); self.db.execute("INSERT INTO decisions(id,company_id,decision,alternatives,evidence,assumptions,confidence,expected_outcome,actual_outcome,owner,follow_up,created_at) VALUES (?, 'hds', ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)",(i,decision,json.dumps(alternatives),json.dumps(evidence),json.dumps(assumptions),confidence,expected_outcome,owner,follow_up,now())); return self.db.one("SELECT * FROM decisions WHERE id=?",(i,))
     def failure(self,stage,expected,actual,root_cause,lesson,owner="system",contributing=None,corrective_action=None):
-        i=str(uuid4()); self.db.execute("INSERT INTO failures(id,project_id,stage,expected_result,actual_result,root_cause,lesson,created_at,contributing_factors,corrective_action,owner) VALUES (?,NULL,?,?,?,?,?,?,?, ?,?)",(i,stage,expected,actual,root_cause,lesson,now(),json.dumps(contributing or []),corrective_action,owner)); self.db.execute("INSERT INTO lessons(id,company_id,lesson,source_failure_id,created_at) VALUES (?,?,?,?,?)",(str(uuid4()),"hds",lesson,i,now())); return self.db.one("SELECT * FROM failures WHERE id=?",(i,))
+        i=str(uuid4()); ts=now()
+        with self.db.transaction() as con:
+            con.execute("INSERT INTO failures(id,project_id,stage,expected_result,actual_result,root_cause,lesson,created_at,contributing_factors,corrective_action,owner) VALUES (?,NULL,?,?,?,?,?,?,?, ?,?)",
+                        (i,stage,expected,actual,root_cause,lesson,ts,json.dumps(contributing or []),corrective_action,owner))
+            con.execute("INSERT INTO lessons(id,company_id,lesson,source_failure_id,created_at) VALUES (?,?,?,?,?)",
+                        (str(uuid4()),"hds",lesson,i,ts))
+        return self.db.one("SELECT * FROM failures WHERE id=?",(i,))
