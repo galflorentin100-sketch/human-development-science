@@ -96,14 +96,22 @@ class TrainingProtocolService:
             raise ValueError("adherence must be 0 or 1")
         if not str(load_note or "").strip():
             raise ValueError("load_note is required")
-        i=str(uuid4())
-        self.db.execute(
-            "INSERT INTO training_sessions(id,protocol_id,participant_ref,session_number,load_note,adherence,task_success,transfer_score,retention_score,decision_accuracy,initiation_latency,recovery_score,fatigue_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (i,protocol_id,str(participant_ref),int(session_number),load_note,int(adherence),
-             task_success,transfer_score,retention_score,decision_accuracy,initiation_latency,
-             recovery_score,fatigue_note or "",now())
-        )
-        return self.db.one("SELECT * FROM training_sessions WHERE id=?",(i,))
+        i=str(uuid4()); ts=now()
+        with self.db.transaction() as con:
+            if con.execute("SELECT 1 FROM training_sessions WHERE protocol_id=? AND participant_ref=? AND session_number=?",
+                           (protocol_id,str(participant_ref),int(session_number))).fetchone():
+                raise ValueError("training session already exists")
+            con.execute(
+                "INSERT OR IGNORE INTO training_sessions(id,protocol_id,participant_ref,session_number,load_note,adherence,task_success,transfer_score,retention_score,decision_accuracy,initiation_latency,recovery_score,fatigue_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (i,protocol_id,str(participant_ref),int(session_number),load_note,int(adherence),
+                 task_success,transfer_score,retention_score,decision_accuracy,initiation_latency,
+                 recovery_score,fatigue_note or "",ts)
+            )
+        result=self.db.one("SELECT * FROM training_sessions WHERE id=?",(i,))
+        if not result:
+            result=self.db.one("SELECT * FROM training_sessions WHERE protocol_id=? AND participant_ref=? AND session_number=?",
+                               (protocol_id,str(participant_ref),int(session_number)))
+        return result
 
     def _evidence_readiness(self,protocol_id):
         from app.evidence_pipeline import EvidencePipeline
