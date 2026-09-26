@@ -148,3 +148,23 @@ def test_claim_revision_rejects_cross_project_evidence(tmp_path):
         assert False
     except ValueError as exc:
         assert "another project" in str(exc)
+
+def test_agent_output_rejects_cross_project_evidence(tmp_path):
+    from app.agent_output_gate import AgentOutputGate
+    from app.evidence_pipeline import EvidencePipeline
+    from app.models import now
+    db=Database(str(tmp_path/"agent-output-isolation.db")); ResearchCycle(db); p1=_setup(db); p2=_setup(db)
+    task=str(uuid.uuid4()); run=str(uuid.uuid4()); agent_id=str(uuid.uuid4())
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(agent_id,"test-agent","researcher","test","[]","[\"READ\"]","1","ACTIVE",now()))
+    db.execute("INSERT INTO tasks(id,project_id,title,status,priority,success_criteria,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)",(task,p1,"research","REVIEW",1.0,"review",now(),now()))
+    claim=str(uuid.uuid4()); source=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,p2,"other","FACT","SUPPORTED",1.0,"SUPPORTED",now()))
+    db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(source,"s","https://x/"+source,"PAPER","","test"))
+    ev=EvidencePipeline(db); ev.ingest_text(source,"evidence"); evidence=ev.attach(claim,source,"excerpt",verified=True)
+    db.execute("INSERT INTO agent_runs(id,agent_id,task_id,status,input_payload,output_payload,started_at,completed_at) VALUES (?,?,?,?,?,?,?,?)",(run,agent_id,task,"REVIEW","{}",json.dumps({"result":"x","evidence_refs":[evidence["id"]]}),now(),now()))
+    review=AgentOutputGate(db).submit(run)
+    try:
+        AgentOutputGate(db).review(review["id"],"reviewer","ACCEPT","reason")
+        assert False
+    except ValueError as exc:
+        assert "another project" in str(exc)
