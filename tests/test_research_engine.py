@@ -83,3 +83,30 @@ def test_research_agent_task_is_governed(tmp_path):
     assert result["task"]["project_id"]==pid
     assert result["task"]["assigned_agent_id"]==aid
     assert result["workspace_id"]==ws["id"]
+
+def test_finding_promotion_requires_skeptic_review(tmp_path):
+    import json
+    from app.evidence_pipeline import EvidencePipeline
+    from app.research_engine import ResearchEngine
+    from app.skeptic import SkepticService
+    db=Database(str(tmp_path/"gate.db")); ResearchCycle(db); pid=_setup(db)
+    engine=ResearchEngine(db)
+    ws=engine.create(pid,"Does friction affect adherence?",owner="researcher"); engine.activate(ws["id"],"researcher")
+    source=EvidencePipeline(db).register_source("Paper","https://example.org/friction","Author",2025)
+    engine.add_source(ws["id"],source["id"])
+    syn=engine.synthesize(ws["id"],"candidate","limitations","uncertain","researcher")
+    # An accepted synthesis alone is not enough.
+    engine.review(syn["id"],"founder","ACCEPTED","reviewed")
+    try:
+        engine.promote_to_candidate_finding(syn["id"],"knowledge-manager")
+        assert False
+    except ValueError as exc:
+        assert "skeptic_review" in str(exc)
+    skeptic=SkepticService(db).create(ws["id"],syn["id"],"skeptic-agent")
+    SkepticService(db).record(skeptic["id"],["possible alternative explanation"],["missing comparison"],["selection effects"])
+    SkepticService(db).review(skeptic["id"],"ACCEPTED","founder","objections addressed")
+    try:
+        engine.promote_to_candidate_finding(syn["id"],"knowledge-manager")
+        assert False
+    except ValueError as exc:
+        assert "evidence_audit" in str(exc)
