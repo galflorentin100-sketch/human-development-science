@@ -5,6 +5,8 @@ from app.evidence_pipeline import EvidencePipeline
 from app.knowledge_freshness import KnowledgeFreshness
 from app.knowledge_impact import KnowledgeImpactAnalyzer
 from app.scientific_admission import ScientificAdmissionGate
+from app.claim_state import ClaimStateService
+from app.models import now
 import uuid
 
 def _setup(db):
