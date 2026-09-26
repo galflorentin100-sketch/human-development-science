@@ -80,6 +80,9 @@ class ExperimentEngine:
         row = self.get(experiment_id)
         if not row or row["status"] != "READY":
             raise ValueError("experiment must be preregistered and READY")
+        safety=self.db.one("SELECT decision FROM experiment_safety_reviews WHERE experiment_id=?",(experiment_id,))
+        if not safety or safety["decision"]!="ACCEPT":
+            raise ValueError("experiment requires an accepted safety review before start")
         self.db.execute(
             "UPDATE hds_experiments SET status='RUNNING', updated_at=? WHERE id=?",
             (now(), experiment_id),
@@ -117,6 +120,8 @@ class ExperimentEngine:
         row = self.get(experiment_id)
         if not row or row["status"] != "RUNNING":
             raise ValueError("experiment must be RUNNING")
+        if not self.db.one("SELECT id FROM hds_experiment_results WHERE experiment_id=?",(experiment_id,)):
+            raise ValueError("experiment cannot be completed without a recorded result")
         self.db.execute(
             "UPDATE hds_experiments SET status='COMPLETED', updated_at=? WHERE id=?",
             (now(), experiment_id),
