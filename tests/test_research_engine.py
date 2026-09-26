@@ -62,6 +62,7 @@ def test_accepted_synthesis_becomes_candidate_finding_not_claim(tmp_path):
     from app.models import now
     db.execute("INSERT INTO claims(id,project_id,statement,status,classification,confidence,review_required,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
                (claim_id,pid,"placeholder","SUPPORTED","INFERENCE",1.0,0,now(),now()))
+    EvidencePipeline(db).ingest_text(source["id"],"Relevant excerpt")
     evidence=EvidencePipeline(db).attach(claim_id,source["id"],"Relevant excerpt","SUPPORTS",actor="researcher")
     EvidencePipeline(db).review(evidence["id"],"founder","VERIFIED","verified against source")
     # Rebuild the synthesis with the verified evidence reference.
