@@ -160,10 +160,16 @@ class StudyExecution:
         return self.db.one("SELECT * FROM study_assignments WHERE id=?",(i,))
     def session(self,study_id,participant_id,phase,session_number,status="COMPLETED"):
         if phase not in self.VALID_PHASES: raise ValueError("invalid study phase")
-        if not self.db.one("SELECT 1 FROM study_participants WHERE id=? AND study_id=?",(participant_id,study_id)):
-            raise ValueError("participant does not belong to study")
-        i=str(uuid4())
-        self.db.execute("INSERT INTO study_sessions(id,study_id,participant_id,phase,session_number,occurred_at,status) VALUES (?,?,?,?,?,?,?)",(i,study_id,participant_id,phase,int(session_number),now(),status))
+        if int(session_number) < 0: raise ValueError("session_number must be non-negative")
+        i=str(uuid4()); ts=now()
+        with self.db.transaction() as con:
+            if not con.execute("SELECT 1 FROM study_participants WHERE id=? AND study_id=?",(participant_id,study_id)).fetchone():
+                raise ValueError("participant does not belong to study")
+            if con.execute("SELECT 1 FROM study_sessions WHERE study_id=? AND participant_id=? AND phase=? AND session_number=?",
+                           (study_id,participant_id,phase,int(session_number))).fetchone():
+                raise ValueError("session already exists")
+            con.execute("INSERT INTO study_sessions(id,study_id,participant_id,phase,session_number,occurred_at,status) VALUES (?,?,?,?,?,?,?)",
+                        (i,study_id,participant_id,phase,int(session_number),ts,status))
         return self.db.one("SELECT * FROM study_sessions WHERE id=?",(i,))
     def outcome(self,study_id,participant_id,outcome_name,value=None,unit=None,session_id=None,missing_reason=None,observation_type="TRAINING",measure_id=None,timepoint=None):
         if value is None and not missing_reason: raise ValueError("missing outcome requires missing_reason")
