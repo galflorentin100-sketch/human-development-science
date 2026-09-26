@@ -183,6 +183,8 @@ def test_task_retry_escalates_after_limit(tmp_path):
     db.execute("UPDATE tasks SET retry_limit=1 WHERE id=?",(task["id"],))
     first=TaskEngine(db).retry_or_escalate(task["id"],"transient failure")
     assert first["action"]=="RETRY"
+    TaskEngine(db).transition(task["id"],"ASSIGNED")
+    TaskEngine(db).transition(task["id"],"RUNNING")
     second=TaskEngine(db).retry_or_escalate(task["id"],"repeat failure")
     assert second["action"]=="ESCALATE"
     assert TaskEngine(db).get(task["id"])["escalation_required"]==1
