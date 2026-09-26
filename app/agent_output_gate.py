@@ -49,8 +49,8 @@ class AgentOutputGate:
                 if not evidence or not evidence["verified"]:
                     raise ValueError("all output evidence must be verified before acceptance")
             self.db.execute("UPDATE agent_runs SET verified=1,confidence=1.0 WHERE id=?",(row["agent_run_id"],))
-        self.db.execute("UPDATE agent_output_reviews SET status=?,reviewer=?,rationale=?,reviewed_at=? WHERE id=? AND status='READY_FOR_REVIEW'",
-                         (status,reviewer,rationale,now(),review_id))
+        updated=self.db.execute("UPDATE agent_output_reviews SET status=?,reviewer=?,rationale=?,reviewed_at=? WHERE id=? AND status='READY_FOR_REVIEW'",(status,reviewer,rationale,now(),review_id))
+        if getattr(updated,"rowcount",1)!=1: raise ValueError("output review was already resolved")
         if decision=="ACCEPT":
             self.db.execute("UPDATE tasks SET status='COMPLETED',updated_at=? WHERE id=? AND status='REVIEW'",(now(),row["task_id"]))
         elif decision=="REJECT":
