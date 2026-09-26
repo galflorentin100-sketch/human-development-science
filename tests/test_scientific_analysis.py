@@ -7,7 +7,7 @@ def setup(tmp_path):
     db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES ('a','Researcher','researcher','m','[]','[]','1','IDLE','2026')")
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES ('p','c','test','RUNNING','a','2026')")
     db.execute("INSERT INTO studies(id,title,design,population,findings,created_at) VALUES ('s','study','RCT','adults','', '2026')")
-    db.execute("INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES ('plan','s',1,'preregistered',1,'2026','2026')")
+    db.execute("INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES ('plan','s',1,'{"outcome_name":"score","registered_outcome_name":"score","estimand":"between-arm change difference","population":"randomized participants","estimator":"unadjusted","ci_method":"normal_approximation_95","missing_data_policy":"complete cases","multiplicity_policy":"primary only","subgroup_policy":"none","stopping_rule":"fixed","allowed_methods":["RANDOMIZED_ARM","INFERENTIAL_RANDOMIZED_ARM","LONGITUDINAL_RETENTION","DESCRIPTIVE"]}',1,'2026','2026')")
     for pid,arm in [('i','INTERVENTION'),('c1','CONTROL')]:
         db.execute("INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",(pid,'s',pid,'CONSENTED','2026'))
         db.execute("INSERT INTO study_assignments(id,study_id,participant_id,arm,assigned_at,method) VALUES (?,?,?,?,?,?)",(pid+'a','s',pid,arm,'2026','random_choice'))
@@ -36,3 +36,12 @@ def test_randomized_analysis_requires_frozen_plan(tmp_path):
         assert False
     except ValueError as exc:
         assert 'frozen' in str(exc)
+
+
+def test_analysis_rejects_unregistered_outcome(tmp_path):
+    db=setup(tmp_path)
+    try:
+        ScientificAnalysisEngine(db).randomized_arm_analysis('s','plan','different_outcome')
+        assert False
+    except ValueError as exc:
+        assert "preregistered outcome" in str(exc)
