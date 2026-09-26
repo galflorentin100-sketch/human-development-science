@@ -41,3 +41,16 @@ def test_experiment_analysis_stays_descriptive(tmp_path):
     assert analysis["causal_claim_supported"] is False
     finding=ExperimentAnalyzer(db).candidate_finding(exp["id"],"researcher")
     assert finding["status"]=="CANDIDATE"
+
+
+def test_analyzer_exposes_result_status(tmp_path):
+    from app.experiment_engine import ExperimentEngine
+    from app.experiment_analyzer import ExperimentAnalyzer
+    db=Database(str(tmp_path/"status.db")); ResearchCycle(db); pid=setup(db)
+    e=ExperimentEngine(db).create(pid,"Question","Hypothesis","RCT","population","intervention","comparison","outcome",'{"primary":"outcome"}')
+    ExperimentEngine(db).preregister(e["id"])
+    from app.experiment_safety import ExperimentSafetyReviewer
+    ExperimentSafetyReviewer(db).review(e["id"],"ACCEPT","safe","founder")
+    ExperimentEngine(db).start(e["id"])
+    result=ExperimentEngine(db).record_result(e["id"],"observed","descriptive",[])
+    assert ExperimentAnalyzer(db).analyze(e["id"])["status"]=="RESULT_AVAILABLE"
