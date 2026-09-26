@@ -151,3 +151,16 @@ def test_add_source_with_content_ingests_atomically(tmp_path):
     parsed=db.one("SELECT content,state FROM evidence_sources WHERE source_id=?",(source["id"],))
     assert parsed["content"]=="Verified source text"
     assert parsed["state"]=="PARSED"
+
+
+def test_ingest_text_deduplicates_source_content(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    db=Database(str(tmp_path/"source_dedupe.db")); ResearchCycle(db)
+    source=ResearchEngine(db)
+    pid=_setup(db)
+    registered=EvidencePipeline(db).register_source("Paper","https://example.org/dedupe","Author",2025)
+    first=EvidencePipeline(db).ingest_text(registered["id"],"same source text")
+    second=EvidencePipeline(db).ingest_text(registered["id"],"same source text")
+    assert first["id"]==second["id"]
+    rows=db.all("SELECT id FROM evidence_sources WHERE source_id=? AND content_hash=?",(registered["id"],first["content_hash"]))
+    assert len(rows)==1
