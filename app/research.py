@@ -144,7 +144,7 @@ class StudyExecution:
         if not study or study["status"] not in {"APPROVED","RUNNING"}: raise ValueError("study is not executable")
         if participant["consent_status"]!="CONSENTED": raise ValueError("participant consent is not active")
         if session_id and not self.db.one("SELECT 1 FROM study_sessions WHERE id=? AND study_id=? AND participant_id=?",(session_id,study_id,participant_id)): raise ValueError("session does not belong to participant")
-        if self.db.one("SELECT 1 FROM study_outcomes WHERE study_id=? AND participant_id=? AND outcome_name=? AND observation_type=? AND (session_id=? OR (session_id IS NULL AND ? IS NULL))",(study_id,participant_id,outcome_name,observation_type,session_id,session_id)): raise ValueError("duplicate observation")
+        if session_id and self.db.one("SELECT 1 FROM study_outcomes WHERE study_id=? AND participant_id=? AND outcome_name=? AND observation_type=? AND session_id=?",(study_id,participant_id,outcome_name,observation_type,session_id)): raise ValueError("duplicate observation for session")
         i=str(uuid4())
         self.db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?)",(i,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,now()))
         return self.db.one("SELECT * FROM study_outcomes WHERE id=?",(i,))
