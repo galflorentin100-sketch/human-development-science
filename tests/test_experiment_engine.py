@@ -54,3 +54,26 @@ def test_analyzer_exposes_result_status(tmp_path):
     ExperimentEngine(db).start(e["id"])
     result=ExperimentEngine(db).record_result(e["id"],"observed","descriptive",[])
     assert ExperimentAnalyzer(db).analyze(e["id"])["status"]=="RESULT_AVAILABLE"
+
+
+def test_experiment_rejects_evidence_from_another_project(tmp_path):
+    from app.experiment_engine import ExperimentEngine
+    from app.evidence_pipeline import EvidencePipeline
+    from app.models import now
+    db=Database(str(tmp_path/"cross_project.db")); ResearchCycle(db); p1=setup(db); p2=setup(db)
+    exp=ExperimentEngine(db).create(p1,"Question","Hypothesis","RCT","population","intervention","comparison","outcome",'{"primary":"outcome"}')
+    ExperimentEngine(db).preregister(exp["id"])
+    from app.experiment_safety import ExperimentSafetyReviewer
+    ExperimentSafetyReviewer(db).review(exp["id"],"ACCEPT","safe","founder")
+    ExperimentEngine(db).start(exp["id"])
+    source=EvidencePipeline(db).register_source("Paper","https://example.org/cross","Author",2025)
+    claim=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,status,classification,confidence,review_required,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",(claim,p2,"claim","SUPPORTED","INFERENCE",1.0,0,now(),now()))
+    EvidencePipeline(db).ingest_text(source["id"],"excerpt")
+    ev=EvidencePipeline(db).attach(claim,source["id"],"excerpt","SUPPORTS",actor="researcher")
+    EvidencePipeline(db).review(ev["id"],"founder","VERIFIED","verified")
+    try:
+        ExperimentEngine(db).record_result(exp["id"],"observed","descriptive",[ev["id"]])
+        assert False
+    except ValueError as exc:
+        assert "another project" in str(exc)
