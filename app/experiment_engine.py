@@ -94,6 +94,11 @@ class ExperimentEngine:
             raise ValueError("experiment result requires a RUNNING or COMPLETED experiment")
         if not str(outcome or "").strip() or not str(interpretation or "").strip():
             raise ValueError("outcome and interpretation are required")
+        refs=list(evidence_refs)
+        for ref in refs:
+            ev=self.db.one("SELECT id,verified FROM evidence WHERE id=?",(str(ref),))
+            if not ev or not ev["verified"]:
+                raise ValueError("experiment result evidence must reference verified evidence")
         if self.db.one("SELECT id FROM hds_experiment_results WHERE experiment_id=?",(experiment_id,)):
             raise ValueError("experiment already has a result")
         i=str(uuid4())
