@@ -105,9 +105,11 @@ class ResearchFindingService:
                 evidence_snapshot.append({"evidence_id":str(ref),"claim_id":evidence["claim_id"],"source_id":evidence["source_id"],"stance":evidence["stance"],"excerpt_hash":evidence["excerpt_hash"],"state_at_review":resolution["state"]})
         status=decision
         ts=now()
-        self.db.execute("UPDATE research_findings SET status=?,reviewed_by=?,reviewed_at=? WHERE id=?",(status,reviewer,ts,finding_id))
-        self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
-            (str(uuid4()),"research_finding.reviewed","research_finding",finding_id,reviewer,json.dumps({"decision":decision,"rationale":rationale,"evidence_refs":refs,"evidence_snapshot":evidence_snapshot if decision=="ACCEPTED" else []},sort_keys=True),ts))
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE research_findings SET status=?,reviewed_by=?,reviewed_at=? WHERE id=? AND status IN ('CANDIDATE','UNDER_REVIEW')",(status,reviewer,ts,finding_id))
+            if updated.rowcount != 1: raise ValueError("finding review was already resolved")
+            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                (str(uuid4()),"research_finding.reviewed","research_finding",finding_id,reviewer,json.dumps({"decision":decision,"rationale":rationale,"evidence_refs":refs,"evidence_snapshot":evidence_snapshot if decision=="ACCEPTED" else []},sort_keys=True),ts))
         return self.db.one("SELECT * FROM research_findings WHERE id=?",(finding_id,))
 
     def list(self,project_id,status=None):
