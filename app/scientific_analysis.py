@@ -121,7 +121,7 @@ class ScientificAnalysisEngine:
     def longitudinal_retention_analysis(self, study_id, analysis_plan_id, outcome_name):
         """Describe post-to-retention trajectories without fitting an unregistered repeated-measures model."""
         plan=self._plan(study_id,analysis_plan_id)
-        self._require_method(plan,"INFERENTIAL_RANDOMIZED_ARM")
+        self._require_method(plan,"LONGITUDINAL_RETENTION")
         rows=self.db.all(
             "SELECT participant_id,observation_type,value,recorded_at FROM study_outcomes "
             "WHERE study_id=? AND outcome_name=? AND value IS NOT NULL "
@@ -149,7 +149,7 @@ class ScientificAnalysisEngine:
         outcome distribution, sample size, missingness mechanism, or repeated measures.
         """
         plan=self._plan(study_id,analysis_plan_id)
-        self._require_method(plan,"LONGITUDINAL_RETENTION")
+        self._require_method(plan,"INFERENTIAL_RANDOMIZED_ARM")
         rows=self.db.all(
             "SELECT p.id participant_id,a.arm,o.observation_type,o.value,o.recorded_at "
             "FROM study_participants p JOIN study_assignments a ON a.participant_id=p.id AND a.study_id=p.study_id "
