@@ -67,3 +67,14 @@ def test_sync_connects_experiment_and_result(tmp_path):
     assert any(x["relation"]=="TESTED_BY" and x["to_id"]==e["id"] for x in graph["edges"])
     assert any(x["relation"]=="HAS_RESULT" and x["from_id"]==e["id"] for x in graph["edges"])
     assert result["created_edges"] >= 2
+
+
+def test_add_edge_rejects_cross_project_node(tmp_path):
+    db=Database(str(tmp_path/"isolation.db")); ResearchCycle(db); p1=_setup(db); p2=_setup(db)
+    from app.models import now
+    claim=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,p2,"foreign","FACT","PRELIMINARY",0.5,"PROPOSED",now()))
+    g=KnowledgeDependencyGraph(db)
+    import pytest
+    with pytest.raises(ValueError, match="belongs to another project"):
+        g.add_edge(p1,"CLAIM",claim,"INFORMS","HYPOTHESIS","h")
