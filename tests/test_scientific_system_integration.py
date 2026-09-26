@@ -117,3 +117,14 @@ def test_training_provenance_readiness_reports_missing_evidence(tmp_path):
     readiness=ScientificTrainingPipeline(db).readiness(protocol["id"])
     assert readiness["missing_evidence_count"]==1
     assert "missing_evidence" in readiness["blockers"]
+
+def test_agent_output_submit_is_idempotent(tmp_path):
+    from app.agent_output_gate import AgentOutputGate
+    from app.models import now
+    db=Database(str(tmp_path/"agent-output.db")); ResearchCycle(db); pid=_setup(db)
+    task=str(uuid.uuid4()); run=str(uuid.uuid4())
+    db.execute("INSERT INTO tasks(id,project_id,title,status,priority,success_criteria,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)",(task,pid,"research","REVIEW",1.0,"review",now(),now()))
+    db.execute("INSERT INTO agent_runs(id,agent_id,task_id,status,input_payload,output_payload,started_at,completed_at) VALUES (?,?,?,?,?,?,?,?)",(run,"agent-1",task,"REVIEW","{}",'{"result":"x"}',now(),now()))
+    first=AgentOutputGate(db).submit(run)
+    second=AgentOutputGate(db).submit(run)
+    assert first["id"]==second["id"]
