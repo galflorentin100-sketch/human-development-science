@@ -39,6 +39,10 @@ class ResearchEvidenceAuditor:
             "status":"PASS" if refs and not missing and not unverified and not out_of_scope else "REVIEW_REQUIRED"
         }
         if record_audit:
-            self.db.execute("INSERT INTO research_evidence_audits(id,synthesis_id,status,evidence_count,missing_evidence,unverified_evidence,out_of_scope_evidence,reviewer,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(str(uuid4()),synthesis_id,result["status"],result["evidence_count"],json.dumps(missing),json.dumps(unverified),json.dumps(out_of_scope),reviewer,now()))
-            self.db.audit("scientific.research_evidence_audit","research_synthesis",synthesis_id,reviewer,result,now(),str(uuid4()))
+            ts=now()
+            with self.db.transaction() as con:
+                con.execute("INSERT INTO research_evidence_audits(id,synthesis_id,status,evidence_count,missing_evidence,unverified_evidence,out_of_scope_evidence,reviewer,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                            (str(uuid4()),synthesis_id,result["status"],result["evidence_count"],json.dumps(missing),json.dumps(unverified),json.dumps(out_of_scope),reviewer,ts))
+                con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                            (str(uuid4()),"scientific.research_evidence_audit","research_synthesis",synthesis_id,reviewer,json.dumps(result,sort_keys=True),ts))
         return result
