@@ -227,3 +227,28 @@ def test_sc001_registration_compensates_partial_failure(tmp_path, monkeypatch):
     assert db.one("SELECT COUNT(*) AS n FROM studies WHERE project_id=?", (pid,))["n"] == 0
     assert db.one("SELECT COUNT(*) AS n FROM hypotheses WHERE project_id=?", (pid,))["n"] == 0
     assert db.one("SELECT COUNT(*) AS n FROM experiments WHERE project_id=?", (pid,))["n"] == 0
+
+
+def test_training_evidence_cannot_cross_project(tmp_path):
+    from app.models import now
+    from app.training import TrainingProtocolService
+    db=Database(str(tmp_path/"training-provenance.db")); ResearchCycle(db)
+    p1=_setup(db); p2=_setup(db)
+    claim=str(uuid.uuid4()); source=str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (claim,p2,"evidence claim","FACT","PRELIMINARY",0.0,"PROPOSED",now()))
+    db.execute(
+        "INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",
+        (source,"source","https://example.org/"+source,"PAPER","","test"))
+    evidence=str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (evidence,claim,source,"SUPPORTS","excerpt",0,"tester",now()))
+    protocol=TrainingProtocolService(db).create(
+        p1,"protocol","mechanism","domain","dose","progress","transfer","retention","safety")
+    try:
+        TrainingProtocolService(db).attach_evidence(protocol["id"],"LITERATURE",evidence)
+        assert False, "cross-project evidence must be rejected"
+    except ValueError as exc:
+        assert "another project" in str(exc)
