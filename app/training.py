@@ -102,7 +102,7 @@ class TrainingProtocolService:
                            (protocol_id,str(participant_ref),int(session_number))).fetchone():
                 raise ValueError("training session already exists")
             con.execute(
-                "INSERT OR IGNORE INTO training_sessions(id,protocol_id,participant_ref,session_number,load_note,adherence,task_success,transfer_score,retention_score,decision_accuracy,initiation_latency,recovery_score,fatigue_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO training_sessions(id,protocol_id,participant_ref,session_number,load_note,adherence,task_success,transfer_score,retention_score,decision_accuracy,initiation_latency,recovery_score,fatigue_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(protocol_id,participant_ref,session_number) DO NOTHING",
                 (i,protocol_id,str(participant_ref),int(session_number),load_note,int(adherence),
                  task_success,transfer_score,retention_score,decision_accuracy,initiation_latency,
                  recovery_score,fatigue_note or "",ts)
