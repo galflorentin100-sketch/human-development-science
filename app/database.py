@@ -308,6 +308,14 @@ def _migrate_phase4(self):
         if duplicate_training_sessions:
             raise RuntimeError("cannot enforce unique training sessions: existing duplicate protocol/participant/session records found")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_training_session_identity ON training_sessions(protocol_id,participant_ref,session_number)")
+        duplicate_queue=con.execute("""
+            SELECT project_id,question,COUNT(*) AS n FROM hds_research_queue
+            WHERE status IN ('PROPOSED','APPROVED','IN_PROGRESS')
+            GROUP BY project_id,question HAVING COUNT(*) > 1
+        """).fetchall()
+        if duplicate_queue:
+            raise RuntimeError("cannot enforce unique active research queue items: existing duplicate project/question items found")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_research_queue_active_identity ON hds_research_queue(project_id,question) WHERE status IN ('PROPOSED','APPROVED','IN_PROGRESS')")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
         con.execute("DROP INDEX IF EXISTS idx_study_outcome_observation_no_session")
 Database.migrate=_migrate_phase4
@@ -374,6 +382,14 @@ class PostgreSQLDatabase:
             if duplicate_maintenance:
                 raise RuntimeError("cannot enforce unique active maintenance work: existing duplicate active items found")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_maintenance_active_identity ON maintenance_work(kind,entity_type,entity_id) WHERE status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS')")
+            duplicate_research_queue=con.execute("""
+                SELECT project_id,question,COUNT(*) AS n FROM hds_research_queue
+                WHERE status IN ('PROPOSED','APPROVED','IN_PROGRESS')
+                GROUP BY project_id,question HAVING COUNT(*) > 1
+            """).fetchall()
+            if duplicate_research_queue:
+                raise RuntimeError("cannot enforce unique active research queue items: existing duplicate project/question items found")
+            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_research_queue_active_identity ON hds_research_queue(project_id,question) WHERE status IN ('PROPOSED','APPROVED','IN_PROGRESS')")
             duplicate_assignments=con.execute("""
                 SELECT study_id,participant_id,COUNT(*) AS n
                 FROM study_assignments
