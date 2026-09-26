@@ -27,18 +27,16 @@ class AgentOutputGate:
         status="READY_FOR_REVIEW" if refs else "NEEDS_EVIDENCE"
         rid=str(uuid4())
         ts=now()
-        try:
-            with self.db.transaction() as con:
-                con.execute(
-                    "INSERT INTO agent_output_reviews(id,agent_run_id,project_id,task_id,evidence_refs,provenance_hash,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
-                    (rid,agent_run_id,project_id,run["task_id"],json.dumps(refs),digest,status,ts))
-                con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
-                    (str(uuid4()),"scientific.agent_output_submitted","agent_output_review",rid,run["agent_id"],
-                     json.dumps({"agent_run_id":agent_run_id,"evidence_count":len(refs),"status":status},sort_keys=True),ts))
-        except Exception:
-            existing=self.db.one("SELECT * FROM agent_output_reviews WHERE agent_run_id=?",(agent_run_id,))
-            if existing: return existing
-            raise
+        with self.db.transaction() as con:
+            existing=con.execute("SELECT * FROM agent_output_reviews WHERE agent_run_id=?",(agent_run_id,)).fetchone()
+            if existing:
+                return dict(existing)
+            con.execute(
+                "INSERT INTO agent_output_reviews(id,agent_run_id,project_id,task_id,evidence_refs,provenance_hash,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+                (rid,agent_run_id,project_id,run["task_id"],json.dumps(refs),digest,status,ts))
+            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                (str(uuid4()),"scientific.agent_output_submitted","agent_output_review",rid,run["agent_id"],
+                 json.dumps({"agent_run_id":agent_run_id,"evidence_count":len(refs),"status":status},sort_keys=True),ts))
         return self.db.one("SELECT * FROM agent_output_reviews WHERE id=?",(rid,))
 
     def review(self,review_id,reviewer,decision,rationale):
