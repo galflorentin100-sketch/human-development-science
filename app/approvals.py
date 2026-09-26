@@ -8,8 +8,9 @@ class ApprovalRequired(Exception): pass
 class ApprovalService:
     def __init__(self,db): self.db=db
     def request(self,action,requested_by,reason="",risk_level="MEDIUM",context=None,correlation_id=None,expires_hours=24):
-        if not action or not requested_by: raise ValueError("action and requested_by are required")
+        if not str(action or "").strip() or not str(requested_by or "").strip(): raise ValueError("action and requested_by are required")
         if expires_hours <= 0: raise ValueError("expires_hours must be positive")
+        if risk_level not in {"LOW","MEDIUM","HIGH","CRITICAL"}: raise ValueError("invalid risk_level")
         if correlation_id is None: correlation_id=str(uuid4())
         i=str(uuid4()); expires_at=(datetime.now(timezone.utc)+timedelta(hours=expires_hours)).isoformat(); ts=now()
         with self.db.transaction() as con:
@@ -19,6 +20,7 @@ class ApprovalService:
     def get(self,i): return self.db.one("SELECT * FROM approvals WHERE id=?",(i,))
     def resolve(self,i,status,actor):
         s=status.value if isinstance(status,ApprovalStatus) else status
+        if not str(actor or "").strip(): raise ValueError("actor is required")
         if s not in {ApprovalStatus.APPROVED.value,ApprovalStatus.REJECTED.value,ApprovalStatus.CANCELLED.value}: raise ValueError("approval can only resolve to APPROVED, REJECTED, or CANCELLED")
         row=self.get(i)
         if row is None or row["status"]!="PENDING": raise ApprovalRequired(i)
