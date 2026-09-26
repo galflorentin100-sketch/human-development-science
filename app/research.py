@@ -179,9 +179,15 @@ class StudyExecution:
         if not study or study["status"] not in {"APPROVED","RUNNING"}: raise ValueError("study is not executable")
         if participant["consent_status"]!="CONSENTED": raise ValueError("participant consent is not active")
         if session_id and not self.db.one("SELECT 1 FROM study_sessions WHERE id=? AND study_id=? AND participant_id=?",(session_id,study_id,participant_id)): raise ValueError("session does not belong to participant")
-        if session_id and self.db.one("SELECT 1 FROM study_outcomes WHERE study_id=? AND participant_id=? AND outcome_name=? AND observation_type=? AND session_id=?",(study_id,participant_id,outcome_name,observation_type,session_id)): raise ValueError("duplicate observation for session")
-        i=str(uuid4())
-        self.db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?)",(i,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,now()))
+        i=str(uuid4()); ts=now()
+        with self.db.transaction() as con:
+            if session_id:
+                duplicate=con.execute("SELECT 1 FROM study_outcomes WHERE study_id=? AND participant_id=? AND outcome_name=? AND observation_type=? AND session_id=?",(study_id,participant_id,outcome_name,observation_type,session_id)).fetchone()
+            else:
+                duplicate=con.execute("SELECT 1 FROM study_outcomes WHERE study_id=? AND participant_id=? AND outcome_name=? AND observation_type=? AND session_id IS NULL",(study_id,participant_id,outcome_name,observation_type)).fetchone()
+            if duplicate:
+                raise ValueError("duplicate observation")
+            con.execute("INSERT INTO study_outcomes(id,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?)",(i,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,ts))
         return self.db.one("SELECT * FROM study_outcomes WHERE id=?",(i,))
     def _validate_execution_readiness(self, study_id):
         study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
