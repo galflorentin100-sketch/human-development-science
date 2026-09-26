@@ -16,11 +16,13 @@ class ResearchEvidenceAuditor:
         syn=self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
         if not syn: raise ValueError("synthesis not found")
         refs=json.loads(syn["evidence_refs"] or "[]")
-        missing=[]; unverified=[]
+        missing=[]; unverified=[]; out_of_scope=[]
         for ref in refs:
             ev=self.db.one("SELECT id,verified FROM evidence WHERE id=?",(str(ref),))
             if not ev: missing.append(str(ref))
             else:
+                source=self.db.one("SELECT source_id FROM evidence WHERE id=?",(str(ref),))
+                if source and str(source["source_id"]) not in source_ids: out_of_scope.append(str(ref))
                 from app.evidence_pipeline import EvidencePipeline
                 state=EvidencePipeline(self.db).resolve(str(ref))
                 if not ev["verified"] or state["state"]!="VERIFIED": unverified.append(str(ref))
@@ -32,8 +34,9 @@ class ResearchEvidenceAuditor:
             "evidence_count":len(refs),
             "missing_evidence":missing,
             "unverified_evidence":unverified,
+            "out_of_scope_evidence":out_of_scope,
             "workspace_source_count":len(source_ids),
-            "status":"PASS" if refs and not missing and not unverified else "REVIEW_REQUIRED"
+            "status":"PASS" if refs and not missing and not unverified and not out_of_scope else "REVIEW_REQUIRED"
         }
         if record_audit:
             self.db.execute("INSERT INTO research_evidence_audits(id,synthesis_id,status,evidence_count,missing_evidence,unverified_evidence,reviewer,created_at) VALUES (?,?,?,?,?,?,?,?)",(str(uuid4()),synthesis_id,result["status"],result["evidence_count"],json.dumps(missing),json.dumps(unverified),reviewer,now()))
