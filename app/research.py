@@ -95,17 +95,19 @@ class ResearchFindingService:
                 raise ValueError("ACCEPTED finding requires at least one evidence reference")
             from app.evidence_pipeline import EvidencePipeline
             pipeline=EvidencePipeline(self.db)
+            evidence_snapshot=[]
             for ref in refs:
-                evidence=self.db.one("SELECT id FROM evidence WHERE id=?",(str(ref),))
+                evidence=self.db.one("SELECT id,claim_id,source_id,stance,excerpt,excerpt_hash FROM evidence WHERE id=?",(str(ref),))
                 if not evidence: raise ValueError("finding references unknown evidence")
                 resolution=pipeline.resolve(str(ref))
                 if resolution["state"]!="VERIFIED":
                     raise ValueError("ACCEPTED finding requires all referenced evidence to be VERIFIED")
+                evidence_snapshot.append({"evidence_id":str(ref),"claim_id":evidence["claim_id"],"source_id":evidence["source_id"],"stance":evidence["stance"],"excerpt_hash":evidence["excerpt_hash"],"state_at_review":resolution["state"]})
         status=decision
         ts=now()
         self.db.execute("UPDATE research_findings SET status=?,reviewed_by=?,reviewed_at=? WHERE id=?",(status,reviewer,ts,finding_id))
         self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
-            (str(uuid4()),"research_finding.reviewed","research_finding",finding_id,reviewer,json.dumps({"decision":decision,"rationale":rationale,"evidence_refs":refs},sort_keys=True),ts))
+            (str(uuid4()),"research_finding.reviewed","research_finding",finding_id,reviewer,json.dumps({"decision":decision,"rationale":rationale,"evidence_refs":refs,"evidence_snapshot":evidence_snapshot if decision=="ACCEPTED" else []},sort_keys=True),ts))
         return self.db.one("SELECT * FROM research_findings WHERE id=?",(finding_id,))
 
     def list(self,project_id,status=None):
