@@ -15,9 +15,12 @@ class EvidencePipeline:
         digest=hashlib.sha256(text.encode("utf-8")).hexdigest()
         existing=self.db.one("SELECT * FROM evidence_sources WHERE source_id=? AND content_hash=? ORDER BY created_at DESC LIMIT 1",(source_id,digest))
         if existing:
+            if not existing.get("content"):
+                self.db.execute("UPDATE evidence_sources SET content=? WHERE id=?",(text,existing["id"]))
+                return self.db.one("SELECT * FROM evidence_sources WHERE id=?",(existing["id"],))
             return existing
         eid=str(uuid4())
-        self.db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,fetched_at,parsed_at,created_at) VALUES (?,?,?, ?,?,?,?)",(eid,source_id,"PARSED",digest,now(),now(),now()))
+        self.db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,content,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?,?)",(eid,source_id,"PARSED",digest,text,now(),now(),now()))
         return self.db.one("SELECT * FROM evidence_sources WHERE id=?",(eid,))
     def attach(self,claim_id,source_id,excerpt,stance="SUPPORTS",verified=False,actor="system"):
         if stance not in {"SUPPORTS","CONTRADICTS","NEUTRAL"}: raise ValueError("invalid evidence stance")
@@ -26,8 +29,14 @@ class EvidencePipeline:
         if not source or not claim: raise ValueError("claim or source not found")
         if verified:
             raise ValueError("evidence verification is reviewer-controlled; attach as unverified and use review() to verify")
-        if not self.db.one("SELECT 1 FROM evidence_sources WHERE source_id=? AND state='PARSED' ORDER BY parsed_at DESC LIMIT 1",(source_id,)):
+        parsed_source=self.db.one("SELECT * FROM evidence_sources WHERE source_id=? AND state='PARSED' ORDER BY parsed_at DESC LIMIT 1",(source_id,))
+        if not parsed_source:
             raise ValueError("cannot attach evidence before source content is parsed")
+        source_text=parsed_source.get("content") or ""
+        if not source_text:
+            raise ValueError("parsed source content is unavailable; re-ingest the source before attaching evidence")
+        if excerpt not in source_text:
+            raise ValueError("evidence excerpt is not present in the parsed source content")
         eid=str(uuid4())
         excerpt_hash=hashlib.sha256(excerpt.encode("utf-8")).hexdigest()
         self.db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(eid,claim_id,source_id,stance,excerpt,int(verified),actor,excerpt_hash,now()))
