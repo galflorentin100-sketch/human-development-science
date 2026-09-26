@@ -491,6 +491,7 @@ PHASE7_SCHEMA = """CREATE TABLE IF NOT EXISTS improvement_proposals (
 );"""
 
 PHASE6_SCHEMA = """CREATE TABLE IF NOT EXISTS scientific_constructs (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), name TEXT NOT NULL, definition TEXT NOT NULL, construct_type TEXT NOT NULL, status TEXT NOT NULL, version INTEGER NOT NULL, created_at TEXT NOT NULL, UNIQUE(project_id,name,version));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_scientific_construct_identity ON scientific_constructs(COALESCE(project_id,''),name,version);
 CREATE TABLE IF NOT EXISTS scientific_measures (id TEXT PRIMARY KEY, construct_id TEXT NOT NULL REFERENCES scientific_constructs(id), name TEXT NOT NULL, operational_definition TEXT NOT NULL, method TEXT NOT NULL, unit TEXT, reliability_note TEXT NOT NULL, validity_note TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS training_protocols (
  id TEXT PRIMARY KEY,
