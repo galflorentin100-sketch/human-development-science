@@ -31,16 +31,35 @@ class AutonomousScientificMaintenance:
     def create_tasks(self,project_id,owner="chief-scientist"):
         created=[]
         for p in self.propose(project_id=project_id)["proposals"]:
-            existing=self.db.one("SELECT id FROM tasks WHERE project_id=? AND title=? AND status NOT IN ('COMPLETED','FAILED')",(project_id,p["title"]))
-            if existing: continue
-            task_id=str(uuid4())
             with self.db.transaction() as con:
-                inserted=con.execute(
-                    "INSERT OR IGNORE INTO tasks(id,project_id,title,assigned_agent_id,priority,status,success_criteria,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
-                    (task_id,project_id,p["title"],owner,1.0,"PLANNED","Produce an evidence-backed review with explicit uncertainty and no silent state mutation.",now(),now()))
-                if inserted.rowcount == 1:
+                existing_link=con.execute(
+                    "SELECT task_id FROM maintenance_task_links WHERE kind=? AND entity_type=? AND entity_id=?",
+                    (p["kind"],p["entity_type"],p["entity_id"])).fetchone()
+                if existing_link:
+                    continue
+                existing=con.execute(
+                    "SELECT id FROM tasks WHERE project_id=? AND title=? AND status NOT IN ('COMPLETED','FAILED')",
+                    (project_id,p["title"])).fetchone()
+                if existing:
+                    con.execute(
+                        "INSERT OR IGNORE INTO maintenance_task_links(task_id,kind,entity_type,entity_id,created_at) VALUES (?,?,?,?,?)",
+                        (dict(existing)["id"],p["kind"],p["entity_type"],p["entity_id"],now()))
+                    continue
+                task_id=str(uuid4())
+                ts=now()
+                con.execute(
+                    "INSERT INTO tasks(id,project_id,title,assigned_agent_id,priority,status,success_criteria,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (task_id,project_id,p["title"],owner,1.0,"PLANNED",
+                     "Produce an evidence-backed review with explicit uncertainty and no silent state mutation.",ts,ts))
+                linked=con.execute(
+                    "INSERT OR IGNORE INTO maintenance_task_links(task_id,kind,entity_type,entity_id,created_at) VALUES (?,?,?,?,?)",
+                    (task_id,p["kind"],p["entity_type"],p["entity_id"],ts))
+                if linked.rowcount == 1:
                     created.append(task_id)
+                else:
+                    con.execute("DELETE FROM tasks WHERE id=?",(task_id,))
         return created
+
     def materialize(self,actor="system"):
         proposals=self.propose()["proposals"]
         created=[]
