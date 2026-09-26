@@ -75,5 +75,5 @@ class ResearchAgentService:
         synthesis=engine.synthesize(link["workspace_id"],str(result),
             limitations=str(payload.get("limitations") or ""),
             uncertainty=str(payload.get("uncertainty") or "Agent output was independently evidence-reviewed; interpretation remains bounded."),
-            created_by=actor)
+            created_by=actor,evidence_refs=refs)
         return {"review":review,"synthesis":synthesis,"workspace_id":link["workspace_id"],"evidence_refs":refs}
