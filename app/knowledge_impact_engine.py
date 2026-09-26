@@ -22,10 +22,7 @@ class KnowledgeImpactEngine:
         return None
 
     def _tables(self):
-        if hasattr(self.db, "table_columns"):
-            return set(self.db.all("SELECT table_name AS name FROM information_schema.tables WHERE table_schema='public'"))
-        rows=self.db.all("SELECT name FROM sqlite_master WHERE type='table'")
-        return {r["name"] for r in rows}
+        return set(self.db.table_names())
 
     def _columns(self,table):
         if hasattr(self.db, "table_columns"):
