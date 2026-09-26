@@ -181,6 +181,21 @@ def synthesize_research_workspace(workspace_id: str, req: ResearchSynthesisReque
     except ValueError as exc:
         raise HTTPException(400,str(exc)) from exc
 
+@app.get("/api/science/research-syntheses/{synthesis_id}/readiness")
+def research_synthesis_readiness(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.research_engine import ResearchEngine
+    try:
+        return ResearchEngine(db).readiness(synthesis_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.get("/api/science/research-syntheses/{synthesis_id}/review-tasks")
+def research_synthesis_review_tasks(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.research_review_pipeline import ResearchReviewPipeline
+    return ResearchReviewPipeline(db).get(synthesis_id)
+
 @app.post("/api/science/research-syntheses/{synthesis_id}/review-tasks")
 def create_research_review_tasks(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
