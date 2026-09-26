@@ -89,3 +89,11 @@ def test_randomization_has_database_unique_constraint(tmp_path):
     db=make_db(tmp_path)
     indexes=db.all("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_study_assignment_participant'")
     assert indexes
+
+def test_study_preserves_project_provenance(tmp_path):
+    db=make_db(tmp_path)
+    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",("cp","C","m","v","p","2026-01-01"))
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",("ap","A","r","m","[]","[]","1","ACTIVE","2026-01-01"))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",("pp","cp","o","RUNNING","ap","2026-01-01"))
+    study=ResearchRepository(db).study(None,"S","RCT","adults","","pp")
+    assert study["project_id"]=="pp"
