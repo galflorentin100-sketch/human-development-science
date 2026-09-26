@@ -17,7 +17,7 @@ class AgentOutputGate:
         if project_id is not None and str(project_id)!=str(task["project_id"]):
             raise ValueError("project_id does not match task project")
         project_id=task["project_id"]
-        existing=self.db.one("SELECT * FROM agent_output_reviews WHERE agent_run_id=? ORDER BY created_at DESC LIMIT 1",(agent_run_id,))
+        existing=self.db.one("SELECT * FROM agent_output_reviews WHERE agent_run_id=?",(agent_run_id,))
         if existing: return existing
         payload=json.loads(run["output_payload"] or "{}")
         refs=payload.get("evidence_refs") or []
@@ -26,11 +26,19 @@ class AgentOutputGate:
         digest=hashlib.sha256(canonical.encode()).hexdigest()
         status="READY_FOR_REVIEW" if refs else "NEEDS_EVIDENCE"
         rid=str(uuid4())
-        self.db.execute(
-            "INSERT INTO agent_output_reviews(id,agent_run_id,project_id,task_id,evidence_refs,provenance_hash,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
-            (rid,agent_run_id,project_id,run["task_id"],json.dumps(refs),digest,status,now()))
-        self.db.audit("scientific.agent_output_submitted","agent_output_review",rid,run["agent_id"],
-                      {"agent_run_id":agent_run_id,"evidence_count":len(refs),"status":status},now(),str(uuid4()))
+        ts=now()
+        try:
+            with self.db.transaction() as con:
+                con.execute(
+                    "INSERT INTO agent_output_reviews(id,agent_run_id,project_id,task_id,evidence_refs,provenance_hash,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+                    (rid,agent_run_id,project_id,run["task_id"],json.dumps(refs),digest,status,ts))
+                con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                    (str(uuid4()),"scientific.agent_output_submitted","agent_output_review",rid,run["agent_id"],
+                     json.dumps({"agent_run_id":agent_run_id,"evidence_count":len(refs),"status":status},sort_keys=True),ts))
+        except Exception:
+            existing=self.db.one("SELECT * FROM agent_output_reviews WHERE agent_run_id=?",(agent_run_id,))
+            if existing: return existing
+            raise
         return self.db.one("SELECT * FROM agent_output_reviews WHERE id=?",(rid,))
 
     def review(self,review_id,reviewer,decision,rationale):
