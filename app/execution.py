@@ -59,9 +59,13 @@ class AgentExecutor:
                 pass
             message=CompanyMessage.create(agent_id,"coo","task_error",task_id,{},0.0,[],[error],["Retry or escalate."]); cost={}
         status="FAILED" if error else "REVIEW"
-        self.db.execute("INSERT INTO agent_runs(id,agent_id,task_id,status,input_payload,output_payload,started_at,completed_at,confidence,evidence_refs,uncertainties,cost_metadata,error,verified) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(run_id,agent_id,task_id,status,json.dumps({"input":task_input,"context":context}),json.dumps(message.to_dict()),started,now(),0.0,"[]",json.dumps(message.uncertainties),json.dumps(cost),error,0))
-        self.db.audit("agent.execution","agent_run",run_id,agent_id,{"task_id":task_id,"success":error is None,"verified":False},now(),str(uuid4()))
-        updated=self.db.execute("UPDATE tasks SET status=?,updated_at=? WHERE id=? AND status='RUNNING'",("FAILED" if error else "REVIEW",now(),task_id))
-        if getattr(updated,"rowcount",1) != 1:
-            raise RuntimeError("task state changed during execution")
+        ts=now()
+        with self.db.transaction() as con:
+            con.execute("INSERT INTO agent_runs(id,agent_id,task_id,status,input_payload,output_payload,started_at,completed_at,confidence,evidence_refs,uncertainties,cost_metadata,error,verified) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (run_id,agent_id,task_id,status,json.dumps({"input":task_input,"context":context}),json.dumps(message.to_dict()),started,ts,0.0,"[]",json.dumps(message.uncertainties),json.dumps(cost),error,0))
+            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                        (str(uuid4()),"agent.execution","agent_run",run_id,agent_id,json.dumps({"task_id":task_id,"success":error is None,"verified":False},sort_keys=True),ts))
+            updated=con.execute("UPDATE tasks SET status=?,updated_at=? WHERE id=? AND status='RUNNING'",("FAILED" if error else "REVIEW",ts,task_id))
+            if updated.rowcount != 1:
+                raise RuntimeError("task state changed during execution")
         return ExecutionResult(message,False,cost,error)
