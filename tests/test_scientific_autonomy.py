@@ -47,3 +47,17 @@ def test_autonomous_cycle_only_proposes_reviewable_work(tmp_path):
     result=AutonomousResearchCycle(db).run(pid)
     assert result["requires_human_review"] is True
     assert result["proposed_research"][0]["status"]=="PROPOSED"
+
+def test_maintenance_task_has_stable_identity_link(tmp_path):
+    from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
+    db=Database(str(tmp_path/"maintenance.db")); ResearchCycle(db); pid=_setup(db)
+    service=AutonomousScientificMaintenance(db)
+    proposal={"kind":"REVALIDATION","entity_type":"CLAIM","entity_id":str(uuid.uuid4()),
+              "title":"Revalidate claim X","reason":"review interval elapsed"}
+    service.propose=lambda project_id=None: {"count":1,"proposals":[proposal]}
+    created=service.create_tasks(pid)
+    assert len(created)==1
+    link=db.one("SELECT * FROM maintenance_task_links WHERE task_id=?",(created[0],))
+    assert link["kind"]=="REVALIDATION"
+    assert service.create_tasks(pid)==[]
+    assert db.one("SELECT COUNT(*) AS n FROM tasks WHERE id=?",(created[0],))["n"]==1
