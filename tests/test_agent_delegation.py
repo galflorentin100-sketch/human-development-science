@@ -17,7 +17,9 @@ def test_delegation_maps_research_to_agent(tmp_path):
 def test_delegation_deduplicates(tmp_path):
     from app.agent_delegation import AgentDelegation
     db=Database(str(tmp_path/"x.db"))
-    pid=str(uuid.uuid4())
+    from app.workflow import ResearchCycle
+    ResearchCycle(db)
+    pid=ResearchCycle(db).run("delegation dedupe")["project"]["id"]
     ResearchQueue(db).propose(pid,"Question","Need evidence","DISCOVERY")
     d=AgentDelegation(db)
     assert len(d.delegate_pending(pid,5))==1
