@@ -56,10 +56,10 @@ class KnowledgeImpactEngine:
             impacts=[{"type":n["type"],"id":n["id"],"depth":None,"reason":reason} for n in trace["affected"]]
             with self.db.transaction() as con:
                 for x in impacts:
-                    con.execute("""INSERT OR IGNORE INTO knowledge_impact_reviews
+                    con.execute("""INSERT INTO knowledge_impact_reviews
                         (id,project_id,source_type,source_id,impact_type,affected_type,
                          affected_id,reason,status,created_at)
-                        VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                        VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(project_id,source_type,source_id,impact_type,affected_type,affected_id) WHERE status='PROPOSED' DO NOTHING""",
                         (str(uuid4()),project_id,source_type,str(source_id),"GRAPH_DEPENDENCY",
                          x["type"],x["id"],reason,"PROPOSED",now()))
             return {"project_id":project_id,"source":{"type":source_type,"id":str(source_id)},
@@ -90,10 +90,10 @@ class KnowledgeImpactEngine:
                         queue.append((target,str(rid),depth+1))
         with self.db.transaction() as con:
             for x in impacts:
-                con.execute("""INSERT OR IGNORE INTO knowledge_impact_reviews
+                con.execute("""INSERT INTO knowledge_impact_reviews
                     (id,project_id,source_type,source_id,impact_type,affected_type,
                      affected_id,reason,status,created_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(project_id,source_type,source_id,impact_type,affected_type,affected_id) WHERE status='PROPOSED' DO NOTHING""",
                     (str(uuid4()),project_id,source_type,str(source_id),"DEPENDENCY",x["type"],
                      x["id"],reason,"PROPOSED",now()))
         return {"project_id":project_id,"source":{"type":source_type,"id":str(source_id)},
