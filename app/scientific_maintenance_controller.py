@@ -45,12 +45,20 @@ class ScientificMaintenanceController:
         return self.db.one("SELECT * FROM maintenance_work WHERE id=?",(work_id,))
 
     def approve(self,work_id,actor):
-        work=self.db.one("SELECT * FROM maintenance_work WHERE id=?",(work_id,))
-        if not work or work["status"]!="APPROVAL_PENDING": raise ValueError("maintenance work is not approval-pending")
-        from app.approvals import ApprovalService
-        approval=ApprovalService(self.db).resolve(work["approval_id"],"APPROVED",actor)
-        self.db.execute("UPDATE maintenance_work SET status='APPROVED',updated_at=? WHERE id=?",(now(),work_id))
-        return {"work":self.db.one("SELECT * FROM maintenance_work WHERE id=?",(work_id,)),"approval":approval}
+        with self.db.transaction() as con:
+            work=con.execute("SELECT * FROM maintenance_work WHERE id=?",(work_id,)).fetchone()
+            if not work or dict(work)["status"]!="APPROVAL_PENDING":
+                raise ValueError("maintenance work is not approval-pending")
+            work=dict(work)
+            from app.approvals import ApprovalService
+            approval=ApprovalService(self.db)._resolve_in_transaction(con,work["approval_id"],"APPROVED",actor)
+            updated=con.execute(
+                "UPDATE maintenance_work SET status='APPROVED',updated_at=? WHERE id=? AND status='APPROVAL_PENDING'",
+                (now(),work_id))
+            if getattr(updated,"rowcount",1) != 1:
+                raise ValueError("maintenance work changed concurrently")
+            current=dict(con.execute("SELECT * FROM maintenance_work WHERE id=?",(work_id,)).fetchone())
+        return {"work":current,"approval":approval}
 
     def dispatch(self,work_id,actor):
         work=self.db.one("SELECT * FROM maintenance_work WHERE id=?",(work_id,))
