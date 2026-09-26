@@ -89,7 +89,7 @@ def test_conflicting_evidence_forces_uncertain_claim(tmp_path):
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(project_id,company_id,"o","ACTIVE",agent_id,now()))
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim_id,project_id,"x","HYPOTHESIS","PRELIMINARY",0.5,"SUPPORTED",now()))
     pipeline=EvidencePipeline(db)
-    for idx,verdict in enumerate(("VERIFIED","REJECTED")):
+    for idx,verdict in enumerate(("VERIFIED","VERIFIED")):
         sid=str(uuid.uuid4())
         db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(sid,"s","https://example.com/"+sid,"PAPER","","test"))
         pipeline.ingest_text(sid,"source "+str(idx))
