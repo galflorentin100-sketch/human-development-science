@@ -178,3 +178,24 @@ def test_ingest_text_deduplicates_source_content(tmp_path):
     assert first["id"]==second["id"]
     rows=db.all("SELECT id FROM evidence_sources WHERE source_id=? AND content_hash=?",(registered["id"],first["content_hash"]))
     assert len(rows)==1
+
+
+def test_research_review_pipeline_rolls_back_partial_task_creation(tmp_path):
+    from app.research_engine import ResearchEngine
+    from app.research_review_pipeline import ResearchReviewPipeline
+    from app.models import now
+    db=Database(str(tmp_path/"review-rollback.db")); ResearchCycle(db); pid=_setup(db)
+    # Keep a skeptic reviewer available but make the second reviewer unavailable.
+    db.execute("UPDATE agents SET status='INACTIVE' WHERE role IN ('evidence-auditor','evidence')")
+    ws=ResearchEngine(db).create(pid,"Question",owner="researcher")
+    ResearchEngine(db).activate(ws["id"],"researcher")
+    source=EvidencePipeline(db).register_source("Paper","https://example.org/rollback","Author",2025)
+    ResearchEngine(db).add_source(ws["id"],source["id"])
+    syn=ResearchEngine(db).synthesize(ws["id"],"Synthesis","limits","uncertain","researcher")
+    try:
+        ResearchReviewPipeline(db).create_for_synthesis(syn["id"])
+        assert False, "missing reviewer should fail"
+    except ValueError as exc:
+        assert "review agent" in str(exc)
+    assert db.one("SELECT COUNT(*) AS n FROM research_review_tasks WHERE synthesis_id=?",(syn["id"],))["n"]==0
+    assert db.one("SELECT COUNT(*) AS n FROM tasks WHERE project_id=? AND title LIKE ?",(pid,"%"+syn["id"]))["n"]==0
