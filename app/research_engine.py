@@ -77,7 +77,7 @@ class ResearchEngine:
             if not con.execute("SELECT id FROM sources WHERE id=?",(source_id,)).fetchone():
                 raise ValueError("source not found")
             if content is not None:
-                EvidencePipeline(self.db).ingest_text(source_id,str(content))
+                EvidencePipeline(self.db)._ingest_text_in_transaction(con,source_id,str(content))
             i=str(uuid4())
             con.execute(
                 "INSERT OR IGNORE INTO research_workspace_sources(id,workspace_id,source_id,relevance,notes,content_hash,reviewed,created_at) VALUES (?,?,?,?,?,?,0,?)",
