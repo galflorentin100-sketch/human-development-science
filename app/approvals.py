@@ -11,10 +11,10 @@ class ApprovalService:
         if not action or not requested_by: raise ValueError("action and requested_by are required")
         if expires_hours <= 0: raise ValueError("expires_hours must be positive")
         if correlation_id is None: correlation_id=str(uuid4())
-        if not self.db.one("SELECT id FROM companies WHERE id='hds'"):
-            self.db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",("hds","Human Development Science","","","Truth before all; evidence over hype.",now()))
-        i=str(uuid4()); expires_at=(datetime.now(timezone.utc)+timedelta(hours=expires_hours)).isoformat()
-        self.db.execute("INSERT INTO approvals(id,company_id,action,risk_level,status,requested_by,context,reason,expires_at,correlation_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",(i,"hds",action,risk_level,"PENDING",requested_by,json.dumps(context or {}),reason,expires_at,correlation_id,now()))
+        i=str(uuid4()); expires_at=(datetime.now(timezone.utc)+timedelta(hours=expires_hours)).isoformat(); ts=now()
+        with self.db.transaction() as con:
+            con.execute("INSERT OR IGNORE INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",("hds","Human Development Science","","","Truth before all; evidence over hype.",ts))
+            con.execute("INSERT INTO approvals(id,company_id,action,risk_level,status,requested_by,context,reason,expires_at,correlation_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",(i,"hds",action,risk_level,"PENDING",requested_by,json.dumps(context or {}),reason,expires_at,correlation_id,ts))
         return self.get(i)
     def get(self,i): return self.db.one("SELECT * FROM approvals WHERE id=?",(i,))
     def resolve(self,i,status,actor):
