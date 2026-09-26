@@ -16,7 +16,7 @@ def test_missingness_report_separates_missing_from_observed(tmp_path):
 def test_retention_does_not_impute(tmp_path):
     db=Database(str(tmp_path/"r.db")); db.migrate()
     db.execute("INSERT INTO studies(id,title,design,population,findings,created_at) VALUES ('s','s','RCT','adults','','2026')")
-    db.execute("INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES ('p','s',1,'{{"allowed_methods":["LONGITUDINAL_RETENTION"]}',1,'2026','2026')")
+    db.execute("""INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES ('p','s',1,'{"allowed_methods":["LONGITUDINAL_RETENTION"]}',1,'2026','2026')""")
     for pid in ('p1','p2'):
         db.execute("INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",(pid,'s',pid,'CONSENTED','2026'))
     db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?)",('a','s','p1','x',10,'TRAINING','2026-01'))
