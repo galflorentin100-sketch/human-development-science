@@ -51,12 +51,12 @@ class ResearchQueue:
                 raise ValueError("research queue evidence belongs to another project or does not exist")
         i = str(uuid4())
         ts = now()
-        self.db.execute('
-            """INSERT INTO hds_research_queue
+        self.db.execute("""
+            INSERT INTO hds_research_queue
             (id,project_id,question,rationale,trigger_type,evidence_refs,priority,status,created_at,updated_at)
             VALUES (?,?,?,?,?,?,?,?,?,?)""",
             (i, project_id, question, rationale, trigger_type,
-             json.dumps(refs, sort_keys=True), priority, "PROPOSED", ts, ts),
+             json.dumps(refs, sort_keys=True), priority, "PROPOSED", ts, ts)
         )
         return self.get(i)
 
