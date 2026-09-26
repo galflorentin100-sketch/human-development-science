@@ -12,6 +12,7 @@ class ExperimentSafetyReviewer:
         exp=self.db.one("SELECT id,project_id,status FROM hds_experiments WHERE id=?",(experiment_id,))
         if not exp: raise ValueError("experiment not found")
         if exp["status"] not in {"DRAFT","READY"}: raise ValueError("safety review must occur before experiment execution")
-        rid=str(uuid4())
-        self.db.execute("INSERT INTO experiment_safety_reviews(id,experiment_id,reviewer,decision,rationale,created_at) VALUES (?,?,?,?,?,?) ON CONFLICT(experiment_id) DO UPDATE SET reviewer=excluded.reviewer,decision=excluded.decision,rationale=excluded.rationale,created_at=excluded.created_at",(rid,experiment_id,reviewer,decision,rationale,now()))
+        rid=str(uuid4()); ts=now()
+        with self.db.transaction() as con:
+            con.execute("INSERT INTO experiment_safety_reviews(id,experiment_id,reviewer,decision,rationale,created_at) VALUES (?,?,?,?,?,?) ON CONFLICT(experiment_id) DO UPDATE SET reviewer=excluded.reviewer,decision=excluded.decision,rationale=excluded.rationale,created_at=excluded.created_at",(rid,experiment_id,reviewer,decision,rationale,ts))
         return self.db.one("SELECT * FROM experiment_safety_reviews WHERE experiment_id=?",(experiment_id,))
