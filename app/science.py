@@ -42,12 +42,15 @@ class ScientificRegistry:
     def intervention_evidence(self, intervention_id, evidence_kind, evidence_ref, notes=""):
         intervention=self.db.one("SELECT * FROM interventions WHERE id=?",(intervention_id,))
         if not intervention: raise ValueError("intervention not found")
+        valid_kinds={"PILOT","RCT","META_ANALYSIS","SYSTEMATIC_REVIEW","MECHANISTIC","OBSERVATIONAL","EXPERT_JUDGMENT"}
+        if evidence_kind not in valid_kinds:
+            raise ValueError("invalid intervention evidence kind")
         if evidence_kind in {"PILOT","RCT","META_ANALYSIS","SYSTEMATIC_REVIEW","MECHANISTIC","OBSERVATIONAL"}:
             evidence=self.db.one("SELECT e.id,c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(str(evidence_ref),))
-            if evidence and intervention["project_id"] is not None and str(evidence["project_id"]) != str(intervention["project_id"]):
+            if not evidence:
+                raise ValueError("intervention evidence reference not found")
+            if intervention["project_id"] is not None and str(evidence["project_id"]) != str(intervention["project_id"]):
                 raise ValueError("evidence belongs to another project")
-        if evidence_kind not in {"PILOT","RCT","META_ANALYSIS","SYSTEMATIC_REVIEW","MECHANISTIC","OBSERVATIONAL","EXPERT_JUDGMENT"}:
-            raise ValueError("invalid intervention evidence kind")
         i=str(uuid4())
         self.db.execute("INSERT INTO intervention_evidence(id,intervention_id,evidence_kind,evidence_ref,notes,created_at) VALUES (?,?,?,?,?,?)",(i,intervention_id,evidence_kind,evidence_ref,notes,now()))
         return self.db.one("SELECT * FROM intervention_evidence WHERE id=?",(i,))
