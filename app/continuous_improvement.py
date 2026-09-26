@@ -56,12 +56,15 @@ class ContinuousImprovementService:
             raise ValueError("experiment design and baseline are required")
         if p["area"] == "SCIENCE" and not p["evidence_ref"]:
             raise ValueError("SCIENCE improvements require an evidence reference or explicit research basis")
-        self.db.execute(
-            """UPDATE improvement_proposals
-            SET status='EXPERIMENT', experiment_design=?, baseline_note=?, updated_at=?
-            WHERE id=?""",
-            (experiment_design,baseline_note,_now(),proposal_id),
-        )
+        with self.db.transaction() as con:
+            updated=con.execute(
+                """UPDATE improvement_proposals
+                SET status='EXPERIMENT', experiment_design=?, baseline_note=?, updated_at=?
+                WHERE id=? AND status='PROPOSED'""",
+                (experiment_design,baseline_note,_now(),proposal_id),
+            )
+            if updated.rowcount != 1:
+                raise ValueError("improvement proposal changed concurrently")
         return self.get(proposal_id)
 
     def record_result(self, proposal_id, result, outcome_note, evidence_ref=None):
@@ -72,12 +75,15 @@ class ContinuousImprovementService:
             raise ValueError("invalid experiment result")
         if not str(outcome_note).strip():
             raise ValueError("outcome note is required")
-        self.db.execute(
-            """UPDATE improvement_proposals
-            SET experiment_result=?, outcome_note=?, evidence_ref=?, updated_at=?
-            WHERE id=?""",
-            (result,outcome_note,evidence_ref,_now(),proposal_id),
-        )
+        with self.db.transaction() as con:
+            updated=con.execute(
+                """UPDATE improvement_proposals
+                SET experiment_result=?, outcome_note=?, evidence_ref=?, updated_at=?
+                WHERE id=? AND status='EXPERIMENT'""",
+                (result,outcome_note,evidence_ref,_now(),proposal_id),
+            )
+            if updated.rowcount != 1:
+                raise ValueError("improvement proposal changed concurrently")
         return self.get(proposal_id)
 
     def adopt(self, proposal_id, actor, rationale):
@@ -88,24 +94,30 @@ class ContinuousImprovementService:
             raise ValueError("only supported experiments can be adopted")
         if not rationale.strip():
             raise ValueError("adoption rationale is required")
-        self.db.execute(
-            """UPDATE improvement_proposals
-            SET status='ADOPTED', adopted_by=?, adoption_rationale=?, updated_at=?
-            WHERE id=?""",
-            (actor,rationale,_now(),proposal_id),
-        )
+        with self.db.transaction() as con:
+            updated=con.execute(
+                """UPDATE improvement_proposals
+                SET status='ADOPTED', adopted_by=?, adoption_rationale=?, updated_at=?
+                WHERE id=? AND status='EXPERIMENT' AND experiment_result='SUPPORTED'""",
+                (actor,rationale,_now(),proposal_id),
+            )
+            if updated.rowcount != 1:
+                raise ValueError("improvement proposal changed concurrently")
         return self.get(proposal_id)
 
     def retire(self, proposal_id, actor, rationale):
         p = self._require(proposal_id)
         if not rationale.strip():
             raise ValueError("retirement rationale is required")
-        self.db.execute(
-            """UPDATE improvement_proposals
-            SET status='RETIRED', retired_by=?, retirement_rationale=?, updated_at=?
-            WHERE id=?""",
-            (actor,rationale,_now(),proposal_id),
-        )
+        with self.db.transaction() as con:
+            updated=con.execute(
+                """UPDATE improvement_proposals
+                SET status='RETIRED', retired_by=?, retirement_rationale=?, updated_at=?
+                WHERE id=? AND status NOT IN ('RETIRED','REJECTED')""",
+                (actor,rationale,_now(),proposal_id),
+            )
+            if updated.rowcount != 1:
+                raise ValueError("improvement proposal changed concurrently")
         return self.get(proposal_id)
 
     def get(self, proposal_id):
