@@ -10,7 +10,7 @@ from app.models import now
 class ResearchEvidenceAuditor:
     def __init__(self,db): self.db=db
 
-    def audit_synthesis(self,synthesis_id,reviewer="evidence-auditor"):
+    def audit_synthesis(self,synthesis_id,reviewer="evidence-auditor",record_audit=True):
         syn=self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
         if not syn: raise ValueError("synthesis not found")
         refs=json.loads(syn["evidence_refs"] or "[]")
@@ -33,5 +33,6 @@ class ResearchEvidenceAuditor:
             "workspace_source_count":len(source_ids),
             "status":"PASS" if refs and not missing and not unverified else "REVIEW_REQUIRED"
         }
-        self.db.audit("scientific.research_evidence_audit","research_synthesis",synthesis_id,reviewer,result,now(),str(uuid4()))
+        if record_audit:
+            self.db.audit("scientific.research_evidence_audit","research_synthesis",synthesis_id,reviewer,result,now(),str(uuid4()))
         return result
