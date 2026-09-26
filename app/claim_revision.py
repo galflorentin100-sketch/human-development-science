@@ -27,10 +27,14 @@ class ClaimRevisionService:
         if not claim: raise ValueError("claim not found")
         if not str(new_statement or "").strip() or not str(rationale or "").strip():
             raise ValueError("new statement and rationale are required")
-        if new_status not in {"PROPOSED","UNCERTAIN","SUPPORTED","RETIRED"}:
+        if new_status not in {"PROPOSED","UNCERTAIN","SUPPORTED","CONTRADICTED","RETIRED"}:
             raise ValueError("invalid claim status")
         i=str(uuid4())
         refs=list(evidence_refs or ()); evidence_id=str(refs[0]) if refs else None
+        for ref in refs:
+            ev=self.db.one("SELECT e.id,c.project_id,e.verified FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(str(ref),))
+            if not ev: raise ValueError("claim revision evidence not found")
+            if str(ev["project_id"])!=str(claim["project_id"]): raise ValueError("claim revision evidence belongs to another project")
         self.db.execute("""INSERT INTO claim_revisions
             (id,claim_id,prior_classification,prior_confidence,new_classification,new_confidence,
              reason,evidence_id,review_required,previous_statement,new_statement,previous_status,
