@@ -30,7 +30,7 @@ class ClaimRevisionService:
         if new_status not in {"PROPOSED","UNCERTAIN","SUPPORTED","RETIRED"}:
             raise ValueError("invalid claim status")
         i=str(uuid4())
-        refs=list(evidence_refs); evidence_id=str(refs[0]) if refs else None
+        refs=list(evidence_refs or ()); evidence_id=str(refs[0]) if refs else None
         self.db.execute("""INSERT INTO claim_revisions
             (id,claim_id,prior_classification,prior_confidence,new_classification,new_confidence,
              reason,evidence_id,review_required,previous_statement,new_statement,previous_status,
