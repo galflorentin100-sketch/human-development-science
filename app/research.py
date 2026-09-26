@@ -34,11 +34,18 @@ class ResearchRepository:
         if missing: raise ValueError("analysis_spec missing required fields: "+", ".join(missing))
         if not isinstance(parsed["allowed_methods"],list) or not parsed["allowed_methods"]: raise ValueError("analysis_spec.allowed_methods must be a non-empty list")
         if not self.db.one("SELECT id FROM studies WHERE id=?",(study_id,)): raise ValueError("study does not exist")
-        if self.db.one("SELECT id FROM study_analysis_plans WHERE study_id=? AND version=?",(study_id,int(version))): raise ValueError("analysis plan version already exists")
         raw=json.dumps(parsed,sort_keys=True,separators=(",",":"))
         payload=json.dumps({"spec":raw,"sha256":hashlib.sha256(raw.encode()).hexdigest()},sort_keys=True)
-        i=str(uuid4())
-        self.db.execute("INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES (?,?,?,?,?,?,?)",(i,study_id,int(version),payload,1,now(),now()))
+        i=str(uuid4()); ts=now()
+        with self.db.transaction() as con:
+            if con.execute("SELECT id FROM study_analysis_plans WHERE study_id=? AND version=?",(study_id,int(version))).fetchone():
+                raise ValueError("analysis plan version already exists")
+            latest=con.execute("SELECT MAX(version) AS v FROM study_analysis_plans WHERE study_id=?",(study_id,)).fetchone()
+            if latest and latest["v"] is not None:
+                if con.execute("SELECT 1 FROM study_analysis_plans WHERE study_id=? AND frozen=1 LIMIT 1",(study_id,)).fetchone() and int(version) <= int(latest["v"]):
+                    raise ValueError("analysis plan version must increase after a frozen plan")
+            con.execute("INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES (?,?,?,?,?,?,?)",
+                (i,study_id,int(version),payload,1,ts,ts))
         return self.db.one("SELECT * FROM study_analysis_plans WHERE id=?",(i,))
     def knowledge(self,project_id,kind,content,provenance):
         i=str(uuid4()); self.db.execute("INSERT INTO knowledge_items(id,project_id,kind,content,provenance,created_at) VALUES (?,?,?,?,?,?)",(i,project_id,kind,content,provenance,now())); return self.db.one("SELECT * FROM knowledge_items WHERE id=?",(i,))
