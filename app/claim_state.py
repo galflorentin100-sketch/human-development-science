@@ -3,7 +3,7 @@ from app.models import now
 
 VALID_STATES={"DRAFT","PROPOSED","SUPPORTED","CONTRADICTED","UNCERTAIN","RETIRED"}
 TERMINAL={"RETIRED"}
-ALLOWED_TRANSITIONS={
+ALLOWED_TRANSITIONS={"REVIEW_REQUIRED":{"PROPOSED","RETIRED"},
     "DRAFT":{"PROPOSED","RETIRED"},
     "PROPOSED":{"SUPPORTED","CONTRADICTED","UNCERTAIN","RETIRED"},
     "SUPPORTED":{"UNCERTAIN","RETIRED"},
@@ -28,7 +28,6 @@ class ClaimStateService:
         if not claim: raise ValueError("claim not found")
         if new_status not in VALID_STATES: raise ValueError("invalid claim state")
         old=claim["status"] or "DRAFT"
-        if old=="REVIEW_REQUIRED": old="PROPOSED"
         if old in TERMINAL: raise ValueError("retired claims cannot transition")
         if new_status not in ALLOWED_TRANSITIONS.get(old,set()):
             raise ValueError(f"invalid claim transition: {old} -> {new_status}")
