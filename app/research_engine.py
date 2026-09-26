@@ -105,16 +105,19 @@ class ResearchEngine:
         return self.db.one("SELECT * FROM research_syntheses WHERE id=?",(i,))
 
     def review(self,synthesis_id,reviewer,decision,rationale):
-        syn=self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
-        if not syn: raise ValueError("synthesis not found")
         if decision not in {"ACCEPTED","REJECTED"}: raise ValueError("decision must be ACCEPTED or REJECTED")
         if not str(rationale or "").strip(): raise ValueError("review rationale is required")
-        if syn["created_by"]==reviewer and reviewer!="system": raise ValueError("reviewer must be independent")
-        workspace=self._get(syn["workspace_id"])
-        if workspace["status"]!="SYNTHESIS_READY": raise ValueError("workspace is not ready for synthesis review")
-        new_status="REVIEWED" if decision=="ACCEPTED" else "ACTIVE"
         ts=now()
         with self.db.transaction() as con:
+            syn=con.execute("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,)).fetchone()
+            if not syn: raise ValueError("synthesis not found")
+            syn=dict(syn)
+            if syn["created_by"]==reviewer and reviewer!="system": raise ValueError("reviewer must be independent")
+            workspace=con.execute("SELECT * FROM research_workspaces WHERE id=?",(syn["workspace_id"],)).fetchone()
+            if not workspace: raise ValueError("research workspace not found")
+            workspace=dict(workspace)
+            if workspace["status"]!="SYNTHESIS_READY": raise ValueError("workspace is not ready for synthesis review")
+            new_status="REVIEWED" if decision=="ACCEPTED" else "ACTIVE"
             updated=con.execute("UPDATE research_syntheses SET status=? WHERE id=? AND status='CANDIDATE'",(decision,synthesis_id))
             if updated.rowcount != 1: raise ValueError("synthesis review was already resolved")
             workspace_updated=con.execute("UPDATE research_workspaces SET status=?,updated_at=? WHERE id=? AND status='SYNTHESIS_READY'",(new_status,ts,workspace["id"]))
