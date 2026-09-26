@@ -28,7 +28,7 @@ class ApprovalService:
         i=str(uuid4())
         expires_at=(datetime.now(timezone.utc)+timedelta(hours=expires_hours)).isoformat()
         ts=now()
-        con.execute("INSERT OR IGNORE INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",
+        con.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
                     ("hds","Human Development Science","","","Truth before all; evidence over hype.",ts))
         con.execute("INSERT INTO approvals(id,company_id,action,risk_level,status,requested_by,context,reason,expires_at,correlation_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     (i,"hds",action,risk_level,"PENDING",requested_by,json.dumps(context or {}),reason,expires_at,correlation_id,ts))
