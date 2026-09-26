@@ -79,4 +79,6 @@ class ResearchAgentService:
             limitations=str(payload.get("limitations") or ""),
             uncertainty=str(payload.get("uncertainty") or "Agent output was independently evidence-reviewed; interpretation remains bounded."),
             created_by=actor,evidence_refs=refs)
-        return {"review":review,"synthesis":synthesis,"workspace_id":link["workspace_id"],"evidence_refs":refs}
+        from app.research_review_pipeline import ResearchReviewPipeline
+        review_tasks=ResearchReviewPipeline(self.db).create_for_synthesis(synthesis["id"])
+        return {"review":review,"synthesis":synthesis,"workspace_id":link["workspace_id"],"evidence_refs":refs,"review_tasks":review_tasks["tasks"]}
