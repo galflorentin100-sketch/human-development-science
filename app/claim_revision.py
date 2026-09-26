@@ -17,7 +17,7 @@ class ClaimRevisionService:
             revised_by TEXT NOT NULL DEFAULT 'system', status TEXT NOT NULL DEFAULT 'PROPOSED',
             created_at TEXT NOT NULL
         )""")
-        existing={r["name"] for r in self.db.all("PRAGMA table_info(claim_revisions)")}
+        existing=set(self.db.table_columns("claim_revisions"))
         additions={"prior_classification":"TEXT NOT NULL DEFAULT ''","prior_confidence":"REAL NOT NULL DEFAULT 0","new_classification":"TEXT NOT NULL DEFAULT ''","new_confidence":"REAL NOT NULL DEFAULT 0","reason":"TEXT NOT NULL DEFAULT ''","evidence_id":"TEXT","review_required":"INTEGER NOT NULL DEFAULT 1","previous_statement":"TEXT NOT NULL DEFAULT ''","new_statement":"TEXT NOT NULL DEFAULT ''","previous_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","new_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","rationale":"TEXT NOT NULL DEFAULT ''","evidence_refs":"TEXT NOT NULL DEFAULT '[]'","revised_by":"TEXT NOT NULL DEFAULT 'system'","status":"TEXT NOT NULL DEFAULT 'PROPOSED'","source_finding_id":"TEXT"}
         for name,definition in additions.items():
             if name not in existing: self.db.execute(f"ALTER TABLE claim_revisions ADD COLUMN {name} {definition}")
