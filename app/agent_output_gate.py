@@ -55,9 +55,13 @@ class AgentOutputGate:
         if decision=="ACCEPT":
             if not refs: raise ValueError("accepted output requires evidence")
             for ref in refs:
-                evidence=self.db.one("SELECT verified,claim_id FROM evidence WHERE id=?",(str(ref),))
+                evidence=self.db.one(
+                    "SELECT e.verified,e.claim_id,c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",
+                    (str(ref),))
                 if not evidence or not evidence["verified"]:
                     raise ValueError("all output evidence must be verified before acceptance")
+                if str(evidence["project_id"]) != str(row["project_id"]):
+                    raise ValueError("output evidence belongs to another project")
         ts=now()
         with self.db.transaction() as con:
             updated=con.execute("UPDATE agent_output_reviews SET status=?,reviewer=?,rationale=?,reviewed_at=? WHERE id=? AND status='READY_FOR_REVIEW'",(status,reviewer,rationale,ts,review_id))
