@@ -42,9 +42,9 @@ class ContinuousImprovementService:
         ident = str(uuid.uuid4())
         self.db.execute(
             """INSERT INTO improvement_proposals
-            (id,title,area,hypothesis,success_metric,status,owner,created_at)
-            VALUES (?,?,?,?,?,?,?,?)""",
-            (ident,title,area,hypothesis,success_metric,"PROPOSED",owner,_now()),
+            (id,title,area,hypothesis,success_metric,status,owner,evidence_ref,created_at)
+            VALUES (?,?,?,?,?,?,?,?,?)""",
+            (ident,title,area,hypothesis,success_metric,"PROPOSED",owner,evidence_ref,_now()),
         )
         return self.get(ident)
 
