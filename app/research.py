@@ -69,9 +69,19 @@ class ResearchFindingService:
             ev=self.db.one("SELECT e.id,c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(str(ref),))
             if not ev: raise ValueError("finding evidence reference not found")
             if str(ev["project_id"])!=str(project_id): raise ValueError("finding evidence reference belongs to another project")
-        if source_type=="LITERATURE" and source_id:
-            syn=self.db.one("SELECT rw.project_id FROM research_syntheses rs JOIN research_workspaces rw ON rw.id=rs.workspace_id WHERE rs.id=?",(str(source_id),))
-            if syn and str(syn["project_id"])!=str(project_id): raise ValueError("finding source belongs to another project")
+        if source_id:
+            source_queries={
+                "LITERATURE":"SELECT rw.project_id FROM research_syntheses rs JOIN research_workspaces rw ON rw.id=rs.workspace_id WHERE rs.id=?",
+                "STUDY_RESULT":"SELECT project_id FROM studies WHERE id=?",
+                "MEASUREMENT":"SELECT project_id FROM study_measures WHERE id=?",
+                "ANALYSIS":"SELECT project_id FROM study_analysis_results WHERE id=?",
+                "AGENT_OUTPUT":"SELECT project_id FROM agent_outputs WHERE id=?",
+            }
+            if source_type not in source_queries:
+                raise ValueError("source_id is not supported for this finding source type")
+            src=self.db.one(source_queries[source_type],(str(source_id),))
+            if not src: raise ValueError("finding source does not exist")
+            if str(src["project_id"])!=str(project_id): raise ValueError("finding source belongs to another project")
         refs=json.dumps(refs_list,sort_keys=True)
         self.db.execute("INSERT INTO research_findings(id,project_id,source_type,source_id,statement,classification,status,evidence_refs,interpretation,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (i,project_id,source_type,source_id,statement,classification,"CANDIDATE",refs,interpretation,created_by,now()))
