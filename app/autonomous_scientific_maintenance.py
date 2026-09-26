@@ -52,7 +52,7 @@ class AutonomousScientificMaintenance:
                     (task_id,project_id,p["title"],owner,1.0,"PLANNED",
                      "Produce an evidence-backed review with explicit uncertainty and no silent state mutation.",ts,ts))
                 linked=con.execute(
-                    "INSERT OR IGNORE INTO maintenance_task_links(task_id,kind,entity_type,entity_id,created_at) VALUES (?,?,?,?,?)",
+                    "INSERT INTO maintenance_task_links(task_id,kind,entity_type,entity_id,created_at) VALUES (?,?,?,?,?) ON CONFLICT(task_id) DO NOTHING",
                     (task_id,p["kind"],p["entity_type"],p["entity_id"],ts))
                 if linked.rowcount == 1:
                     created.append(task_id)
