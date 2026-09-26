@@ -178,7 +178,7 @@ def test_claim_revision_rejects_cross_project_evidence(tmp_path):
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,p1,"claim","FACT","SUPPORTED",1.0,"SUPPORTED",now()))
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(str(uuid.uuid4()),p2,"other","FACT","SUPPORTED",1.0,"SUPPORTED",now()))
     db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(source,"s","https://x/"+source,"PAPER","","test"))
-    ep=EvidencePipeline(db); ep.ingest_text(source,"evidence")
+    ep=EvidencePipeline(db); ep.ingest_text(source, "excerpt evidence")
     other_claim=db.one("SELECT id FROM claims WHERE project_id=?",(p2,))
     ev=ep.attach(other_claim["id"],source,"excerpt")
     try:
