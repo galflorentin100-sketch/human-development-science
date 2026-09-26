@@ -32,6 +32,12 @@ class DecisionCenter:
                 items.append({"type":"SKEPTIC","id":s["id"],"priority":"HIGH",
                               "title":f"Challenge research synthesis {s['id']}",
                               "reason":"Accepted synthesis requires an independent skeptic review before candidate-finding promotion."})
+            from app.research_evidence_auditor import ResearchEvidenceAuditor
+            audit=ResearchEvidenceAuditor(self.db).audit_synthesis(s["id"],"decision-center")
+            if audit["status"]!="PASS":
+                items.append({"type":"RESEARCH_AUDIT","id":s["id"],"priority":"HIGH",
+                              "title":f"Audit evidence for synthesis {s['id']}",
+                              "reason":"Evidence audit has unresolved provenance or verification requirements."})
 
         # Surface accepted agent-output reviews as a distinct founder decision:
         # conversion into a finding is still gated and never automatic.
@@ -51,7 +57,7 @@ class DecisionCenter:
                               "title":r["statement"],"reason":"Accepted finding can inform a claim revision; explicit claim selection and human approval are required."})
         for item in items:
             item["next_action"]={
-                "RESEARCH":"delegate_research","SKEPTIC":"delegate_skeptic_review",
+                "RESEARCH":"delegate_research","SKEPTIC":"delegate_skeptic_review","RESEARCH_AUDIT":"delegate_evidence_audit",
                 "CONTRADICTION":"delegate_skeptic_review",
                 "IMPACT":"review_impact",
                 "AGENT_OUTPUT":"create_candidate_finding",
@@ -59,9 +65,9 @@ class DecisionCenter:
                 "EXPERIMENT":"delegate_experiment_design",
                 "INTEGRITY":"delegate_evidence_audit",
             }.get(item["type"],"review")
-            item["requires_founder_approval"]=item["type"] in {"CONTRADICTION","IMPACT","AGENT_OUTPUT","FINDING","ACCEPTED_FINDING","SKEPTIC"}
+            item["requires_founder_approval"]=item["type"] in {"CONTRADICTION","IMPACT","AGENT_OUTPUT","FINDING","ACCEPTED_FINDING","SKEPTIC","RESEARCH_AUDIT"}
             item["agent_role"]={
-                "RESEARCH":"researcher","SKEPTIC":"skeptic","CONTRADICTION":"skeptic","IMPACT":"knowledge-manager",
+                "RESEARCH":"researcher","SKEPTIC":"skeptic","RESEARCH_AUDIT":"evidence-auditor","CONTRADICTION":"skeptic","IMPACT":"knowledge-manager",
                 "AGENT_OUTPUT":"knowledge-manager","FINDING":"evidence-auditor","ACCEPTED_FINDING":"founder-advisor","EXPERIMENT":"experiment-designer",
                 "INTEGRITY":"evidence-auditor"
             }.get(item["type"],"founder-advisor")
