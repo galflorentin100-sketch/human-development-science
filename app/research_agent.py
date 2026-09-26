@@ -56,7 +56,7 @@ class ResearchAgentService:
             required_permissions=["READ"],
             priority=2.0,
             retry_limit=1)
-        self.db.execute("INSERT OR REPLACE INTO research_agent_tasks(task_id,workspace_id,agent_id,created_at) VALUES (?,?,?,?)",(task["id"],workspace_id,agent,now()))
+        self.db.execute("INSERT INTO research_agent_tasks(task_id,workspace_id,agent_id,created_at) VALUES (?,?,?,?) ON CONFLICT(task_id) DO UPDATE SET workspace_id=excluded.workspace_id,agent_id=excluded.agent_id,created_at=excluded.created_at",(task["id"],workspace_id,agent,now()))
         return {"task":task,"workspace_id":workspace_id,"agent_id":agent,"input":payload}
 
     def _researcher_agent(self):
