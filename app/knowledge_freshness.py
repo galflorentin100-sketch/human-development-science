@@ -29,7 +29,7 @@ class KnowledgeFreshness:
             existing=con.execute("SELECT * FROM knowledge_freshness WHERE entity_type=? AND entity_id=?",(entity_type,entity_id)).fetchone()
             if existing:
                 return dict(existing)
-            con.execute("INSERT OR IGNORE INTO knowledge_freshness(id,entity_type,entity_id,review_interval_days,last_validated_at,next_review_at,status,owner,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            con.execute("INSERT INTO knowledge_freshness(id,entity_type,entity_id,review_interval_days,last_validated_at,next_review_at,status,owner,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(entity_type,entity_id) DO NOTHING",
                 (i,entity_type,entity_id,int(review_interval_days),ts,ts,"ACTIVE",owner,ts,ts))
             winner=con.execute("SELECT * FROM knowledge_freshness WHERE entity_type=? AND entity_id=?",(entity_type,entity_id)).fetchone()
             if not winner:
