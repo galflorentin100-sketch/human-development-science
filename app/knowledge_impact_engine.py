@@ -129,6 +129,8 @@ class KnowledgeImpactEngine:
             )
         self.db.audit("scientific.impact_reviewed","knowledge_impact_review",review_id,reviewer,
                       {"decision":decision,"rationale":rationale},now(),None)
+        from app.company_memory import CompanyMemory
+        CompanyMemory(self.db).record(row["project_id"],"KNOWLEDGE_IMPACT",f"Impact review {review_id}",f"{decision}: {rationale}",reviewer,"knowledge_impact_review",review_id)
         return self.db.one("SELECT * FROM knowledge_impact_reviews WHERE id=?",(review_id,))
 
     def list(self,project_id,status=None):
