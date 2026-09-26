@@ -44,7 +44,17 @@ class ClaimStateService:
             if support > 0: raise ValueError("conflicting verified evidence requires UNCERTAIN status")
         ts=now(); tid=str(uuid4())
         with self.db.transaction() as con:
-            con.execute("UPDATE claims SET status=?,updated_at=?,review_required=? WHERE id=?",(new_status,ts,1 if new_status in {"PROPOSED","UNCERTAIN"} else 0,claim_id))
+            current=con.execute("SELECT status FROM claims WHERE id=?", (claim_id,)).fetchone()
+            if not current or dict(current)["status"] != old:
+                raise ValueError("claim changed concurrently; retry from current state")
+            if evidence_id:
+                ev=con.execute("SELECT id FROM evidence WHERE id=? AND claim_id=?", (evidence_id,claim_id)).fetchone()
+                if not ev:
+                    raise ValueError("evidence does not belong to claim")
+            updated=con.execute("UPDATE claims SET status=?,updated_at=?,review_required=? WHERE id=? AND status=?",
+                (new_status,ts,1 if new_status in {"PROPOSED","UNCERTAIN"} else 0,claim_id,old))
+            if updated.rowcount != 1:
+                raise ValueError("claim changed concurrently; retry from current state")
             con.execute("INSERT INTO claim_state_transitions(id,claim_id,prior_status,new_status,actor,rationale,evidence_id,created_at) VALUES (?,?,?,?,?,?,?,?)",(tid,claim_id,old,new_status,actor,rationale,evidence_id,ts))
         return self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
 
