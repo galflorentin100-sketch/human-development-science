@@ -866,6 +866,24 @@ def science_preregister_experiment(experiment_id: str, principal: Principal = De
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
+@app.get("/api/science/experiments/{experiment_id}/analysis")
+def experiment_analysis(experiment_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.experiment_analyzer import ExperimentAnalyzer
+    try:
+        return ExperimentAnalyzer(db).analyze(experiment_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/science/experiments/{experiment_id}/candidate-finding")
+def experiment_candidate_finding(experiment_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.experiment_analyzer import ExperimentAnalyzer
+    try:
+        return ExperimentAnalyzer(db).candidate_finding(experiment_id,principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
 @app.post("/api/science/experiments/{experiment_id}/start")
 def science_start_experiment(experiment_id: str, principal: Principal = Depends(principal_from_header)):
     require_permission(principal, "EXECUTE")
