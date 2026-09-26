@@ -1113,13 +1113,21 @@ def science_knowledge_impact(project_id: str, node_type: str, node_id: str, dept
     from app.knowledge_impact_engine import KnowledgeImpactEngine
     graph = KnowledgeDependencyGraph(db)
     impact = graph.impacted(project_id, node_type.upper(), node_id, depth)
-    for item in impact["affected"]:
-        db.execute("""INSERT OR IGNORE INTO knowledge_impact_reviews
-            (id,project_id,source_type,source_id,impact_type,affected_type,affected_id,reason,status,created_at)
-            VALUES (lower(hex(randomblob(16))),?,?,?,?,?,?,?,?,datetime('now'))""",
-            (project_id,node_type.upper(),str(node_id),"GRAPH_DEPENDENCY",item["type"],item["id"],
-             "Explicit knowledge-graph dependency","PROPOSED"))
-    return {**impact, "reviews_created": impact["node_count"],
+    from app.models import now
+    created=0
+    with db.transaction() as con:
+        for item in impact["affected"]:
+            existing=con.execute(
+                "SELECT 1 FROM knowledge_impact_reviews WHERE project_id=? AND source_type=? AND source_id=? AND affected_type=? AND affected_id=? AND status='PROPOSED'",
+                (project_id,node_type.upper(),str(node_id),item["type"],item["id"])).fetchone()
+            if existing:
+                continue
+            con.execute(
+                "INSERT INTO knowledge_impact_reviews (id,project_id,source_type,source_id,impact_type,affected_type,affected_id,reason,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (str(uuid4()),project_id,node_type.upper(),str(node_id),"GRAPH_DEPENDENCY",item["type"],item["id"],
+                 "Explicit knowledge-graph dependency","PROPOSED",now()))
+            created += 1
+    return {**impact, "reviews_created": created,
             "guardrail": "Potential impact only; founder review is required before scientific state changes."}
 
 @app.post("/api/science/impact-review/{review_id}")
