@@ -60,6 +60,11 @@ class EvidencePipeline:
             con.execute("INSERT OR IGNORE INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                 (eid,claim_id,source_id,stance,excerpt,int(verified),actor,excerpt_hash,ts))
         result=self.db.one("SELECT * FROM evidence WHERE id=?",(eid,))
+        if not result:
+            result=self.db.one(
+                "SELECT * FROM evidence WHERE claim_id=? AND source_id=? AND stance=? AND excerpt_hash=? LIMIT 1",
+                (claim_id,source_id,stance,excerpt_hash),
+            )
         project=self.db.one("SELECT project_id FROM claims WHERE id=?",(claim_id,))
         if project:
             from app.knowledge_graph import KnowledgeDependencyGraph
