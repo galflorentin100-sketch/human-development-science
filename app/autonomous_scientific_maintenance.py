@@ -42,7 +42,7 @@ class AutonomousScientificMaintenance:
                     (project_id,p["title"])).fetchone()
                 if existing:
                     con.execute(
-                        "INSERT OR IGNORE INTO maintenance_task_links(task_id,kind,entity_type,entity_id,created_at) VALUES (?,?,?,?,?)",
+                        "INSERT INTO maintenance_task_links(task_id,kind,entity_type,entity_id,created_at) VALUES (?,?,?,?,?) ON CONFLICT(kind,entity_type,entity_id) DO NOTHING",
                         (dict(existing)["id"],p["kind"],p["entity_type"],p["entity_id"],now()))
                     continue
                 task_id=str(uuid4())
@@ -69,7 +69,7 @@ class AutonomousScientificMaintenance:
             wid=str(uuid4())
             with self.db.transaction() as con:
                 inserted=con.execute(
-                    "INSERT OR IGNORE INTO maintenance_work(id,kind,entity_type,entity_id,title,reason,success_criteria,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO maintenance_work(id,kind,entity_type,entity_id,title,reason,success_criteria,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(kind,entity_type,entity_id) WHERE status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS') DO NOTHING",
                     (wid,p["kind"],p["entity_type"],p["entity_id"],p["title"],p["reason"],
                      "Produce an evidence-backed review and explicit recommendation; do not silently mutate scientific state.",
                      "PROPOSED",now(),now()))
