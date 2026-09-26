@@ -15,6 +15,20 @@ def _setup(db):
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(p,c,"o","ACTIVE",a,now()))
     return p
 
+def test_evidence_excerpt_must_match_parsed_source(tmp_path):
+    from app.models import now
+    db=Database(str(tmp_path/"evidence-provenance.db")); ResearchCycle(db); pid=_setup(db)
+    claim=str(uuid.uuid4()); source=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,pid,"x","HYPOTHESIS","PRELIMINARY",0.0,"PROPOSED",now()))
+    db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(source,"s","https://x/"+source,"PAPER","","test"))
+    ep=EvidencePipeline(db); ep.ingest_text(source,"the verified source passage")
+    try:
+        ep.attach(claim,source,"invented passage")
+        assert False
+    except ValueError as exc:
+        assert "not present in the parsed source" in str(exc)
+
+
 def test_uncertain_verdict_cannot_resolve_verified(tmp_path):
     db=Database(str(tmp_path/"u.db")); ResearchCycle(db); pid=_setup(db)
     from app.models import now
