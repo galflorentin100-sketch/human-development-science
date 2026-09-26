@@ -37,7 +37,9 @@ class ClaimChangeService:
             except (TypeError,ValueError):
                 raise ValueError("approval context is invalid")
             approved_claim_id=approval_context.get("claim_id")
-            if approved_claim_id is not None and str(approved_claim_id) != str(claim_id):
+            if approved_claim_id is None:
+                raise ValueError("scientific claim approval must name the target claim")
+            if str(approved_claim_id) != str(claim_id):
                 raise ValueError("approval is scoped to a different claim")
             from datetime import datetime,timezone
             if approval["expires_at"] and datetime.fromisoformat(approval["expires_at"])<=datetime.now(timezone.utc): raise ValueError("founder approval expired")
