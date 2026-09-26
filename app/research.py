@@ -73,13 +73,13 @@ class ResearchFindingService:
             source_queries={
                 "LITERATURE":"SELECT rw.project_id FROM research_syntheses rs JOIN research_workspaces rw ON rw.id=rs.workspace_id WHERE rs.id=?",
                 "STUDY_RESULT":"SELECT project_id FROM studies WHERE id=?",
-                "MEASUREMENT":"SELECT s.project_id FROM study_measure_definitions m JOIN studies s ON s.id=m.study_id WHERE m.id=? UNION ALL SELECT project_id FROM hds_experiments WHERE id=?",
+                "MEASUREMENT":"SELECT project_id FROM hds_experiments WHERE id=?",
                 "ANALYSIS":"SELECT project_id FROM study_analysis_results WHERE id=?",
                 "AGENT_OUTPUT":"SELECT project_id FROM agent_output_reviews WHERE agent_run_id=? ORDER BY created_at DESC LIMIT 1",
             }
             if source_type not in source_queries:
                 raise ValueError("source_id is not supported for this finding source type")
-            source_params=(str(source_id),str(source_id)) if source_type=="MEASUREMENT" else (str(source_id),)
+            source_params=(str(source_id),)
             src=self.db.one(source_queries[source_type],source_params)
             if not src: raise ValueError("finding source does not exist")
             if str(src["project_id"])!=str(project_id): raise ValueError("finding source belongs to another project")
