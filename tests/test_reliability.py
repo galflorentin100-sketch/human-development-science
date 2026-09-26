@@ -54,3 +54,15 @@ def test_high_risk_approval_is_scoped_to_action(tmp_path):
         assert False
     except ApprovalRequired:
         pass
+
+
+def test_idempotency_stale_lease_can_be_explicitly_recovered(tmp_path):
+    db=Database(str(tmp_path/"idem_recovery.db")); ResearchCycle(db)
+    service=IdempotencyService(db)
+    claim_token="stale-token"
+    now=datetime.now(timezone.utc)
+    db.execute("INSERT INTO idempotency_keys(key,actor,operation,response,created_at,expires_at,status,claim_token,lease_expires_at) VALUES (?,?,?,?,?,?,?,?,?)",
+               ("k","actor","op",'{"status":"IN_PROGRESS"}',now.isoformat(),(now+timedelta(hours=1)).isoformat(),"IN_PROGRESS",claim_token,(now-timedelta(minutes=2)).isoformat()))
+    recovered=service.recover_stale("k","actor","op",claim_token)
+    assert recovered["status"]=="RECOVERED"
+    assert db.one("SELECT * FROM idempotency_keys WHERE key=?",("k",)) is None
