@@ -16,9 +16,12 @@ class ResearchEvidenceAuditor:
         refs=json.loads(syn["evidence_refs"] or "[]")
         missing=[]; unverified=[]
         for ref in refs:
-            ev=self.db.one("SELECT id,verified,state FROM evidence WHERE id=?",(str(ref),))
+            ev=self.db.one("SELECT id,verified FROM evidence WHERE id=?",(str(ref),))
             if not ev: missing.append(str(ref))
-            elif not ev["verified"] or ev["state"]!="VERIFIED": unverified.append(str(ref))
+            else:
+                from app.evidence_pipeline import EvidencePipeline
+                state=EvidencePipeline(self.db).resolve(str(ref))
+                if not ev["verified"] or state["state"]!="VERIFIED": unverified.append(str(ref))
         sources=self.db.all("SELECT source_id FROM research_workspace_sources WHERE workspace_id=?",(syn["workspace_id"],))
         source_ids={str(x["source_id"]) for x in sources}
         # Evidence refs are authoritative only when they resolve to existing evidence.
