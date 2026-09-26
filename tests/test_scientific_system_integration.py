@@ -128,3 +128,21 @@ def test_agent_output_submit_is_idempotent(tmp_path):
     first=AgentOutputGate(db).submit(run)
     second=AgentOutputGate(db).submit(run)
     assert first["id"]==second["id"]
+
+def test_claim_revision_rejects_cross_project_evidence(tmp_path):
+    from app.claim_revision import ClaimRevisionService
+    from app.evidence_pipeline import EvidencePipeline
+    from app.models import now
+    db=Database(str(tmp_path/"claim-revision-isolation.db")); ResearchCycle(db); p1=_setup(db); p2=_setup(db)
+    claim=str(uuid.uuid4()); source=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,p1,"claim","FACT","SUPPORTED",1.0,"SUPPORTED",now()))
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(str(uuid.uuid4()),p2,"other","FACT","SUPPORTED",1.0,"SUPPORTED",now()))
+    db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(source,"s","https://x/"+source,"PAPER","","test"))
+    ep=EvidencePipeline(db); ep.ingest_text(source,"evidence")
+    other_claim=db.one("SELECT id FROM claims WHERE project_id=?",(p2,))
+    ev=ep.attach(other_claim["id"],source,"excerpt")
+    try:
+        ClaimRevisionService(db).propose(claim,"revised","SUPPORTED","reason",[ev["id"]],"actor")
+        assert False
+    except ValueError as exc:
+        assert "another project" in str(exc)
