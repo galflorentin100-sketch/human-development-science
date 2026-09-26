@@ -80,6 +80,14 @@ class CompanyOrchestrator:
         if not project: raise ValueError("project not found")
         failures=self.db.all("SELECT lesson FROM failures WHERE project_id=? ORDER BY created_at DESC LIMIT 5",(project_id,))
         claims=self.db.all("SELECT statement,classification,confidence FROM claims WHERE project_id=? ORDER BY created_at DESC LIMIT 10",(project_id,))
+        approved=self.db.all("SELECT * FROM hds_research_queue WHERE project_id=? AND status='APPROVED' ORDER BY priority DESC,created_at",(project_id,))
+        if approved:
+            from app.research_queue import ResearchQueue
+            from app.research_agent import ResearchAgentService
+            item=approved[0]
+            started=ResearchQueue(self.db).begin(item["id"],"scientific-orchestrator")
+            agent_task=ResearchAgentService(self.db).create_task(started["workspace"]["id"])
+            return {"action":"EXECUTE_NEXT_TASK","task":agent_task["task"],"reason":"Approved research queue item was materialized into a governed researcher task.","research_queue_item":item["id"],"workspace_id":started["workspace"]["id"]}
         pending=self.db.all("SELECT title,status FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED')",(project_id,))
         blocked=self.db.one("SELECT COUNT(*) AS n FROM tasks WHERE project_id=? AND status IN ('RUNNING','REVIEW','BLOCKED')",(project_id,))
         if failures:
