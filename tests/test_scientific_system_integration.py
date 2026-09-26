@@ -150,11 +150,12 @@ def test_training_provenance_readiness_reports_missing_evidence(tmp_path):
         "transfer","retention","safety",source_claim_id=claim
     )
     missing_ref=str(uuid.uuid4())
-    TrainingProtocolService(db).attach_evidence(protocol["id"],"RCT",missing_ref)
-
-    readiness=ScientificTrainingPipeline(db).readiness(protocol["id"])
-    assert readiness["missing_evidence_count"]==1
-    assert "missing_evidence" in readiness["blockers"]
+    try:
+        TrainingProtocolService(db).attach_evidence(protocol["id"],"RCT",missing_ref)
+        assert False, "missing evidence reference must be rejected"
+    except ValueError as exc:
+        assert "reference not found" in str(exc)
+    assert db.one("SELECT COUNT(*) AS n FROM training_protocol_evidence WHERE protocol_id=?",(protocol["id"],))["n"]==0
 
 def test_agent_output_submit_is_idempotent(tmp_path):
     from app.agent_output_gate import AgentOutputGate
