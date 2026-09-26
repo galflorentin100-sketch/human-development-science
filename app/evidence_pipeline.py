@@ -10,6 +10,8 @@ class EvidencePipeline:
         row=self.db.one("SELECT * FROM sources WHERE url=?",(url,))
         return row
     def ingest_text(self,source_id,text):
+        if not isinstance(text,str) or not text.strip():
+            raise ValueError("source content is required")
         if not self.db.one("SELECT 1 FROM sources WHERE id=?",(source_id,)):
             raise ValueError("source not found")
         digest=hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -23,6 +25,8 @@ class EvidencePipeline:
         self.db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,content,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?,?)",(eid,source_id,"PARSED",digest,text,now(),now(),now()))
         return self.db.one("SELECT * FROM evidence_sources WHERE id=?",(eid,))
     def attach(self,claim_id,source_id,excerpt,stance="SUPPORTS",verified=False,actor="system"):
+        if not isinstance(excerpt,str) or not excerpt.strip():
+            raise ValueError("evidence excerpt is required")
         if stance not in {"SUPPORTS","CONTRADICTS","NEUTRAL"}: raise ValueError("invalid evidence stance")
         source=self.db.one("SELECT * FROM sources WHERE id=?",(source_id,))
         claim=self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
