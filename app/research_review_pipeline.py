@@ -15,7 +15,7 @@ class ResearchReviewPipeline:
         ws=self.db.one("SELECT * FROM research_workspaces WHERE id=?",(syn["workspace_id"],))
         if not ws: raise ValueError("workspace not found")
         created=[]
-        for role,title in (("skeptic","[SKEPTIC] Challenge synthesis"),("evidence-auditor","[EVIDENCE_AUDIT] Audit synthesis")):
+        for role,title in (("skeptic","[SKEPTIC] Challenge synthesis"),("evidence_auditor","[EVIDENCE_AUDIT] Audit synthesis")):
             existing=self.db.one("SELECT task_id FROM research_review_tasks WHERE workspace_id=? AND synthesis_id=? AND role=?",(ws["id"],synthesis_id,role))
             if existing: continue
             agent=self.db.one("SELECT id FROM agents WHERE id=? AND status IN ('ACTIVE','IDLE') LIMIT 1",(role,))
