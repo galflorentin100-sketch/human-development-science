@@ -106,7 +106,8 @@ class CompanyOrchestrator:
         gate=ScientificCompletionGate(self.db).evaluate(project_id)
         if not gate["ready"]:
             return {"status":"SCIENTIFIC_GATE_BLOCKED","gate":gate}
-        updated=self.db.execute("UPDATE projects SET status='COMPLETED',updated_at=? WHERE id=? AND status='RUNNING'",(now(),project_id))
-        if getattr(updated,"rowcount",1) != 1:
-            return {"status":"PROJECT_STATE_CHANGED","project":self.db.one("SELECT * FROM projects WHERE id=?",(project_id,))}
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE projects SET status='COMPLETED',updated_at=? WHERE id=? AND status='RUNNING'",(now(),project_id))
+            if getattr(updated,"rowcount",1) != 1:
+                return {"status":"PROJECT_STATE_CHANGED","project":self.db.one("SELECT * FROM projects WHERE id=?",(project_id,))}
         return {"status":"COMPLETED","project":self.db.one("SELECT * FROM projects WHERE id=?",(project_id,))}
