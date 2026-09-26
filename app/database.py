@@ -364,6 +364,16 @@ class PostgreSQLDatabase:
                 existing={row["column_name"] for row in con.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=%s",(table,)).fetchall()}
                 for name,definition in columns.items():
                     if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+            duplicate_maintenance=con.execute("""
+                SELECT kind,entity_type,entity_id,COUNT(*) AS n
+                FROM maintenance_work
+                WHERE status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS')
+                GROUP BY kind,entity_type,entity_id
+                HAVING COUNT(*) > 1
+            """).fetchall()
+            if duplicate_maintenance:
+                raise RuntimeError("cannot enforce unique active maintenance work: existing duplicate active items found")
+            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_maintenance_active_identity ON maintenance_work(kind,entity_type,entity_id) WHERE status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS')")
             duplicate_assignments=con.execute("""
                 SELECT study_id,participant_id,COUNT(*) AS n
                 FROM study_assignments
@@ -401,7 +411,7 @@ class PostgreSQLDatabase:
                 raise RuntimeError("cannot enforce unique study sessions: existing duplicate sessions found")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_session_identity ON study_sessions(study_id,participant_id,phase,session_number)")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
-            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation_no_session ON study_outcomes(study_id,participant_id,outcome_name,observation_type) WHERE session_id IS NULL")
+
 def database_from_settings(settings):
     if settings.database_url:
         if not settings.database_url.startswith(("postgresql://","postgres://")): raise DatabaseConfigurationError("DATABASE_URL must be a PostgreSQL URL")
