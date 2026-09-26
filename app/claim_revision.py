@@ -73,8 +73,41 @@ class ClaimRevisionService:
                 if str(ev["project_id"])!=str(current["project_id"]):
                     raise ValueError("claim revision evidence belongs to another project")
                 evidence_snapshot.append({"evidence_id":str(ref),"state_at_approval":"VERIFIED"})
-            con.execute("UPDATE claims SET statement=?,status=?,updated_at=? WHERE id=?",
-                        (rev["new_statement"],rev["new_status"],now(),rev["claim_id"]))
+            old_status=current["status"] or "DRAFT"
+            new_status=rev["new_status"]
+            allowed={
+                "REVIEW_REQUIRED":{"PROPOSED","SUPPORTED","CONTRADICTED","UNCERTAIN","RETIRED"},
+                "DRAFT":{"PROPOSED","RETIRED"},
+                "PROPOSED":{"SUPPORTED","CONTRADICTED","UNCERTAIN","RETIRED"},
+                "SUPPORTED":{"UNCERTAIN","RETIRED"},
+                "CONTRADICTED":{"UNCERTAIN","RETIRED"},
+                "UNCERTAIN":{"SUPPORTED","CONTRADICTED","RETIRED"},
+                "RETIRED":set(),
+            }
+            if new_status not in allowed.get(old_status,set()):
+                raise ValueError(f"invalid claim transition: {old_status} -> {new_status}")
+            if new_status in {"SUPPORTED","CONTRADICTED"}:
+                if not refs:
+                    raise ValueError(f"{new_status} requires verified evidence")
+                states={}
+                for evidence_row in con.execute(
+                    "SELECT e.id,e.stance,er.verdict FROM evidence e LEFT JOIN evidence_reviews er ON er.evidence_id=e.id WHERE e.claim_id=?",
+                    (rev["claim_id"],)
+                ).fetchall():
+                    evidence_row=dict(evidence_row)
+                    verdict= str(evidence_row["verdict"]).upper() if evidence_row["verdict"] is not None else None
+                    states.setdefault(evidence_row["id"], {"stance":evidence_row["stance"],"verdicts":set()})
+                    if verdict:
+                        states[evidence_row["id"]]["verdicts"].add(verdict)
+                verified_support=sum(v["stance"]=="SUPPORTS" and "VERIFIED" in v["verdicts"] and "REJECTED" not in v["verdicts"] for v in states.values())
+                verified_contradict=sum(v["stance"]=="CONTRADICTS" and "VERIFIED" in v["verdicts"] and "REJECTED" not in v["verdicts"] for v in states.values())
+                conflicted=any("VERIFIED" in v["verdicts"] and "REJECTED" in v["verdicts"] or "CONFLICTED" in v["verdicts"] for v in states.values())
+                if new_status=="SUPPORTED" and (verified_support < 1 or verified_contradict > 0 or conflicted):
+                    raise ValueError("SUPPORTED requires verified supporting evidence without conflicting verified evidence")
+                if new_status=="CONTRADICTED" and (verified_contradict < 1 or verified_support > 0 or conflicted):
+                    raise ValueError("CONTRADICTED requires verified contradicting evidence without conflicting verified evidence")
+            con.execute("UPDATE claims SET statement=?,status=?,updated_at=?,review_required=? WHERE id=?",
+                        (rev["new_statement"],new_status,now(),1 if new_status in {"PROPOSED","UNCERTAIN"} else 0,rev["claim_id"]))
             con.execute("UPDATE claim_revisions SET status='APPROVED' WHERE id=?",(revision_id,))
             con.execute(
                 "INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
