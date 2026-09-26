@@ -20,11 +20,23 @@ class KnowledgeDependencyGraph:
         )""")
 
     def add_edge(self,project_id,from_type,from_id,relation,to_type,to_id,provenance_refs=(),created_by="system"):
+        if not self.db.one("SELECT 1 FROM projects WHERE id=?",(project_id,)): raise ValueError("project not found")
+        allowed={"CLAIM":"claims","INTERVENTION":"interventions","TRAINING_PROTOCOL":"training_protocols","FINDING":"research_findings","QUESTION":"research_questions","EXPERIMENT":"hds_experiments"}
+        for typ,nid in ((from_type,from_id),(to_type,to_id)):
+            table=allowed.get(str(typ).upper())
+            if table:
+                row=self.db.one(f"SELECT project_id FROM {table} WHERE id=?",(str(nid),))
+                if not row: raise ValueError(f"{typ} node not found")
+                if row.get("project_id") is not None and str(row["project_id"])!=str(project_id): raise ValueError(f"{typ} node belongs to another project")
+        refs=[str(x) for x in provenance_refs]
+        for ref in refs:
+            ev=self.db.one("SELECT c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(ref,))
+            if ev and str(ev["project_id"])!=str(project_id): raise ValueError("provenance evidence belongs to another project")
         self.db.execute("""INSERT OR IGNORE INTO knowledge_edges
             (id,project_id,from_type,from_id,relation,to_type,to_id,provenance_refs,status,created_by,created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             (str(uuid4()),project_id,from_type,str(from_id),relation,to_type,str(to_id),
-             json.dumps(list(provenance_refs),sort_keys=True),"ACTIVE",created_by,now()))
+             json.dumps(refs,sort_keys=True),"ACTIVE",created_by,now()))
         return self.db.one("""SELECT * FROM knowledge_edges WHERE project_id=? AND from_type=? AND from_id=? AND relation=? AND to_type=? AND to_id=?""",
             (project_id,from_type,str(from_id),relation,to_type,str(to_id)))
 
