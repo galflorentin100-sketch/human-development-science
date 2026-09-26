@@ -26,8 +26,11 @@ class TrainingProtocolService:
         }
         if any(not str(v or "").strip() for v in required.values()):
             raise ValueError("training protocol fields are required")
-        if target_construct_id and not self.db.one("SELECT 1 FROM scientific_constructs WHERE id=?",(target_construct_id,)):
-            raise ValueError("target construct not found")
+        if target_construct_id:
+            construct=self.db.one("SELECT project_id FROM scientific_constructs WHERE id=?",(target_construct_id,))
+            if not construct: raise ValueError("target construct not found")
+            if construct["project_id"] is not None and str(construct["project_id"])!=str(project_id):
+                raise ValueError("target construct belongs to another project")
         if source_claim_id:
             claim=self.db.one("SELECT project_id FROM claims WHERE id=?",(source_claim_id,))
             if not claim: raise ValueError("source claim not found")
