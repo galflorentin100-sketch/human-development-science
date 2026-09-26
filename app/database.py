@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS maintenance_work (
 );
 CREATE INDEX IF NOT EXISTS idx_maintenance_work_status ON maintenance_work(status);
 CREATE INDEX IF NOT EXISTS idx_maintenance_work_entity ON maintenance_work(entity_type,entity_id,status);
+CREATE TABLE IF NOT EXISTS maintenance_task_links (task_id TEXT PRIMARY KEY REFERENCES tasks(id), kind TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(kind,entity_type,entity_id));
+CREATE INDEX IF NOT EXISTS idx_maintenance_task_links_entity ON maintenance_task_links(entity_type,entity_id);
 CREATE TABLE IF NOT EXISTS knowledge_freshness (
  id TEXT PRIMARY KEY,
  entity_type TEXT NOT NULL,
