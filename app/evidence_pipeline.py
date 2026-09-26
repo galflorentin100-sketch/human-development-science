@@ -28,9 +28,34 @@ class EvidencePipeline:
         con.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,content,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?,?)",(eid,source_id,"PARSED",digest,text,ts,ts,ts))
         return dict(con.execute("SELECT * FROM evidence_sources WHERE id=?",(eid,)).fetchone())
 
-    def ingest_text(self,source_id,text):
-        with self.db.transaction() as con:
-            return self._ingest_text_in_transaction(con,source_id,text)
+    def ingest_text(self,source_id,text,con=None):
+        """Persist parsed source content, optionally using a caller-owned transaction."""
+        if not isinstance(text,str) or not text.strip():
+            raise ValueError("source content is required")
+        if con is None:
+            with self.db.transaction() as tx:
+                return self.ingest_text(source_id,text,con=tx)
+        if not con.execute("SELECT 1 FROM sources WHERE id=?",(source_id,)).fetchone():
+            raise ValueError("source not found")
+        digest=hashlib.sha256(text.encode("utf-8")).hexdigest()
+        existing=con.execute(
+            "SELECT * FROM evidence_sources WHERE source_id=? AND content_hash=? ORDER BY created_at DESC LIMIT 1",
+            (source_id,digest),
+        ).fetchone()
+        if existing:
+            existing=dict(existing)
+            if not existing.get("content"):
+                con.execute("UPDATE evidence_sources SET content=? WHERE id=?",(text,existing["id"]))
+                existing=con.execute("SELECT * FROM evidence_sources WHERE id=?",(existing["id"],)).fetchone()
+            return dict(existing)
+        eid=str(uuid4())
+        ts=now()
+        con.execute(
+            "INSERT INTO evidence_sources(id,source_id,state,content_hash,content,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?,?)",
+            (eid,source_id,"PARSED",digest,text,ts,ts,ts),
+        )
+        return dict(con.execute("SELECT * FROM evidence_sources WHERE id=?",(eid,)).fetchone())
+
     def attach(self,claim_id,source_id,excerpt,stance="SUPPORTS",verified=False,actor="system"):
         if not isinstance(excerpt,str) or not excerpt.strip():
             raise ValueError("evidence excerpt is required")
