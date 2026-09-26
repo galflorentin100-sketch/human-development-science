@@ -47,9 +47,16 @@ class ParticipantGovernance:
         if not str(participant_ref).strip() or not str(consent_version).strip():
             raise ValueError("participant reference and consent version are required")
         ts=now()
-        self.db.execute("""INSERT OR REPLACE INTO participant_governance
+        self.db.execute("""INSERT INTO participant_governance
             (participant_ref,consent_status,consent_version,consented_at,withdrawn_at,notes,created_at,updated_at)
-            VALUES (?,?,?,?,?,?,COALESCE((SELECT created_at FROM participant_governance WHERE participant_ref=?),?),?)""",
+            VALUES (?,?,?,?,?,?,COALESCE((SELECT created_at FROM participant_governance WHERE participant_ref=?),?),?)
+            ON CONFLICT(participant_ref) DO UPDATE SET
+              consent_status=excluded.consent_status,
+              consent_version=excluded.consent_version,
+              consented_at=excluded.consented_at,
+              withdrawn_at=excluded.withdrawn_at,
+              notes=excluded.notes,
+              updated_at=excluded.updated_at""",
             (str(participant_ref),"CONSENTED",str(consent_version),ts,None,"",str(participant_ref),ts,ts))
         return self.get(participant_ref)
 
