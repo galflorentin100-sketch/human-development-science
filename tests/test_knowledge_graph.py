@@ -14,11 +14,16 @@ def _setup(db):
 def test_explicit_edges_are_idempotent_and_traceable(tmp_path):
     db=Database(str(tmp_path/"graph.db")); ResearchCycle(db); pid=_setup(db)
     g=KnowledgeDependencyGraph(db)
-    g.add_edge(pid,"EVIDENCE","e1","SUPPORTS","CLAIM","c1",["source:1"],"reviewer")
-    g.add_edge(pid,"EVIDENCE","e1","SUPPORTS","CLAIM","c1",["source:1"],"reviewer")
-    trace=g.trace(pid,"EVIDENCE","e1")
+    from app.models import now
+    source,claim,evidence=[str(uuid.uuid4()) for _ in range(3)]
+    db.execute("INSERT INTO sources(id,title,url,authors,publication_year,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?,?,?)",(source,"s","https://example.org/s","","2026","PAPER","",""))
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,pid,"c","FACT","PRELIMINARY",0.5,"PROPOSED",now()))
+    db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(evidence,claim,source,"SUPPORTS","x",1,"system","h",now()))
+    g.add_edge(pid,"EVIDENCE",evidence,"SUPPORTS","CLAIM",claim,["source:1"],"reviewer")
+    g.add_edge(pid,"EVIDENCE",evidence,"SUPPORTS","CLAIM",claim,["source:1"],"reviewer")
+    trace=g.trace(pid,"EVIDENCE",evidence)
     assert trace["node_count"]==2
-    assert any(n["type"]=="CLAIM" and n["id"]=="c1" for n in trace["nodes"])
+    assert any(n["type"]=="CLAIM" and n["id"]==claim for n in trace["nodes"])
 
 def test_impact_trace_does_not_claim_efficacy(tmp_path):
     db=Database(str(tmp_path/"impact.db")); ResearchCycle(db); pid=_setup(db)
