@@ -18,21 +18,39 @@ class ResearchReviewPipeline:
         created_links=[]
         try:
             for role,title in (("skeptic","[SKEPTIC] Challenge synthesis"),("evidence-auditor","[EVIDENCE_AUDIT] Audit synthesis")):
-            existing=self.db.one("SELECT task_id FROM research_review_tasks WHERE workspace_id=? AND synthesis_id=? AND role=?",(ws["id"],synthesis_id,role))
-            if existing: continue
-            aliases={"skeptic":["skeptic","critique"],"evidence-auditor":["evidence-auditor","evidence"]}[role]
-            placeholders=",".join("?" for _ in aliases)
-            agent=self.db.one(f"SELECT id FROM agents WHERE status IN ('ACTIVE','IDLE') AND (id IN ({placeholders}) OR role IN ({placeholders})) LIMIT 1",tuple(aliases)+tuple(aliases))
-            if not agent: raise ValueError("review agent not found")
-            context=json.dumps({"action":"REVIEW_RESEARCH_SYNTHESIS","workspace_id":ws["id"],"synthesis_id":synthesis_id,"question":ws["question"],"synthesis":syn["synthesis"],"limitations":syn["limitations"],"uncertainty":syn["uncertainty"],"evidence_refs":json.loads(syn["evidence_refs"] or "[]"),"guardrails":["Do not invent sources or evidence.","Separate objections from established facts.","Do not infer causality from descriptive synthesis."]},sort_keys=True)
-            task=self.tasks.create_task(title=title+" "+synthesis_id,description=context,project_id=ws["project_id"],owner=agent["id"],required_permissions=["READ"],priority=1.8,retry_limit=1)
-            self.db.execute("INSERT INTO research_review_tasks(task_id,workspace_id,synthesis_id,role,created_at) VALUES (?,?,?,?,?)",(task["id"],ws["id"],synthesis_id,role,now()))
-            self.db.audit("scientific.research_review_task_created","task",task["id"],"research-orchestrator",{"role":role,"synthesis_id":synthesis_id},now(),str(uuid4()))
+                existing=self.db.one(
+                    "SELECT task_id FROM research_review_tasks WHERE workspace_id=? AND synthesis_id=? AND role=?",
+                    (ws["id"],synthesis_id,role))
+                if existing:
+                    continue
+                aliases={"skeptic":["skeptic","critique"],"evidence-auditor":["evidence-auditor","evidence"]}[role]
+                placeholders=",".join("?" for _ in aliases)
+                agent=self.db.one(
+                    f"SELECT id FROM agents WHERE status IN ('ACTIVE','IDLE') AND (id IN ({placeholders}) OR role IN ({placeholders})) LIMIT 1",
+                    tuple(aliases)+tuple(aliases))
+                if not agent:
+                    raise ValueError("review agent not found")
+                context=json.dumps({
+                    "action":"REVIEW_RESEARCH_SYNTHESIS","workspace_id":ws["id"],
+                    "synthesis_id":synthesis_id,"question":ws["question"],
+                    "synthesis":syn["synthesis"],"limitations":syn["limitations"],
+                    "uncertainty":syn["uncertainty"],
+                    "evidence_refs":json.loads(syn["evidence_refs"] or "[]"),
+                    "guardrails":["Do not invent sources or evidence.","Separate objections from established facts.","Do not infer causality from descriptive synthesis."]
+                },sort_keys=True)
+                task=self.tasks.create_task(
+                    title=title+" "+synthesis_id,description=context,
+                    project_id=ws["project_id"],owner=agent["id"],
+                    required_permissions=["READ"],priority=1.8,retry_limit=1)
+                self.db.execute(
+                    "INSERT INTO research_review_tasks(task_id,workspace_id,synthesis_id,role,created_at) VALUES (?,?,?,?,?)",
+                    (task["id"],ws["id"],synthesis_id,role,now()))
+                self.db.audit(
+                    "scientific.research_review_task_created","task",task["id"],
+                    "research-orchestrator",{"role":role,"synthesis_id":synthesis_id},now(),str(uuid4()))
                 created.append(task)
                 created_links.append(task["id"])
         except Exception:
-            # TaskEngine commits each task independently; compensate so a partial review
-            # pipeline cannot leave orphan reviewer work.
             if created_links:
                 with self.db.transaction() as con:
                     placeholders=",".join("?" for _ in created_links)
