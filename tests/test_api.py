@@ -199,3 +199,15 @@ def test_sc001_registration_creates_preregistered_measurements(tmp_path):
     assert len(out["measurements"])==4
     assert db.one("SELECT COUNT(*) AS n FROM study_measure_definitions WHERE study_id=?",(out["study"]["id"],))["n"]==4
     assert db.one("SELECT COUNT(*) AS n FROM study_measure_bindings WHERE study_id=?",(out["study"]["id"],))["n"]==20
+
+def test_execute_next_recovers_when_agent_preflight_fails(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.orchestrator import CompanyOrchestrator
+    from app.tasks import TaskEngine
+    db=Database(str(tmp_path/"preflight.db")); ResearchCycle(db)
+    p=ResearchCycle(db).run("preflight")["project"]
+    task=TaskEngine(db).create_task("preflight task","test",p["id"],"missing-agent",priority=1.0)
+    result=CompanyOrchestrator(db).execute_next(p["id"])
+    assert result["status"]=="EXECUTION_PREFLIGHT_FAILED"
+    assert db.one("SELECT status FROM tasks WHERE id=?",(task["id"],))["status"] in ("PLANNED","FAILED")
