@@ -29,7 +29,13 @@ class CompanyOrchestrator:
             claimed=con.execute("UPDATE tasks SET status='RUNNING',updated_at=? WHERE id=? AND status IN ('PLANNED','ASSIGNED')",(now(),task["id"]))
             if getattr(claimed,"rowcount",1) != 1:
                 return {"status":"TASK_CLAIM_LOST"}
-        result=AgentExecutor(self.db).execute(task["assigned_agent_id"],task["id"],{"title":task["title"]},{"project_id":project_id,"success_criteria":task["success_criteria"]},claimed=True)
+        try:
+            result=AgentExecutor(self.db).execute(task["assigned_agent_id"],task["id"],{"title":task["title"]},{"project_id":project_id,"success_criteria":task["success_criteria"]},claimed=True)
+        except Exception as exc:
+            # A claimed task must never be left RUNNING when validation/preflight
+            # fails before AgentExecutor can create an agent_run record.
+            retry=self.tasks.retry_or_escalate(task["id"],f"Execution preflight failed: {exc}")
+            return {"status":"EXECUTION_PREFLIGHT_FAILED","task":task,"error":str(exc),"retry":retry}
         run=self.db.one("SELECT id FROM agent_runs WHERE task_id=? ORDER BY started_at DESC LIMIT 1",(task["id"],))
         if not run:
             self.tasks.retry_or_escalate(task["id"],"Execution completed without an agent run record.")
