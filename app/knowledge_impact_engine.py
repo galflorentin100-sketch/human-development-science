@@ -57,13 +57,14 @@ class KnowledgeImpactEngine:
         trace=graph.impacted(project_id,graph_type,source_id)
         if trace["affected"]:
             impacts=[{"type":n["type"],"id":n["id"],"depth":None,"reason":reason} for n in trace["affected"]]
-            for x in impacts:
-                self.db.execute("""INSERT OR IGNORE INTO knowledge_impact_reviews
-                    (id,project_id,source_type,source_id,impact_type,affected_type,
-                     affected_id,reason,status,created_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                    (str(uuid4()),project_id,source_type,str(source_id),"GRAPH_DEPENDENCY",
-                     x["type"],x["id"],reason,"PROPOSED",now()))
+            with self.db.transaction() as con:
+                for x in impacts:
+                    con.execute("""INSERT OR IGNORE INTO knowledge_impact_reviews
+                        (id,project_id,source_type,source_id,impact_type,affected_type,
+                         affected_id,reason,status,created_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                        (str(uuid4()),project_id,source_type,str(source_id),"GRAPH_DEPENDENCY",
+                         x["type"],x["id"],reason,"PROPOSED",now()))
             return {"project_id":project_id,"source":{"type":source_type,"id":str(source_id)},
                     "affected_count":len(impacts),"affected":impacts,
                     "guardrail":"Potential impact only; human review is required before scientific state changes.",
@@ -90,13 +91,14 @@ class KnowledgeImpactEngine:
                     impacts.append(impact)
                     if depth<4:
                         queue.append((target,str(rid),depth+1))
-        for x in impacts:
-            self.db.execute("""INSERT OR IGNORE INTO knowledge_impact_reviews
-                (id,project_id,source_type,source_id,impact_type,affected_type,
-                 affected_id,reason,status,created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                (str(uuid4()),project_id,source_type,str(source_id),"DEPENDENCY",x["type"],
-                 x["id"],reason,"PROPOSED",now()))
+        with self.db.transaction() as con:
+            for x in impacts:
+                con.execute("""INSERT OR IGNORE INTO knowledge_impact_reviews
+                    (id,project_id,source_type,source_id,impact_type,affected_type,
+                     affected_id,reason,status,created_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (str(uuid4()),project_id,source_type,str(source_id),"DEPENDENCY",x["type"],
+                     x["id"],reason,"PROPOSED",now()))
         return {"project_id":project_id,"source":{"type":source_type,"id":str(source_id)},
                 "affected_count":len(impacts),"affected":impacts,
                 "guardrail":"Potential impact only; human review is required before scientific state changes."}
