@@ -33,7 +33,7 @@ class DecisionCenter:
                               "title":f"Challenge research synthesis {s['id']}",
                               "reason":"Accepted synthesis requires an independent skeptic review before candidate-finding promotion."})
             from app.research_evidence_auditor import ResearchEvidenceAuditor
-            audit=ResearchEvidenceAuditor(self.db).audit_synthesis(s["id"],"decision-center")
+            audit=ResearchEvidenceAuditor(self.db).audit_synthesis(s["id"],"decision-center",record_audit=False)
             if audit["status"]!="PASS":
                 items.append({"type":"RESEARCH_AUDIT","id":s["id"],"priority":"HIGH",
                               "title":f"Audit evidence for synthesis {s['id']}",
