@@ -14,9 +14,7 @@ class AuthService:
         roles=[("founder",["READ","WRITE","EXECUTE","PUBLISH","SPEND","DELETE","DEPLOY","CONTACT_EXTERNAL_PARTY","APPROVE"]),("operator",["READ","WRITE","EXECUTE"]),("reviewer",["READ","WRITE"])]
         for name,permissions in roles:
             row=self.db.one("SELECT id FROM roles WHERE name=?",(name,))
-            if row:
-                self.db.execute("UPDATE roles SET permissions=? WHERE id=?",(json.dumps(permissions),row["id"]))
-            else:
+            if not row:
                 self.db.execute("INSERT INTO roles(id,name,permissions) VALUES (?,?,?)",(str(uuid4()),name,json.dumps(permissions)))
 
     def create_user(self,external_subject,email,role="operator"):
