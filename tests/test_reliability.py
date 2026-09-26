@@ -4,16 +4,19 @@ from app.workflow import ResearchCycle
 from app.idempotency import IdempotencyService, IdempotencyConflict
 from app.cost_controls import CostControl
 
-def test_idempotency_reclaims_expired_lease(tmp_path):
+def test_idempotency_stale_lease_requires_explicit_recovery(tmp_path):
     db=Database(str(tmp_path/"idem.db")); ResearchCycle(db)
     service=IdempotencyService(db)
     calls=[]
     assert service.run("k","actor","op",lambda:(calls.append(1) or {"ok":1}),lease_minutes=1)["ok"]==1
     assert len(calls)==1
     db.execute("UPDATE idempotency_keys SET status='IN_PROGRESS',response=?,lease_expires_at=? WHERE key=?",('{"status":"IN_PROGRESS"}',(datetime.now(timezone.utc)-timedelta(minutes=2)).isoformat(),"k"))
-    result=service.run("k","actor","op",lambda:(calls.append(1) or {"ok":2}),lease_minutes=1)
-    assert result=={"ok":2}
-    assert len(calls)==2
+    try:
+        service.run("k","actor","op",lambda:(calls.append(1) or {"ok":2}),lease_minutes=1)
+        assert False
+    except IdempotencyConflict:
+        pass
+    assert len(calls)==1
 
 def test_idempotency_active_lease_blocks_duplicate(tmp_path):
     db=Database(str(tmp_path/"idem_active.db")); ResearchCycle(db)
