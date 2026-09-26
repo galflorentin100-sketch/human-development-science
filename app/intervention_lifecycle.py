@@ -25,8 +25,10 @@ class InterventionLifecycle:
                 except ValueError: states.append("MISSING")
             if any(s!="VERIFIED" for s in states): raise ValueError("SUPPORTED intervention requires all attached evidence to be VERIFIED")
             if row["evidence_level"] not in {"SUPPORTED","WELL_SUPPORTED"}: raise ValueError("SUPPORTED intervention requires supported evidence level")
-        old=row["status"]
-        self.db.execute("UPDATE interventions SET status=? WHERE id=?",(new_status,intervention_id))
-        self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
-            (str(uuid4()),"intervention.status_changed","intervention",intervention_id,actor,json.dumps({"from":old,"to":new_status,"rationale":rationale}),now()))
+        old=row["status"]; ts=now()
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE interventions SET status=? WHERE id=? AND status=?",(new_status,intervention_id,old))
+            if updated.rowcount != 1: raise ValueError("intervention state changed concurrently")
+            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                        (str(uuid4()),"intervention.status_changed","intervention",intervention_id,actor,json.dumps({"from":old,"to":new_status,"rationale":rationale}),ts))
         return self.db.one("SELECT * FROM interventions WHERE id=?",(intervention_id,))
