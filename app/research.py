@@ -286,6 +286,10 @@ class StudyExecution:
         return self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
     def adherence(self,study_id,participant_id,planned,completed,session_id=None,note=""):
         if planned < 0 or completed < 0 or completed > planned: raise ValueError("invalid adherence")
+        participant=self.db.one("SELECT id FROM study_participants WHERE id=? AND study_id=?",(participant_id,study_id))
+        if not participant: raise ValueError("participant does not belong to study")
+        if session_id and not self.db.one("SELECT id FROM study_sessions WHERE id=? AND study_id=? AND participant_id=?",(session_id,study_id,participant_id)):
+            raise ValueError("session does not belong to participant")
         i=str(uuid4())
         self.db.execute("INSERT INTO study_adherence(id,study_id,participant_id,session_id,planned,completed,adherence_note,recorded_at) VALUES (?,?,?,?,?,?,?,?)",(i,study_id,participant_id,session_id,int(planned),int(completed),note,now()))
         return self.db.one("SELECT * FROM study_adherence WHERE id=?",(i,))
