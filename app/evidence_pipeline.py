@@ -41,9 +41,24 @@ class EvidencePipeline:
             raise ValueError("parsed source content is unavailable; re-ingest the source before attaching evidence")
         if excerpt not in source_text:
             raise ValueError("evidence excerpt is not present in the parsed source content")
-        eid=str(uuid4())
         excerpt_hash=hashlib.sha256(excerpt.encode("utf-8")).hexdigest()
-        self.db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(eid,claim_id,source_id,stance,excerpt,int(verified),actor,excerpt_hash,now()))
+        existing=self.db.one(
+            "SELECT * FROM evidence WHERE claim_id=? AND source_id=? AND stance=? AND excerpt_hash=? LIMIT 1",
+            (claim_id,source_id,stance,excerpt_hash),
+        )
+        if existing:
+            return existing
+        eid=str(uuid4())
+        ts=now()
+        with self.db.transaction() as con:
+            duplicate=con.execute(
+                "SELECT * FROM evidence WHERE claim_id=? AND source_id=? AND stance=? AND excerpt_hash=? LIMIT 1",
+                (claim_id,source_id,stance,excerpt_hash),
+            ).fetchone()
+            if duplicate:
+                return dict(duplicate)
+            con.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                (eid,claim_id,source_id,stance,excerpt,int(verified),actor,excerpt_hash,ts))
         result=self.db.one("SELECT * FROM evidence WHERE id=?",(eid,))
         project=self.db.one("SELECT project_id FROM claims WHERE id=?",(claim_id,))
         if project:
