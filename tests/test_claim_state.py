@@ -10,7 +10,7 @@ def setup(tmp_path):
 
 def test_supported_requires_verified_support(tmp_path):
     db,cid,sid=setup(tmp_path); ep=EvidencePipeline(db)
-    src=ep.ingest_text(sid,"verified source content")
+    src=ep.ingest_text(sid,"verified source content; relevant excerpt")
     ev=ep.attach(cid,sid,"relevant excerpt")
     try:
         ClaimStateService(db).transition(cid,"SUPPORTED","reviewer","Support is unverified.",ev["id"])
@@ -23,7 +23,7 @@ def test_supported_requires_verified_support(tmp_path):
 
 def test_conflicting_verified_evidence_forces_uncertainty(tmp_path):
     db,cid,sid=setup(tmp_path); ep=EvidencePipeline(db)
-    ep.ingest_text(sid,"seeded source content")
+    ep.ingest_text(sid,"seeded source content; supporting excerpt; contradicting excerpt")
     ev1=ep.attach(cid,sid,"supporting excerpt","SUPPORTS")
     ev2=ep.attach(cid,sid,"contradicting excerpt","CONTRADICTS")
     ep.review(ev1["id"],"a","VERIFIED","checked")
