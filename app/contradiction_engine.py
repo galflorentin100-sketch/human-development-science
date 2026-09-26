@@ -62,15 +62,18 @@ class ContradictionEngine:
     def resolve(self, contradiction_id, actor, resolution):
         if not str(actor or "").strip() or not str(resolution or "").strip():
             raise ValueError("actor and resolution are required")
-        row=self.db.one("SELECT * FROM scientific_contradictions WHERE id=?",(contradiction_id,))
-        if not row: raise ValueError("contradiction not found")
-        if row["status"]!="OPEN": raise ValueError("contradiction is not open")
-        ts=now()
-        self.db.execute(
-            "UPDATE scientific_contradictions SET status='RESOLVED',resolution=?,resolved_by=?,resolved_at=? WHERE id=?",
-            (resolution,actor,ts,contradiction_id))
-        self.db.execute(
-            "INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
-            (str(uuid4()),"scientific_contradiction.resolved","scientific_contradiction",
-             contradiction_id,actor,json.dumps({"resolution":resolution}),ts))
+        with self.db.transaction() as con:
+            row=con.execute("SELECT * FROM scientific_contradictions WHERE id=?",(contradiction_id,)).fetchone()
+            if not row: raise ValueError("contradiction not found")
+            if row["status"]!="OPEN": raise ValueError("contradiction is not open")
+            ts=now()
+            updated=con.execute(
+                "UPDATE scientific_contradictions SET status='RESOLVED',resolution=?,resolved_by=?,resolved_at=? WHERE id=? AND status='OPEN'",
+                (resolution,actor,ts,contradiction_id))
+            if updated.rowcount != 1:
+                raise ValueError("contradiction was resolved concurrently")
+            con.execute(
+                "INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                (str(uuid4()),"scientific_contradiction.resolved","scientific_contradiction",
+                 contradiction_id,actor,json.dumps({"resolution":resolution})))
         return self.db.one("SELECT * FROM scientific_contradictions WHERE id=?",(contradiction_id,))
