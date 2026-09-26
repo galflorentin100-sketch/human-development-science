@@ -1,3 +1,4 @@
+import json
 import uuid
 
 from app.database import Database
@@ -55,6 +56,16 @@ def test_accepted_synthesis_becomes_candidate_finding_not_claim(tmp_path):
     engine.add_source(ws["id"],source["id"])
     syn=engine.synthesize(ws["id"],"Candidate synthesis","limitations","uncertain","researcher")
     engine.review(syn["id"],"founder","ACCEPTED","reviewed")
+    # Create a real, independently verified evidence reference before promotion.
+    from app.evidence_pipeline import EvidencePipeline
+    claim_id=str(uuid.uuid4())
+    from app.models import now
+    db.execute("INSERT INTO claims(id,project_id,statement,status,classification,confidence,review_required,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+               (claim_id,pid,"placeholder","SUPPORTED","INFERENCE",1.0,0,now(),now()))
+    evidence=EvidencePipeline(db).attach(claim_id,source["id"],"Relevant excerpt","SUPPORTS",actor="researcher")
+    EvidencePipeline(db).review(evidence["id"],"founder","VERIFIED","verified against source")
+    # Rebuild the synthesis with the verified evidence reference.
+    db.execute("UPDATE research_syntheses SET evidence_refs=? WHERE id=?",(json.dumps([evidence["id"]]),syn["id"]))
     finding=engine.promote_to_candidate_finding(syn["id"],"knowledge-manager")
     assert finding["status"]=="CANDIDATE"
     assert finding["classification"]=="INFERENCE"
