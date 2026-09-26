@@ -9,6 +9,7 @@ from app.models import now
 
 ROLE_MAP={
     "RESEARCH":"researcher",
+    "SKEPTIC":"skeptic",
     "CONTRADICTION":"skeptic",
     "IMPACT":"knowledge-manager",
     "EXPERIMENT":"experiment-designer",
