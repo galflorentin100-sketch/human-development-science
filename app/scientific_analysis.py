@@ -54,8 +54,10 @@ class ScientificAnalysisEngine:
             raise ValueError("analysis_spec outcome does not match registered outcome")
         return {"valid":True,"allowed_methods":allowed,"spec":spec}
 
-    def _require_method(self, plan, method):
+    def _require_method(self, plan, method, outcome_name=None):
         spec=self._analysis_spec(plan)
+        if outcome_name is not None and spec.get("outcome_name") != outcome_name:
+            raise ValueError("analysis outcome does not match preregistered outcome")
         methods=spec.get("allowed_methods", spec.get("methods", []))
         if isinstance(methods,str): methods=[methods]
         if method not in methods:
@@ -121,7 +123,7 @@ class ScientificAnalysisEngine:
     def longitudinal_retention_analysis(self, study_id, analysis_plan_id, outcome_name):
         """Describe post-to-retention trajectories without fitting an unregistered repeated-measures model."""
         plan=self._plan(study_id,analysis_plan_id)
-        self._require_method(plan,"LONGITUDINAL_RETENTION")
+        self._require_method(plan,"LONGITUDINAL_RETENTION",outcome_name)
         rows=self.db.all(
             "SELECT participant_id,observation_type,value,recorded_at FROM study_outcomes "
             "WHERE study_id=? AND outcome_name=? AND value IS NOT NULL "
@@ -149,7 +151,7 @@ class ScientificAnalysisEngine:
         outcome distribution, sample size, missingness mechanism, or repeated measures.
         """
         plan=self._plan(study_id,analysis_plan_id)
-        self._require_method(plan,"INFERENTIAL_RANDOMIZED_ARM")
+        self._require_method(plan,"INFERENTIAL_RANDOMIZED_ARM",outcome_name)
         rows=self.db.all(
             "SELECT p.id participant_id,a.arm,o.observation_type,o.value,o.recorded_at "
             "FROM study_participants p JOIN study_assignments a ON a.participant_id=p.id AND a.study_id=p.study_id "
@@ -199,7 +201,8 @@ class ScientificAnalysisEngine:
         This is an unadjusted estimate; it is not a substitute for a full
         inferential model and does not establish population-level causality.
         """
-        self._plan(study_id, analysis_plan_id)
+        plan=self._plan(study_id, analysis_plan_id)
+        self._require_method(plan,"RANDOMIZED_ARM",outcome_name)
         rows=self.db.all(
             "SELECT p.id AS participant_id,a.arm,o.observation_type,o.value,o.recorded_at "
             "FROM study_participants p "
@@ -281,7 +284,8 @@ class ScientificAnalysisEngine:
         return {arm:{"mean":mean(vals) if vals else None,"n":len(vals)} for arm,vals in grouped.items()}
 
     def analyze(self, study_id, analysis_plan_id, outcome_name):
-        self._plan(study_id,analysis_plan_id)
+        plan=self._plan(study_id,analysis_plan_id)
+        self._require_method(plan,"DESCRIPTIVE",outcome_name)
         participants=self.db.all("SELECT id FROM study_participants WHERE study_id=?",(study_id,))
         rows=self.db.all(
             "SELECT participant_id,observation_type,session_id,value,missing_reason,recorded_at "
