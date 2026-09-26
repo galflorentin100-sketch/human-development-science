@@ -10,7 +10,12 @@ from app.claim_revision import ClaimRevisionService
 from app.knowledge_impact_engine import KnowledgeImpactEngine
 
 class DecisionCenter:
-    def __init__(self,db): self.db=db
+    def __init__(self,db):
+        self.db=db
+        from app.research_engine import ResearchEngine
+        from app.skeptic import SkepticService
+        ResearchEngine(db)
+        SkepticService(db)
 
     def list(self,project_id):
         items=[]
