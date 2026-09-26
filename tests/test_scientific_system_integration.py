@@ -124,7 +124,9 @@ def test_agent_output_submit_is_idempotent(tmp_path):
     db=Database(str(tmp_path/"agent-output.db")); ResearchCycle(db); pid=_setup(db)
     task=str(uuid.uuid4()); run=str(uuid.uuid4())
     db.execute("INSERT INTO tasks(id,project_id,title,status,priority,success_criteria,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)",(task,pid,"research","REVIEW",1.0,"review",now(),now()))
-    db.execute("INSERT INTO agent_runs(id,agent_id,task_id,status,input_payload,output_payload,started_at,completed_at) VALUES (?,?,?,?,?,?,?,?)",(run,"agent-1",task,"REVIEW","{}",'{"result":"x"}',now(),now()))
+    agent_id=str(uuid.uuid4())
+        db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(agent_id,"test-agent","researcher","test","[]","[\"READ\"]","1","ACTIVE",now()))
+        db.execute("INSERT INTO agent_runs(id,agent_id,task_id,status,input_payload,output_payload,started_at,completed_at) VALUES (?,?,?,?,?,?,?,?)",(run,agent_id,task,"REVIEW","{}",'{"result":"x"}',now(),now()))
     first=AgentOutputGate(db).submit(run)
     second=AgentOutputGate(db).submit(run)
     assert first["id"]==second["id"]
