@@ -61,6 +61,8 @@ def test_hds_experiment_result_is_in_knowledge_graph(tmp_path):
         '{"outcome_name":"retention","estimand":"within","population":"adults","estimator":"difference","ci_method":"none","missing_data_policy":"complete-cases","multiplicity_policy":"none","subgroup_policy":"none","stopping_rule":"fixed","allowed_methods":["DESCRIPTIVE"]}'
     )
     ExperimentEngine(db).preregister(e["id"])
+    from app.experiment_safety import ExperimentSafetyReviewer
+    ExperimentSafetyReviewer(db).review(e["id"],"ACCEPT","safe to execute","founder")
     ExperimentEngine(db).start(e["id"])
     result=ExperimentEngine(db).record_result(e["id"],"0.7","descriptive result")
     graph=KnowledgeDependencyGraph(db).build(pid)
