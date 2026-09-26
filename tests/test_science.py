@@ -127,7 +127,9 @@ def test_training_protocol_cannot_be_supported_without_transfer_and_retention(tm
     db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(aid,"a","r","m","[]","[]","1","ACTIVE",now()))
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(pid,cid,"o","ACTIVE",aid,now()))
     svc=TrainingProtocolService(db)
-    p=svc.create(pid,"protocol","mechanism","uncertainty","dose","progress","real-world","8 weeks","safety")
+    claim_id=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim_id,pid,"pilot basis","HYPOTHESIS","PRELIMINARY",0.1,"PROPOSED",now()))
+    p=svc.create(pid,"protocol","mechanism","uncertainty","dose","progress","real-world","8 weeks","safety",source_claim_id=claim_id)
     svc.promote(p["id"],"PILOT","reviewer","pilot begins")
     try:
         svc.promote(p["id"],"SUPPORTED","reviewer","support")
