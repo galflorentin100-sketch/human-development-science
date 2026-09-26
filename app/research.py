@@ -245,24 +245,25 @@ class StudyExecution:
             parsed=json.loads(analysis_spec)
         except (TypeError, ValueError) as exc:
             raise ValueError("analysis_spec must be valid JSON") from exc
-        if not isinstance(parsed,dict):
-            raise ValueError("analysis_spec must be a JSON object")
+        if not isinstance(parsed,dict): raise ValueError("analysis_spec must be a JSON object")
         required=("outcome_name","estimand","population","estimator","ci_method",
                   "missing_data_policy","multiplicity_policy","subgroup_policy",
                   "stopping_rule","allowed_methods")
         missing=[k for k in required if not parsed.get(k)]
-        if missing:
-            raise ValueError("analysis_spec missing required fields: "+", ".join(missing))
+        if missing: raise ValueError("analysis_spec missing required fields: "+", ".join(missing))
         if not isinstance(parsed["allowed_methods"],list) or not parsed["allowed_methods"]:
             raise ValueError("analysis_spec.allowed_methods must be a non-empty list")
-        existing=self.db.one("SELECT * FROM study_analysis_plans WHERE study_id=? AND version=?",(study_id,int(version)))
-        if existing: raise ValueError("analysis plan version already exists")
-        frozen=self.db.one("SELECT 1 FROM study_analysis_plans WHERE study_id=? AND frozen=1",(study_id,))
-        if frozen and int(version) <= int(self.db.one("SELECT MAX(version) AS v FROM study_analysis_plans WHERE study_id=?",(study_id,))["v"]): raise ValueError("analysis plan version must increase after a frozen plan")
         digest=hashlib.sha256(analysis_spec.encode("utf-8")).hexdigest()
         payload=json.dumps({"spec":analysis_spec,"sha256":digest},sort_keys=True)
-        i=str(uuid4())
-        self.db.execute("INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES (?,?,?,?,?,?,?)",(i,study_id,int(version),payload,1,now(),now()))
+        i=str(uuid4()); ts=now()
+        with self.db.transaction() as con:
+            existing=con.execute("SELECT * FROM study_analysis_plans WHERE study_id=? AND version=?",(study_id,int(version))).fetchone()
+            if existing: raise ValueError("analysis plan version already exists")
+            frozen=con.execute("SELECT MAX(version) AS v FROM study_analysis_plans WHERE study_id=? AND frozen=1",(study_id,)).fetchone()
+            if frozen and frozen["v"] is not None and int(version) <= int(frozen["v"]):
+                raise ValueError("analysis plan version must increase after a frozen plan")
+            con.execute("INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES (?,?,?,?,?,?,?)",
+                        (i,study_id,int(version),payload,1,ts,ts))
         return self.db.one("SELECT * FROM study_analysis_plans WHERE id=?",(i,))
     def analyze_mean_change(self,study_id,analysis_plan_id,outcome_name):
         plan=self.db.one("SELECT * FROM study_analysis_plans WHERE id=?",(analysis_plan_id,))
