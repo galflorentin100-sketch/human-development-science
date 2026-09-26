@@ -6,7 +6,7 @@ def setup(tmp_path):
     db.execute("INSERT INTO companies VALUES ('c','HDS','m','v','p','2026')")
     db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES ('a','Researcher','researcher','m','[]','[]','1','IDLE','2026')")
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES ('p','c','test','RUNNING','a','2026')")
-    db.execute("INSERT INTO studies(id,title,design,population,findings,created_at) VALUES ('s','study','RCT','adults','', '2026')")
+    db.execute("INSERT INTO studies(id,title,design,population,findings,created_at,protocol_snapshot,protocol_hash) VALUES ('s','study','RCT','adults','', '2026','test protocol','test-hash')")
     db.execute("""INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES ('plan','s',1,'{"allowed_methods":["INFERENTIAL_RANDOMIZED_ARM"]}',1,'2026','2026')""")
     for pid,arm in [('i','INTERVENTION'),('c1','CONTROL')]:
         db.execute("INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",(pid,'s',pid,'CONSENTED','2026'))
