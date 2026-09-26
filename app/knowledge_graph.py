@@ -31,13 +31,13 @@ class KnowledgeDependencyGraph:
             "EXPERIMENT":"SELECT project_id FROM hds_experiments WHERE id=? UNION ALL SELECT project_id FROM experiments WHERE id=?",
             "EVIDENCE":"SELECT c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",
             "TRAINING_SESSION":"SELECT p.project_id FROM training_sessions s JOIN training_protocols p ON p.id=s.protocol_id WHERE s.id=?",
-            "EXPERIMENT_RESULT":"SELECT e.project_id FROM hds_experiment_results r JOIN hds_experiments e ON e.id=r.experiment_id WHERE r.id=?",
+            "EXPERIMENT_RESULT":"SELECT e.project_id FROM hds_experiment_results r JOIN hds_experiments e ON e.id=r.experiment_id WHERE r.id=? UNION ALL SELECT e.project_id FROM experiment_results r JOIN experiments e ON e.id=r.experiment_id WHERE r.id=?",
             "PROJECT":"SELECT id AS project_id FROM projects WHERE id=?"
         }
         for typ,nid in ((from_type,from_id),(to_type,to_id)):
             query=ownership_queries.get(str(typ).upper())
             if query:
-                params=(str(nid),str(nid)) if str(typ).upper()=="EXPERIMENT" else (str(nid),)
+                params=(str(nid),str(nid)) if str(typ).upper() in {"EXPERIMENT","EXPERIMENT_RESULT"} else (str(nid),)
                 rows=self.db.all(query,params)
                 row=rows[0] if rows else None
                 if not row: raise ValueError(f"{typ} node not found")
