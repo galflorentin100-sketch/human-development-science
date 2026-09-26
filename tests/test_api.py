@@ -207,7 +207,9 @@ def test_execute_next_recovers_when_agent_preflight_fails(tmp_path):
     from app.tasks import TaskEngine
     db=Database(str(tmp_path/"preflight.db")); ResearchCycle(db)
     p=ResearchCycle(db).run("preflight")["project"]
-    task=TaskEngine(db).create_task("preflight task","test",p["id"],"missing-agent",priority=1.0)
+    agent=db.one("SELECT id FROM agents WHERE id='researcher'")["id"] if db.one("SELECT id FROM agents WHERE id='researcher'") else db.one("SELECT id FROM agents LIMIT 1")["id"]
+    db.execute("DELETE FROM agent_permissions WHERE agent_id=? AND permission='EXECUTE'",(agent,))
+    task=TaskEngine(db).create_task("preflight task","test",p["id"],agent,required_permissions=["EXECUTE"],priority=1.0)
     result=CompanyOrchestrator(db).execute_next(p["id"])
     assert result["status"]=="EXECUTION_PREFLIGHT_FAILED"
     assert db.one("SELECT status FROM tasks WHERE id=?",(task["id"],))["status"] in ("PLANNED","FAILED")
