@@ -18,7 +18,7 @@ class ResearchReviewAgentAdapter:
         role=link["role"]
         if role=="skeptic":
             from app.skeptic import SkepticService
-            row=SkepticService(self.db).create(link["workspace_id"],link["synthesis_id"],link.get("agent_id"))
+            row=SkepticService(self.db).create(link["workspace_id"],link["synthesis_id"],None)
             SkepticService(self.db).record(row["id"],result.get("objections",[]),result.get("missing_evidence",[]),result.get("alternative_explanations",[]))
             return SkepticService(self.db).get(row["id"])
         if role=="evidence-auditor":
