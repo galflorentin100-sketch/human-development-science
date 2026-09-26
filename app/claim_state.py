@@ -55,11 +55,15 @@ class ClaimStateService:
         from app.evidence_pipeline import EvidencePipeline
         state=EvidencePipeline(self.db).claim_evidence_state(claim_id)
         snapshot=__import__("hashlib").sha256(__import__("json").dumps(state,sort_keys=True,separators=(",",":")).encode()).hexdigest()
-        latest=self.db.one("SELECT MAX(version) AS v FROM scientific_knowledge_versions WHERE claim_id=?",(claim_id,))
-        version=int(latest["v"] or 0)+1
-        self.db.execute("INSERT INTO scientific_knowledge_versions(id,claim_id,version,statement,classification,status,confidence,evidence_state,evidence_snapshot_hash,change_reason,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (str(uuid4()),claim_id,version,claim["statement"],claim["classification"],claim["status"],claim["confidence"],state["conflicted"] and "CONFLICTED" or state["verified_support"] and "SUPPORTED" or state["verified_contradict"] and "CONTRADICTED" or "UNVERIFIED",snapshot,rationale,now()))
-        self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",(str(uuid4()),"scientific_knowledge.versioned","claim",claim_id,actor,"version="+str(version),now()))
+        ts=now(); version_id=str(uuid4())
+        evidence_state=state["conflicted"] and "CONFLICTED" or state["verified_support"] and "SUPPORTED" or state["verified_contradict"] and "CONTRADICTED" or "UNVERIFIED"
+        with self.db.transaction() as con:
+            latest=con.execute("SELECT MAX(version) AS v FROM scientific_knowledge_versions WHERE claim_id=?",(claim_id,)).fetchone()
+            version=int(latest["v"] or 0)+1
+            con.execute("INSERT INTO scientific_knowledge_versions(id,claim_id,version,statement,classification,status,confidence,evidence_state,evidence_snapshot_hash,change_reason,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (version_id,claim_id,version,claim["statement"],claim["classification"],claim["status"],claim["confidence"],evidence_state,snapshot,rationale,ts))
+            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                (str(uuid4()),"scientific_knowledge.versioned","claim",claim_id,actor,"version="+str(version),ts))
         return self.db.one("SELECT * FROM scientific_knowledge_versions WHERE claim_id=? AND version=?",(claim_id,version))
 
     def knowledge_history(self,claim_id):
