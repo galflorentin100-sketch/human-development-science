@@ -119,6 +119,15 @@ def begin_research_queue_item(item_id: str, principal: Principal = Depends(princ
     except ValueError as exc:
         raise HTTPException(400,str(exc)) from exc
 
+@app.post("/api/science/research-workspaces/{workspace_id}/research-task")
+def create_research_agent_task(workspace_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.research_agent import ResearchAgentService
+    try:
+        return ResearchAgentService(db).create_task(workspace_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
 @app.post("/api/science/research-workspaces")
 def create_research_workspace(req: ResearchWorkspaceRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
