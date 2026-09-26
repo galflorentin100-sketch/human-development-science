@@ -67,11 +67,18 @@ class TrainingProtocolService:
         return self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
 
     def attach_evidence(self,protocol_id,evidence_kind,evidence_ref,notes=""):
-        if not self.db.one("SELECT 1 FROM training_protocols WHERE id=?",(protocol_id,)):
+        protocol=self.db.one("SELECT project_id FROM training_protocols WHERE id=?",(protocol_id,))
+        if not protocol:
             raise ValueError("training protocol not found")
-        # Evidence attachment has no participant context; participant governance is enforced on session creation.
         if not evidence_kind or not evidence_ref:
             raise ValueError("evidence kind and reference are required")
+        evidence=self.db.one(
+            "SELECT e.id,c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",
+            (str(evidence_ref),))
+        if not evidence:
+            raise ValueError("training protocol evidence reference not found")
+        if str(evidence["project_id"])!=str(protocol["project_id"]):
+            raise ValueError("training protocol evidence belongs to another project")
         i=str(uuid4())
         self.db.execute(
             "INSERT INTO training_protocol_evidence(id,protocol_id,evidence_kind,evidence_ref,notes,created_at) VALUES (?,?,?,?,?,?)",
