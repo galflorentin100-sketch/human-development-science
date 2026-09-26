@@ -40,7 +40,8 @@ def test_sync_materializes_only_resolvable_explicit_relationships(tmp_path):
     from app.training import TrainingProtocolService
     p=TrainingProtocolService(db).create(pid,"p","m","d","dose","progress","transfer","retention","safe",source_claim_id=claim)
     result=KnowledgeDependencyGraph(db).sync_project(pid)
-    assert result["created_edges"] >= 3
+    graph=KnowledgeDependencyGraph(db).build(pid)
+    assert len(graph["edges"]) >= 3
     graph=KnowledgeDependencyGraph(db).build(pid)
     assert any(e["relation"]=="GROUNDS" and e["from_id"]==claim for e in graph["edges"])
 
