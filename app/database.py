@@ -302,6 +302,16 @@ def _migrate_phase4(self):
         if duplicate_evidence:
             raise RuntimeError("cannot enforce unique evidence attachments: existing duplicate claim/source/stance/excerpt records found")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_evidence_attachment_identity ON evidence(claim_id,source_id,stance,excerpt_hash)")
+        duplicate_evidence_sources=con.execute("""
+            SELECT source_id,content_hash,COUNT(*) AS n
+            FROM evidence_sources
+            WHERE content_hash IS NOT NULL
+            GROUP BY source_id,content_hash
+            HAVING COUNT(*) > 1
+        """).fetchall()
+        if duplicate_evidence_sources:
+            raise RuntimeError("cannot enforce unique parsed source content: existing duplicate source/content hashes found")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_evidence_source_content_identity ON evidence_sources(source_id,content_hash)")
         duplicate_training_sessions=con.execute("""
             SELECT protocol_id,participant_ref,session_number,COUNT(*) AS n
             FROM training_sessions
