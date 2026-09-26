@@ -334,7 +334,7 @@ class PostgreSQLDatabase:
         with self.connect() as con:
             for statement in statements: con.execute(self._sql(statement))
             for table,columns in {**_PHASE2_COLUMNS,**_PHASE3_COLUMNS,**{'study_outcomes':{'observation_type':"TEXT NOT NULL DEFAULT 'TRAINING'"},"idempotency_keys":{"status":"TEXT NOT NULL DEFAULT 'COMPLETED'","claim_token":"TEXT","lease_expires_at":"TEXT"}}}.items():
-                existing={row[0] for row in con.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=%s",(table,)).fetchall()}
+                existing={row["column_name"] for row in con.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=%s",(table,)).fetchall()}
                 for name,definition in columns.items():
                     if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
             duplicate_assignments=con.execute("""
@@ -346,6 +346,15 @@ class PostgreSQLDatabase:
             if duplicate_assignments:
                 raise RuntimeError("cannot enforce unique study assignments: existing duplicate participant assignments found")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id)")
+            duplicate_sessions=con.execute("""
+                SELECT study_id,participant_id,phase,session_number,COUNT(*) AS n
+                FROM study_sessions
+                GROUP BY study_id,participant_id,phase,session_number
+                HAVING COUNT(*) > 1
+            """).fetchall()
+            if duplicate_sessions:
+                raise RuntimeError("cannot enforce unique study sessions: existing duplicate sessions found")
+            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_session_identity ON study_sessions(study_id,participant_id,phase,session_number)")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation_no_session ON study_outcomes(study_id,participant_id,outcome_name,observation_type) WHERE session_id IS NULL")
 def database_from_settings(settings):
