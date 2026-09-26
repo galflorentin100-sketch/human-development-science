@@ -69,13 +69,15 @@ class ResearchQueue:
             raise ValueError("research item is not awaiting approval")
         if not str(actor or "").strip():
             raise ValueError("actor is required")
-        updated=self.db.execute(
-            "UPDATE hds_research_queue SET status='APPROVED', updated_at=? WHERE id=? AND status='PROPOSED'",
-            (now(), item_id),
-        )
-        if updated.rowcount != 1:
-            raise ValueError("research item was changed concurrently")
-        return self.get(item_id)
+        with self.db.transaction() as con:
+            updated=con.execute(
+                "UPDATE hds_research_queue SET status='APPROVED', updated_at=? WHERE id=? AND status='PROPOSED'",
+                (now(), item_id),
+            )
+            if updated.rowcount != 1:
+                raise ValueError("research item was changed concurrently")
+            row=dict(con.execute("SELECT * FROM hds_research_queue WHERE id=?",(item_id,)).fetchone())
+        return row
 
     def begin(self, item_id, actor):
         if not str(actor or "").strip():
