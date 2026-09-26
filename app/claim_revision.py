@@ -54,6 +54,7 @@ class ClaimRevisionService:
             ev=self.db.one("SELECT e.id,e.verified,c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(str(ref),))
             if not ev or not ev["verified"]: raise ValueError("claim revision evidence must reference verified evidence")
             if str(ev["project_id"])!=str(claim_project["project_id"]): raise ValueError("claim revision evidence belongs to another project")
+        evidence_snapshot=[{"evidence_id":str(x),"state_at_approval":"VERIFIED"} for x in refs]
         if rev["revised_by"]==reviewer and reviewer!="system":
             raise ValueError("revision requires an independent reviewer")
         with self.db.transaction() as con:
@@ -68,7 +69,7 @@ class ClaimRevisionService:
                 "INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
                 (str(uuid4()),"claim.revised","claim",rev["claim_id"],reviewer,
                  json.dumps({"revision_id":revision_id,"rationale":rev["rationale"],
-                             "evidence_refs":json.loads(rev["evidence_refs"] or "[]")},sort_keys=True),now()))
+                             "evidence_refs":json.loads(rev["evidence_refs"] or "[]"),"evidence_snapshot":evidence_snapshot},sort_keys=True),now()))
         updated=self.db.one("SELECT * FROM claims WHERE id=?",(rev["claim_id"],))
         if updated and updated.get("project_id"):
             from app.knowledge_graph import KnowledgeDependencyGraph
