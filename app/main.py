@@ -181,6 +181,42 @@ def synthesize_research_workspace(workspace_id: str, req: ResearchSynthesisReque
     except ValueError as exc:
         raise HTTPException(400,str(exc)) from exc
 
+@app.post("/api/science/research-workspaces/{workspace_id}/skeptic")
+def create_skeptic_review(workspace_id: str, synthesis_id: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.skeptic import SkepticService
+    try:
+        return SkepticService(db).create(workspace_id,synthesis_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/science/skeptic/{review_id}/record")
+def record_skeptic_review(review_id: str, objections: list[str] = [], missing_evidence: list[str] = [], alternative_explanations: list[str] = [], principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.skeptic import SkepticService
+    try:
+        return SkepticService(db).record(review_id,objections,missing_evidence,alternative_explanations)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/science/skeptic/{review_id}/review")
+def review_skeptic(review_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    from app.skeptic import SkepticService
+    try:
+        return SkepticService(db).review(review_id,decision.upper(),principal.user_id,rationale)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/science/research-syntheses/{synthesis_id}/evidence-audit")
+def audit_research_synthesis(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.research_evidence_auditor import ResearchEvidenceAuditor
+    try:
+        return ResearchEvidenceAuditor(db).audit_synthesis(synthesis_id,principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
 @app.post("/api/science/research-agent/{review_id}/finalize")
 def finalize_research_agent_output(review_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
