@@ -23,6 +23,16 @@ class DecisionCenter:
             items.append({"type":"CONTRADICTION","id":r["id"],"priority":"HIGH","title":r["description"],"reason":"Scientific contradiction requires review."})
         for r in KnowledgeImpactEngine(self.db).list(project_id,"PROPOSED"):
             items.append({"type":"IMPACT","id":r["id"],"priority":"NORMAL","title":f"{r['affected_type']}:{r['affected_id']} may be affected","reason":r["reason"]})
+        # Accepted research syntheses require an independent skeptic pass before finding promotion.
+        for s in self.db.all(
+            "SELECT rs.id,rs.workspace_id,rw.project_id,rs.synthesis FROM research_syntheses rs JOIN research_workspaces rw ON rw.id=rs.workspace_id WHERE rw.project_id=? AND rs.status='ACCEPTED' ORDER BY rs.created_at DESC",
+            (project_id,)):
+            skeptic=self.db.one("SELECT status FROM research_skeptic_reviews WHERE synthesis_id=? ORDER BY created_at DESC LIMIT 1",(s["id"],))
+            if not skeptic or skeptic["status"]!="ACCEPTED":
+                items.append({"type":"SKEPTIC","id":s["id"],"priority":"HIGH",
+                              "title":f"Challenge research synthesis {s['id']}",
+                              "reason":"Accepted synthesis requires an independent skeptic review before candidate-finding promotion."})
+
         # Surface accepted agent-output reviews as a distinct founder decision:
         # conversion into a finding is still gated and never automatic.
         for r in self.db.all("SELECT * FROM agent_output_reviews WHERE project_id=? AND status='ACCEPTED' ORDER BY created_at DESC",(project_id,)):
@@ -41,7 +51,7 @@ class DecisionCenter:
                               "title":r["statement"],"reason":"Accepted finding can inform a claim revision; explicit claim selection and human approval are required."})
         for item in items:
             item["next_action"]={
-                "RESEARCH":"delegate_research",
+                "RESEARCH":"delegate_research","SKEPTIC":"delegate_skeptic_review",
                 "CONTRADICTION":"delegate_skeptic_review",
                 "IMPACT":"review_impact",
                 "AGENT_OUTPUT":"create_candidate_finding",
@@ -49,9 +59,9 @@ class DecisionCenter:
                 "EXPERIMENT":"delegate_experiment_design",
                 "INTEGRITY":"delegate_evidence_audit",
             }.get(item["type"],"review")
-            item["requires_founder_approval"]=item["type"] in {"CONTRADICTION","IMPACT","AGENT_OUTPUT","FINDING","ACCEPTED_FINDING"}
+            item["requires_founder_approval"]=item["type"] in {"CONTRADICTION","IMPACT","AGENT_OUTPUT","FINDING","ACCEPTED_FINDING","SKEPTIC"}
             item["agent_role"]={
-                "RESEARCH":"researcher","CONTRADICTION":"skeptic","IMPACT":"knowledge-manager",
+                "RESEARCH":"researcher","SKEPTIC":"skeptic","CONTRADICTION":"skeptic","IMPACT":"knowledge-manager",
                 "AGENT_OUTPUT":"knowledge-manager","FINDING":"evidence-auditor","ACCEPTED_FINDING":"founder-advisor","EXPERIMENT":"experiment-designer",
                 "INTEGRITY":"evidence-auditor"
             }.get(item["type"],"founder-advisor")
