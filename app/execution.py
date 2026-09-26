@@ -24,7 +24,7 @@ class AgentExecutor:
             from app.approvals import ApprovalService, ApprovalRequired
             if not approval_id:
                 raise ApprovalRequired(f"approval required for {action}")
-            ApprovalService(self.db).require(approval_id)
+            ApprovalService(self.db).require(approval_id,expected_action=action)
         for p in json.loads(task["required_permissions"] or "[]"): self.permissions.check(agent_id,Permission(p),"task:"+task_id)
         if task["status"] in ("COMPLETED","CANCELLED"):
             return ExecutionResult(CompanyMessage.create(agent_id,"coo","task_result",task_id,{"result":"already terminal"},0.0,[],[],[]),True,{},None)
