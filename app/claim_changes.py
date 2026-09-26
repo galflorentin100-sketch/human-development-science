@@ -32,6 +32,13 @@ class ClaimChangeService:
             if not approval: raise ValueError("unexpired founder approval required")
             if approval["action"] != "SCIENTIFIC_CLAIM_CHANGE":
                 raise ValueError("approval is not scoped to scientific claim changes")
+            try:
+                approval_context=__import__("json").loads(approval["context"] or "{}")
+            except (TypeError,ValueError):
+                raise ValueError("approval context is invalid")
+            approved_claim_id=approval_context.get("claim_id")
+            if approved_claim_id is not None and str(approved_claim_id) != str(claim_id):
+                raise ValueError("approval is scoped to a different claim")
             from datetime import datetime,timezone
             if approval["expires_at"] and datetime.fromisoformat(approval["expires_at"])<=datetime.now(timezone.utc): raise ValueError("founder approval expired")
         revision_id=str(uuid4()); ts=now()
