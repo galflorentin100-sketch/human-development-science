@@ -70,19 +70,22 @@ class ExperimentEngine:
             raise ValueError("experiment not found")
         if row["status"] != "DRAFT":
             raise ValueError("only DRAFT experiments can be preregistered")
-        updated=self.db.execute("UPDATE hds_experiments SET status='READY', preregistered=1, updated_at=? WHERE id=? AND status='DRAFT'",(now(),experiment_id))
-        if updated.rowcount!=1: raise ValueError("experiment state changed concurrently")
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE hds_experiments SET status='READY', preregistered=1, updated_at=? WHERE id=? AND status='DRAFT'",(now(),experiment_id))
+            if updated.rowcount!=1: raise ValueError("experiment state changed concurrently")
         return self.get(experiment_id)
 
     def start(self, experiment_id):
         row = self.get(experiment_id)
         if not row or row["status"] != "READY":
             raise ValueError("experiment must be preregistered and READY")
-        safety=self.db.one("SELECT decision FROM experiment_safety_reviews WHERE experiment_id=?",(experiment_id,))
-        if not safety or safety["decision"]!="ACCEPT":
-            raise ValueError("experiment requires an accepted safety review before start")
-        updated=self.db.execute("UPDATE hds_experiments SET status='RUNNING', updated_at=? WHERE id=? AND status='READY'",(now(),experiment_id))
-        if getattr(updated,"rowcount",1)!=1: raise ValueError("experiment state changed concurrently")
+        with self.db.transaction() as con:
+            current=con.execute("SELECT status FROM hds_experiments WHERE id=?",(experiment_id,)).fetchone()
+            if not current or current["status"]!="READY": raise ValueError("experiment state changed concurrently")
+            safety=con.execute("SELECT decision FROM experiment_safety_reviews WHERE experiment_id=?",(experiment_id,)).fetchone()
+            if not safety or safety["decision"]!="ACCEPT": raise ValueError("experiment requires an accepted safety review before start")
+            updated=con.execute("UPDATE hds_experiments SET status='RUNNING', updated_at=? WHERE id=? AND status='READY'",(now(),experiment_id))
+            if updated.rowcount!=1: raise ValueError("experiment state changed concurrently")
         return self.get(experiment_id)
 
     def record_result(self, experiment_id, outcome, interpretation, evidence_refs=()):
@@ -121,10 +124,9 @@ class ExperimentEngine:
             raise ValueError("experiment must be RUNNING")
         if not self.db.one("SELECT id FROM hds_experiment_results WHERE experiment_id=?",(experiment_id,)):
             raise ValueError("experiment cannot be completed without a recorded result")
-        self.db.execute(
-            "UPDATE hds_experiments SET status='COMPLETED', updated_at=? WHERE id=?",
-            (now(), experiment_id),
-        )
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE hds_experiments SET status='COMPLETED', updated_at=? WHERE id=? AND status='RUNNING'",(now(),experiment_id))
+            if updated.rowcount!=1: raise ValueError("experiment state changed concurrently")
         from app.knowledge_graph import KnowledgeDependencyGraph
         KnowledgeDependencyGraph(self.db).sync_project(row["project_id"])
         return self.get(experiment_id)
@@ -135,10 +137,9 @@ class ExperimentEngine:
         row = self.get(experiment_id)
         if not row or row["status"] not in {"READY", "RUNNING"}:
             raise ValueError("experiment cannot be aborted from its current state")
-        self.db.execute(
-            "UPDATE hds_experiments SET status='ABORTED', updated_at=? WHERE id=?",
-            (now(), experiment_id),
-        )
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE hds_experiments SET status='ABORTED', updated_at=? WHERE id=? AND status IN ('READY','RUNNING')",(now(),experiment_id))
+            if updated.rowcount!=1: raise ValueError("experiment state changed concurrently")
         return self.get(experiment_id)
 
     def list(self, project_id):
