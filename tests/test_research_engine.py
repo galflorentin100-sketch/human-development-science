@@ -110,3 +110,23 @@ def test_finding_promotion_requires_skeptic_review(tmp_path):
         assert False
     except ValueError as exc:
         assert "evidence_audit" in str(exc)
+
+
+def test_research_review_pipeline_creates_two_independent_tasks(tmp_path):
+    from app.research_engine import ResearchEngine
+    from app.research_review_pipeline import ResearchReviewPipeline
+    from app.models import now
+    db=Database(str(tmp_path/"review_tasks.db")); ResearchCycle(db); pid=_setup(db)
+    for aid,role in [(str(uuid.uuid4()),"skeptic"),(str(uuid.uuid4()),"evidence-auditor")]:
+        db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                   (aid,role,role,"review","[]","[\"READ\"]","1","ACTIVE",now()))
+    engine=ResearchEngine(db)
+    ws=engine.create(pid,"Question",owner="researcher"); engine.activate(ws["id"],"researcher")
+    from app.evidence_pipeline import EvidencePipeline
+    source=EvidencePipeline(db).register_source("Paper","https://example.org/review","Author",2025)
+    engine.add_source(ws["id"],source["id"])
+    syn=engine.synthesize(ws["id"],"Synthesis","limits","uncertain","researcher")
+    result=ResearchReviewPipeline(db).create_for_synthesis(syn["id"])
+    assert len(result["tasks"])==2
+    roles={x["owner"] for x in result["tasks"]}
+    assert len(roles)==2
