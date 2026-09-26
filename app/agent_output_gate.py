@@ -17,6 +17,8 @@ class AgentOutputGate:
         if project_id is not None and str(project_id)!=str(task["project_id"]):
             raise ValueError("project_id does not match task project")
         project_id=task["project_id"]
+        existing=self.db.one("SELECT * FROM agent_output_reviews WHERE agent_run_id=? ORDER BY created_at DESC LIMIT 1",(agent_run_id,))
+        if existing: return existing
         payload=json.loads(run["output_payload"] or "{}")
         refs=payload.get("evidence_refs") or []
         if not isinstance(refs,list): refs=[]
