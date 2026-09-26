@@ -9,7 +9,14 @@ from app.models import now
 class AutonomousScientificMaintenance:
     def __init__(self,db): self.db=db
 
-    def propose(self):
+    def _entity_project(self,entity_type,entity_id):
+        table={"CLAIM":"claims","INTERVENTION":"interventions","TRAINING_PROTOCOL":"training_protocols"}.get(entity_type)
+        if not table:
+            raise ValueError("unsupported maintenance entity type")
+        row=self.db.one(f"SELECT project_id FROM {table} WHERE id=?",(entity_id,))
+        return row["project_id"] if row else None
+
+    def propose(self,project_id=None):
         from app.knowledge_freshness import KnowledgeFreshness
         from app.knowledge_impact import KnowledgeImpactAnalyzer
         out=[]
@@ -17,11 +24,13 @@ class AutonomousScientificMaintenance:
             out.append({"kind":"REVALIDATION","priority":"HIGH","entity_type":x["entity_type"],"entity_id":x["entity_id"],"title":f"Revalidate {x['entity_type']} {x['entity_id']}","reason":"scientific review interval elapsed"})
         for x in KnowledgeImpactAnalyzer(self.db).contradiction_scan()["impacts"]:
             out.append({"kind":"CONTRADICTION_REVIEW","priority":"HIGH","entity_type":"CLAIM","entity_id":x["claim_id"],"title":f"Review conflicted claim {x['claim_id']}","reason":x["reason"]})
+        if project_id is not None:
+            out=[p for p in out if self._entity_project(p["entity_type"],p["entity_id"]) == project_id]
         return {"count":len(out),"proposals":out,"policy":"proposal only; execution requires normal task, approval, cost and evidence gates"}
 
     def create_tasks(self,project_id,owner="chief-scientist"):
         created=[]
-        for p in self.propose()["proposals"]:
+        for p in self.propose(project_id=project_id)["proposals"]:
             existing=self.db.one("SELECT id FROM tasks WHERE project_id=? AND title=? AND status NOT IN ('COMPLETED','FAILED')",(project_id,p["title"]))
             if existing: continue
             task_id=str(uuid4())
@@ -33,6 +42,8 @@ class AutonomousScientificMaintenance:
         proposals=self.propose()["proposals"]
         created=[]
         for p in proposals:
+            if self._entity_project(p["entity_type"],p["entity_id"]) is None:
+                continue
             exists=self.db.one("SELECT id FROM maintenance_work WHERE kind=? AND entity_type=? AND entity_id=? AND status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','RUNNING')",(p["kind"],p["entity_type"],p["entity_id"]))
             if exists:
                 continue
