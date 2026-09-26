@@ -853,6 +853,15 @@ def science_integrity(project_id: str, principal: Principal = Depends(principal_
     from app.scientific_integrity import ScientificIntegrityChecker
     return ScientificIntegrityChecker(db).project(project_id)
 
+@app.post("/api/science/experiments/design-task")
+def experiment_design_task(payload: dict, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.experiment_designer import ExperimentDesigner
+    try:
+        return ExperimentDesigner(db).create_task(payload["project_id"],payload["research_question"],payload.get("hypothesis",""))
+    except (KeyError,ValueError) as exc:
+        raise HTTPException(400,str(exc)) from exc
+
 @app.post("/api/science/experiments")
 def science_create_experiment(body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
