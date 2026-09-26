@@ -112,7 +112,9 @@ class Database:
                     existing={row[1] for row in con.execute(f"PRAGMA table_info({table})").fetchall()}
                     if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
     def execute(self,sql,params=()):
-        with self.connect() as con: con.execute(sql,params)
+        with self.connect() as con:
+            cursor=con.execute(sql,params)
+            return cursor
     def one(self,sql,params=()):
         with self.connect() as con: row=con.execute(sql,params).fetchone()
         return dict(row) if row else None
