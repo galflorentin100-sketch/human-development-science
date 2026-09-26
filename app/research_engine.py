@@ -31,9 +31,12 @@ class ResearchEngine:
         self.db.execute("""CREATE TABLE IF NOT EXISTS research_syntheses (
             id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES research_workspaces(id),
             synthesis TEXT NOT NULL, limitations TEXT NOT NULL, uncertainty TEXT NOT NULL,
-            provenance_hash TEXT NOT NULL, status TEXT NOT NULL, created_by TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            provenance_hash TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL
         )""")
+        cols={x["name"] for x in self.db.all("PRAGMA table_info(research_syntheses)")}
+        if "evidence_refs" not in cols:
+            self.db.execute("ALTER TABLE research_syntheses ADD COLUMN evidence_refs TEXT NOT NULL DEFAULT '[]'")
 
     def create(self,project_id,question,scope="",inclusion_rules=(),exclusion_rules=(),owner="system"):
         if not str(question or "").strip(): raise ValueError("research question is required")
@@ -64,19 +67,20 @@ class ResearchEngine:
             (i,workspace_id,source_id,relevance,notes,digest,now()))
         return self.db.one("SELECT * FROM research_workspace_sources WHERE workspace_id=? AND source_id=?",(workspace_id,source_id))
 
-    def synthesize(self,workspace_id,synthesis,limitations="",uncertainty="",created_by="system"):
+    def synthesize(self,workspace_id,synthesis,limitations="",uncertainty="",created_by="system",evidence_refs=()):
         row=self._get(workspace_id)
         if row["status"]!="ACTIVE": raise ValueError("workspace must be ACTIVE")
         sources=self.db.all("SELECT * FROM research_workspace_sources WHERE workspace_id=?",(workspace_id,))
         if not sources: raise ValueError("synthesis requires at least one source")
         if not str(synthesis or "").strip(): raise ValueError("synthesis is required")
         provenance={"workspace_id":workspace_id,"source_ids":sorted(x["source_id"] for x in sources),
-                    "source_hashes":sorted(x["content_hash"] for x in sources if x.get("content_hash"))}
+                    "source_hashes":sorted(x["content_hash"] for x in sources if x.get("content_hash")),
+            "evidence_refs":sorted(str(x) for x in evidence_refs)}
         ph=hashlib.sha256(json.dumps(provenance,sort_keys=True).encode()).hexdigest()
         i=str(uuid4()); ts=now()
         self.db.execute(
-            "INSERT INTO research_syntheses(id,workspace_id,synthesis,limitations,uncertainty,provenance_hash,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            (i,workspace_id,synthesis,limitations,uncertainty,ph,"CANDIDATE",created_by,ts))
+            "INSERT INTO research_syntheses(id,workspace_id,synthesis,limitations,uncertainty,provenance_hash,evidence_refs,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (i,workspace_id,synthesis,limitations,uncertainty,ph,json.dumps(list(evidence_refs),sort_keys=True),"CANDIDATE",created_by,ts))
         self.db.execute("UPDATE research_workspaces SET status='SYNTHESIS_READY',updated_at=? WHERE id=? AND status='ACTIVE'",(ts,workspace_id))
         return self.db.one("SELECT * FROM research_syntheses WHERE id=?",(i,))
 
@@ -110,11 +114,12 @@ class ResearchEngine:
             "limitations":syn["limitations"],
             "uncertainty":syn["uncertainty"],
             "provenance_hash":syn["provenance_hash"],
+            "evidence_refs":json.loads(syn["evidence_refs"] or "[]"),
             "note":"Candidate only; scientific acceptance still requires evidence review."
         },sort_keys=True)
         return ResearchFindingService(self.db).create(
             workspace["project_id"],syn["synthesis"],classification="INFERENCE",
-            source_type="LITERATURE",source_id=synthesis_id,evidence_refs=(),
+            source_type="LITERATURE",source_id=synthesis_id,evidence_refs=json.loads(syn["evidence_refs"] or "[]"),
             interpretation=interpretation,created_by=actor)
 
     def get(self,workspace_id):
