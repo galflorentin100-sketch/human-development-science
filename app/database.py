@@ -215,7 +215,7 @@ def _migrate_phase3(self):
         con.executescript(PHASE3_SCHEMA)
 def _migrate_phase4(self):
     with self.connect() as con:
-        con.executescript(SCHEMA); _add_phase2_columns(con); con.executescript(PHASE2_SCHEMA)
+        con.executescript(SCHEMA); con.executescript(PHASE2_SCHEMA); con.executescript(PHASE3_SCHEMA); _add_phase2_columns(con)
         for table,columns in _PHASE3_COLUMNS.items():
             existing={row[1] for row in con.execute(f"PRAGMA table_info({table})")}
             for name,definition in columns.items():
@@ -223,7 +223,7 @@ def _migrate_phase4(self):
         existing={row[1] for row in con.execute("PRAGMA table_info(study_outcomes)")}
         if "observation_type" not in existing:
             con.execute("ALTER TABLE study_outcomes ADD COLUMN observation_type TEXT NOT NULL DEFAULT 'TRAINING'")
-        con.executescript(PHASE3_SCHEMA); con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA); con.executescript(PHASE6_SCHEMA)
+        con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA); con.executescript(PHASE6_SCHEMA); con.executescript(PHASE7_SCHEMA)
         existing={row[1] for row in con.execute("PRAGMA table_info(training_protocols)")}
         for name,definition in {"source_claim_id":"TEXT REFERENCES claims(id)","intervention_id":"TEXT REFERENCES interventions(id)"}.items():
             if name not in existing: con.execute(f"ALTER TABLE training_protocols ADD COLUMN {name} {definition}")
