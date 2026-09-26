@@ -31,18 +31,26 @@ class ScientificMaintenanceController:
         return {"created_or_existing":created,"count":len(created)}
 
     def request_approval(self,work_id,actor):
-        work=self.db.one("SELECT * FROM maintenance_work WHERE id=?",(work_id,))
-        if not work: raise ValueError("maintenance work not found")
-        if work["status"]!="PROPOSED": raise ValueError("maintenance work is not awaiting approval")
+        if not str(actor or "").strip(): raise ValueError("actor is required")
         from app.approvals import ApprovalService
-        approval=ApprovalService(self.db).request(
-            action="EXECUTE_SCIENTIFIC_MAINTENANCE",
-            requested_by=actor,
-            reason=work["reason"],
-            risk_level="MEDIUM",
-            context={"maintenance_work_id":work_id,"entity_type":work["entity_type"],"entity_id":work["entity_id"],"success_criteria":work["success_criteria"]})
-        self.db.execute("UPDATE maintenance_work SET status='APPROVAL_PENDING',approval_id=?,updated_at=? WHERE id=?",(approval["id"],now(),work_id))
-        return self.db.one("SELECT * FROM maintenance_work WHERE id=?",(work_id,))
+        with self.db.transaction() as con:
+            work=con.execute("SELECT * FROM maintenance_work WHERE id=?",(work_id,)).fetchone()
+            if not work: raise ValueError("maintenance work not found")
+            work=dict(work)
+            if work["status"]!="PROPOSED":
+                raise ValueError("maintenance work is not awaiting approval")
+            approval=ApprovalService(self.db).request(
+                action="EXECUTE_SCIENTIFIC_MAINTENANCE",
+                requested_by=actor,
+                reason=work["reason"],
+                risk_level="MEDIUM",
+                context={"maintenance_work_id":work_id,"entity_type":work["entity_type"],"entity_id":work["entity_id"],"success_criteria":work["success_criteria"]})
+            updated=con.execute(
+                "UPDATE maintenance_work SET status='APPROVAL_PENDING',approval_id=?,updated_at=? WHERE id=? AND status='PROPOSED'",
+                (approval["id"],now(),work_id))
+            if getattr(updated,"rowcount",1) != 1:
+                raise ValueError("maintenance work changed concurrently")
+            return dict(con.execute("SELECT * FROM maintenance_work WHERE id=?",(work_id,)).fetchone())
 
     def approve(self,work_id,actor):
         with self.db.transaction() as con:
