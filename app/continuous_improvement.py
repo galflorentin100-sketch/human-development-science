@@ -83,11 +83,14 @@ class ContinuousImprovementService:
                 raise ValueError("improvement proposal not found")
             if p["status"] != "EXPERIMENT":
                 raise ValueError("only active experiments can record results")
+            if p["area"] == "SCIENCE" and not str(evidence_ref or p["evidence_ref"] or "").strip():
+                raise ValueError("SCIENCE results require an evidence reference")
+            retained_evidence_ref = evidence_ref if evidence_ref is not None else p["evidence_ref"]
             updated=con.execute(
                 """UPDATE improvement_proposals
                 SET experiment_result=?, outcome_note=?, evidence_ref=?, updated_at=?
                 WHERE id=? AND status='EXPERIMENT'""",
-                (result,outcome_note,evidence_ref,_now(),proposal_id),
+                (result,outcome_note,retained_evidence_ref,_now(),proposal_id),
             )
             if updated.rowcount != 1:
                 raise ValueError("improvement proposal changed concurrently")
@@ -104,6 +107,8 @@ class ContinuousImprovementService:
                 raise ValueError("only tested improvements can be adopted")
             if p["experiment_result"] != "SUPPORTED":
                 raise ValueError("only supported experiments can be adopted")
+            if p["area"] == "SCIENCE" and not str(p["evidence_ref"] or "").strip():
+                raise ValueError("SCIENCE improvements require evidence provenance before adoption")
             updated=con.execute(
                 """UPDATE improvement_proposals
                 SET status='ADOPTED', adopted_by=?, adoption_rationale=?, updated_at=?
