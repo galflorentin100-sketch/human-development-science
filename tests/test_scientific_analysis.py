@@ -1,3 +1,4 @@
+import json
 from app.database import Database
 from app.scientific_analysis import ScientificAnalysisEngine
 
