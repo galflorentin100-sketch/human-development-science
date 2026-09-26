@@ -39,3 +39,18 @@ def test_stale_cost_reservation_is_released(tmp_path):
     assert released==["corr"]
     assert db.one("SELECT status FROM cost_events WHERE correlation_id=?",("corr",))["status"]=="RELEASED"
     assert float(db.one("SELECT spent_amount FROM budgets WHERE id=?",(budget["id"],))["spent_amount"])==0.0
+
+
+def test_high_risk_approval_is_scoped_to_action(tmp_path):
+    from app.approvals import ApprovalService, ApprovalRequired
+    from app.execution import AgentExecutor
+    from app.tasks import TaskEngine
+    db=Database(str(tmp_path/"approval_scope.db")); ResearchCycle(db)
+    approval=ApprovalService(db).request("PUBLISH","founder","publish approval","HIGH",{})
+    ApprovalService(db).resolve(approval["id"],"APPROVED","founder")
+    task=TaskEngine(db).create_task("high risk","execute",ResearchCycle(db).run("approval scope")["project"]["id"],"ceo",required_permissions=["EXECUTE"])
+    try:
+        AgentExecutor(db).execute("ceo",task["id"],{"action":"SPEND","approval_id":approval["id"]},{})
+        assert False
+    except ApprovalRequired:
+        pass
