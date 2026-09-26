@@ -26,7 +26,10 @@ class EvidencePipeline:
         eid=str(uuid4())
         ts=now()
         con.execute("INSERT OR IGNORE INTO evidence_sources(id,source_id,state,content_hash,content,fetched_at,parsed_at,created_at) VALUES (?,?,?,?,?,?,?,?)",(eid,source_id,"PARSED",digest,text,ts,ts,ts))
-        return dict(con.execute("SELECT * FROM evidence_sources WHERE id=?",(eid,)).fetchone())
+        winner=con.execute("SELECT * FROM evidence_sources WHERE source_id=? AND content_hash=? ORDER BY created_at DESC LIMIT 1",(source_id,digest)).fetchone()
+        if not winner:
+            raise RuntimeError("parsed source ingestion failed without a persisted record")
+        return dict(winner)
 
     def ingest_text(self,source_id,text):
         with self.db.transaction() as con:
