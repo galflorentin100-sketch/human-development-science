@@ -20,7 +20,7 @@ class ExperimentAnalyzer:
         for ref in refs:
             ev=self.db.one("SELECT id,verified FROM evidence WHERE id=?",(str(ref),))
             verified.append(bool(ev and ev["verified"]))
-        return {"experiment":exp,"result":result,"evidence_refs":refs,
+        return {"experiment":exp,"result":result,"status":"RESULT_AVAILABLE","evidence_refs":refs,
                 "verified_evidence_count":sum(verified),
                 "evidence_complete":bool(refs) and all(verified),
                 "interpretation_type":"DESCRIPTIVE",
