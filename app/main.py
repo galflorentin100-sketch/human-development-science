@@ -199,7 +199,7 @@ def research_synthesis_readiness(synthesis_id: str, principal: Principal = Depen
 def research_synthesis_review_tasks(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     from app.research_review_pipeline import ResearchReviewPipeline
-    return ResearchReviewPipeline(db).get(synthesis_id)
+    return ResearchReviewPipeline(db).status(synthesis_id)
 
 @app.post("/api/science/research-syntheses/{synthesis_id}/review-tasks")
 def create_research_review_tasks(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
