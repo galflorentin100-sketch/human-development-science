@@ -181,6 +181,15 @@ def synthesize_research_workspace(workspace_id: str, req: ResearchSynthesisReque
     except ValueError as exc:
         raise HTTPException(400,str(exc)) from exc
 
+@app.post("/api/science/research-syntheses/{synthesis_id}/review-tasks")
+def create_research_review_tasks(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.research_review_pipeline import ResearchReviewPipeline
+    try:
+        return ResearchReviewPipeline(db).create_for_synthesis(synthesis_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
 @app.post("/api/science/research-workspaces/{workspace_id}/skeptic")
 def create_skeptic_review(workspace_id: str, synthesis_id: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
