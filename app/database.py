@@ -282,6 +282,7 @@ def _migrate_phase4(self):
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id)")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_measure_binding ON study_measure_bindings(study_id,measure_id,observation_type,timepoint)")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation_no_session ON study_outcomes(study_id,participant_id,outcome_name,observation_type) WHERE session_id IS NULL")
 Database.migrate=_migrate_phase4
 class DatabaseConfigurationError(RuntimeError): pass
 class PostgreSQLDatabase:
@@ -346,6 +347,7 @@ class PostgreSQLDatabase:
                 raise RuntimeError("cannot enforce unique study assignments: existing duplicate participant assignments found")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id)")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
+            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation_no_session ON study_outcomes(study_id,participant_id,outcome_name,observation_type) WHERE session_id IS NULL")
 def database_from_settings(settings):
     if settings.database_url:
         if not settings.database_url.startswith(("postgresql://","postgres://")): raise DatabaseConfigurationError("DATABASE_URL must be a PostgreSQL URL")
