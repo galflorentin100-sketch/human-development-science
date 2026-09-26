@@ -8,7 +8,9 @@ from uuid import uuid4
 from app.models import now
 
 class ResearchEvidenceAuditor:
-    def __init__(self,db): self.db=db
+    def __init__(self,db):
+        self.db=db
+        self.db.execute("CREATE TABLE IF NOT EXISTS research_evidence_audits (id TEXT PRIMARY KEY, synthesis_id TEXT NOT NULL, status TEXT NOT NULL, evidence_count INTEGER NOT NULL, missing_evidence TEXT NOT NULL, unverified_evidence TEXT NOT NULL, reviewer TEXT NOT NULL, created_at TEXT NOT NULL)")
 
     def audit_synthesis(self,synthesis_id,reviewer="evidence-auditor",record_audit=True):
         syn=self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
@@ -34,5 +36,6 @@ class ResearchEvidenceAuditor:
             "status":"PASS" if refs and not missing and not unverified else "REVIEW_REQUIRED"
         }
         if record_audit:
+            self.db.execute("INSERT INTO research_evidence_audits(id,synthesis_id,status,evidence_count,missing_evidence,unverified_evidence,reviewer,created_at) VALUES (?,?,?,?,?,?,?,?)",(str(uuid4()),synthesis_id,result["status"],result["evidence_count"],json.dumps(missing),json.dumps(unverified),reviewer,now()))
             self.db.audit("scientific.research_evidence_audit","research_synthesis",synthesis_id,reviewer,result,now(),str(uuid4()))
         return result
