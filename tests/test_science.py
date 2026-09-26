@@ -92,7 +92,7 @@ def test_conflicting_evidence_forces_uncertain_claim(tmp_path):
     for idx,verdict in enumerate(("VERIFIED","VERIFIED")):
         sid=str(uuid.uuid4())
         db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(sid,"s","https://example.com/"+sid,"PAPER","","test"))
-        pipeline.ingest_text(sid,"source "+str(idx))
+        pipeline.ingest_text(sid,"source "+str(idx)+" excerpt")
         stance="SUPPORTS" if idx==0 else "CONTRADICTS"
         ev=pipeline.attach(claim_id,sid,"excerpt",stance)
         pipeline.review(ev["id"],"reviewer-"+str(idx),verdict,"reviewed")
