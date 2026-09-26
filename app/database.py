@@ -100,6 +100,9 @@ class Database:
             con.executescript(PHASE7_SCHEMA)
             con.executescript(OPTIONAL_SCIENCE_SCHEMA)
             _add_phase2_columns(con)
+            existing_interventions={row[1] for row in con.execute("PRAGMA table_info(interventions)")}
+            if "project_id" not in existing_interventions:
+                con.execute("ALTER TABLE interventions ADD COLUMN project_id TEXT")
             for table,columns in _PHASE3_COLUMNS.items():
                 for name,definition in columns.items():
                     existing={row[1] for row in con.execute(f"PRAGMA table_info({table})").fetchall()}
