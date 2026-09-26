@@ -898,6 +898,15 @@ def experiment_candidate_finding(experiment_id: str, principal: Principal = Depe
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
+@app.post("/api/science/experiments/{experiment_id}/safety-review")
+def experiment_safety_review(experiment_id: str, payload: dict, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    from app.experiment_safety import ExperimentSafetyReviewer
+    try:
+        return ExperimentSafetyReviewer(db).review(experiment_id,payload.get("decision",""),payload.get("rationale",""),principal.subject)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
 @app.post("/api/science/experiments/{experiment_id}/start")
 def science_start_experiment(experiment_id: str, principal: Principal = Depends(principal_from_header)):
     require_permission(principal, "EXECUTE")
