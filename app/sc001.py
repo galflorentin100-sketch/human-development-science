@@ -49,27 +49,88 @@ class SC001Protocol:
     def register(self,db,project_id):
         protocol=self.draft()
         gates=self.quality_gates(protocol)
-        if gates["status"]!="READY_FOR_REVIEW": raise ValueError("SC-001 protocol failed quality gates")
+        if gates["status"]!="READY_FOR_REVIEW":
+            raise ValueError("SC-001 protocol failed quality gates")
         from app.research import ResearchRepository
-        repo=ResearchRepository(db)
-        hypothesis=repo.hypothesis(project_id,protocol.question)
-        experiment=repo.experiment(project_id,hypothesis["statement"],protocol.intervention)
-        study=repo.study(None,protocol.title,"Controlled pilot with baseline/post/follow-up","To be defined","No results recorded; study execution pending.",project_id=project_id)
         from app.measurement import MeasurementRegistry
+        repo=ResearchRepository(db)
         measurements=MeasurementRegistry(db)
-        definitions=[]
-        for outcome in (protocol.primary_outcome,)+protocol.transfer_outcomes:
-            definitions.append(measurements.define(study["id"],outcome.name,outcome.definition,"Predefined behavioral outcome protocol","PROPORTION" if outcome.unit=="proportion" else "DURATION",outcome.unit,"To be established","To be established"))
-        for definition in definitions:
-            for observation_type,timepoint in (("TRAINING","baseline"),("TRAINING","post"),("REAL_WORLD","follow-up"),("RETENTION","8-week follow-up"),("RETENTION","12-week follow-up")):
-                measurements.bind(study["id"],definition["id"],observation_type,timepoint,required=(definition["name"]==protocol.primary_outcome.name or observation_type=="REAL_WORLD"))
-        snapshot=json.dumps(asdict(protocol),sort_keys=True)
-        digest=hashlib.sha256(snapshot.encode("utf-8")).hexdigest()
-        db.execute("INSERT INTO study_protocol_versions(id,study_id,version,snapshot,content_hash,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),study["id"],1,snapshot,digest,now()))
-        approval=ApprovalService(db).request(action="SC001:STUDY:"+study["id"],requested_by="study-designer",reason="Founder approval is required before participant data collection or study execution.",risk_level="HIGH",context={"study_id":study["id"],"protocol_id":protocol.id,"protocol_hash":digest},correlation_id=protocol.id)
-        db.execute("UPDATE studies SET status=?,protocol_snapshot=?,protocol_hash=?,approval_id=? WHERE id=?",("PENDING_APPROVAL",snapshot,digest,approval["id"],study["id"]))
-        db.audit("research.protocol_registered","study",study["id"],"experiment-designer",{"protocol_id":protocol.id,"quality_gates":gates,"protocol_hash":digest,"approval_id":approval["id"]},now(),str(uuid4()))
-        return {"protocol":protocol,"quality_gates":gates,"hypothesis":hypothesis,"experiment":experiment,"measurements":definitions,"study":db.one("SELECT * FROM studies WHERE id=?",(study["id"],)),"approval":approval}
+        hypothesis_id=None
+        experiment_id=None
+        study_id=None
+        definition_ids=[]
+        approval_id=None
+        protocol_version_id=None
+        try:
+            hypothesis=repo.hypothesis(project_id,protocol.question)
+            hypothesis_id=hypothesis["id"]
+            experiment=repo.experiment(project_id,hypothesis["statement"],protocol.intervention)
+            experiment_id=experiment["id"]
+            study=repo.study(None,protocol.title,"Controlled pilot with baseline/post/follow-up","To be defined","No results recorded; study execution pending.",project_id=project_id)
+            study_id=study["id"]
+            definitions=[]
+            for outcome in (protocol.primary_outcome,)+protocol.transfer_outcomes:
+                definition=measurements.define(
+                    study["id"],outcome.name,outcome.definition,"Predefined behavioral outcome protocol",
+                    "PROPORTION" if outcome.unit=="proportion" else "DURATION",outcome.unit,
+                    "To be established","To be established")
+                definitions.append(definition)
+                definition_ids.append(definition["id"])
+            for definition in definitions:
+                for observation_type,timepoint in (
+                    ("TRAINING","baseline"),("TRAINING","post"),("REAL_WORLD","follow-up"),
+                    ("RETENTION","8-week follow-up"),("RETENTION","12-week follow-up")):
+                    measurements.bind(
+                        study["id"],definition["id"],observation_type,timepoint,
+                        required=(definition["name"]==protocol.primary_outcome.name or observation_type=="REAL_WORLD"))
+            snapshot=json.dumps(asdict(protocol),sort_keys=True)
+            digest=hashlib.sha256(snapshot.encode("utf-8")).hexdigest()
+            protocol_version_id=str(uuid4())
+            db.execute(
+                "INSERT INTO study_protocol_versions(id,study_id,version,snapshot,content_hash,created_at) VALUES (?,?,?,?,?,?)",
+                (protocol_version_id,study["id"],1,snapshot,digest,now()))
+            approval=ApprovalService(db).request(
+                action="SC001:STUDY:"+study["id"],requested_by="study-designer",
+                reason="Founder approval is required before participant data collection or study execution.",
+                risk_level="HIGH",
+                context={"study_id":study["id"],"protocol_id":protocol.id,"protocol_hash":digest},
+                correlation_id=protocol.id)
+            approval_id=approval["id"]
+            db.execute(
+                "UPDATE studies SET status=?,protocol_snapshot=?,protocol_hash=?,approval_id=? WHERE id=?",
+                ("PENDING_APPROVAL",snapshot,digest,approval["id"],study["id"]))
+            db.audit(
+                "research.protocol_registered","study",study["id"],"experiment-designer",
+                {"protocol_id":protocol.id,"quality_gates":gates,"protocol_hash":digest,"approval_id":approval["id"]},
+                now(),str(uuid4()))
+            return {
+                "protocol":protocol,"quality_gates":gates,"hypothesis":hypothesis,
+                "experiment":experiment,"measurements":definitions,
+                "study":db.one("SELECT * FROM studies WHERE id=?",(study["id"],)),
+                "approval":approval}
+        except Exception:
+            # Registration spans legacy service APIs that each commit independently.
+            # Compensate deterministically so a failed registration cannot leave an executable partial study.
+            with db.transaction() as con:
+                if approval_id:
+                    con.execute("DELETE FROM approval_events WHERE approval_id=?",(approval_id,))
+                    con.execute("DELETE FROM approvals WHERE id=?",(approval_id,))
+                if study_id:
+                    con.execute("DELETE FROM study_measure_bindings WHERE study_id=?",(study_id,))
+                    if definition_ids:
+                        placeholders=",".join("?" for _ in definition_ids)
+                        con.execute(
+                            f"DELETE FROM study_measure_definitions WHERE study_id=? AND id IN ({placeholders})",
+                            tuple([study_id]+definition_ids))
+                    if protocol_version_id:
+                        con.execute("DELETE FROM study_protocol_versions WHERE id=?",(protocol_version_id,))
+                    con.execute("DELETE FROM studies WHERE id=?",(study_id,))
+                if experiment_id:
+                    con.execute("DELETE FROM experiments WHERE id=?",(experiment_id,))
+                if hypothesis_id:
+                    con.execute("DELETE FROM hypotheses WHERE id=?",(hypothesis_id,))
+            raise
+
     def quality_gates(self,protocol:StudyProtocol):
         import json
         try:
