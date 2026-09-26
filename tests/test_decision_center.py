@@ -21,6 +21,7 @@ def test_decision_center_pending_approvals(tmp_path):
 def test_decision_items_expose_next_action(tmp_path):
     import uuid
     from app.database import Database
+    from app.decision_center import DecisionCenter
     db=Database(str(tmp_path/"x.db"))
     project_id=str(uuid.uuid4())
     item={"type":"RESEARCH","id":"r1","priority":"NORMAL","title":"Question","reason":"Need evidence"}
