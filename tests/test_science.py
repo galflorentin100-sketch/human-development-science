@@ -72,7 +72,7 @@ def test_claim_evidence_resolution_requires_reviewer_state(tmp_path):
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim_id,project["id"],"x","HYPOTHESIS","PRELIMINARY",0.5,"PROPOSED",now()))
     db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(source_id,"s","https://example.com/"+source_id,"PAPER","","test"))
     pipeline=EvidencePipeline(db)
-    pipeline.ingest_text(source_id,"source text")
+    pipeline.ingest_text(source_id, "source text; excerpt")
     ev=pipeline.attach(claim_id,source_id,"excerpt")
     assert pipeline.resolve(ev["id"])["state"]=="UNREVIEWED"
     pipeline.review(ev["id"],"reviewer-1","VERIFIED","checked")
@@ -153,7 +153,7 @@ def test_evidence_uncertain_plus_verified_remains_uncertain(tmp_path):
     p=EvidencePipeline(db)
     sid=str(uuid.uuid4())
     db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(sid,"s","https://example.com/"+sid,"PAPER","","test"))
-    p.ingest_text(sid,"mixed")
+    p.ingest_text(sid, "mixed; excerpt")
     e=p.attach(claim_id,sid,"excerpt")
     p.review(e["id"],"r1","VERIFIED","checked")
     p.review(e["id"],"r2","UNCERTAIN","uncertain")
