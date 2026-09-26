@@ -309,7 +309,7 @@ def _migrate_phase4(self):
             raise RuntimeError("cannot enforce unique training sessions: existing duplicate protocol/participant/session records found")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_training_session_identity ON training_sessions(protocol_id,participant_ref,session_number)")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
-        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation_no_session ON study_outcomes(study_id,participant_id,outcome_name,observation_type) WHERE session_id IS NULL")
+        con.execute("DROP INDEX IF EXISTS idx_study_outcome_observation_no_session")
 Database.migrate=_migrate_phase4
 class DatabaseConfigurationError(RuntimeError): pass
 class PostgreSQLDatabase:
