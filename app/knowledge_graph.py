@@ -22,12 +22,24 @@ class KnowledgeDependencyGraph:
     def add_edge(self,project_id,from_type,from_id,relation,to_type,to_id,provenance_refs=(),created_by="system"):
         if not self.db.one("SELECT 1 FROM projects WHERE id=?",(project_id,)): raise ValueError("project not found")
         allowed={"CLAIM":"claims","INTERVENTION":"interventions","TRAINING_PROTOCOL":"training_protocols","FINDING":"research_findings","QUESTION":"research_questions","EXPERIMENT":"hds_experiments"}
+        ownership_queries={
+            "CLAIM":"SELECT project_id FROM claims WHERE id=?",
+            "INTERVENTION":"SELECT project_id FROM interventions WHERE id=?",
+            "TRAINING_PROTOCOL":"SELECT project_id FROM training_protocols WHERE id=?",
+            "FINDING":"SELECT project_id FROM research_findings WHERE id=?",
+            "QUESTION":"SELECT project_id FROM research_questions WHERE id=?",
+            "EXPERIMENT":"SELECT project_id FROM hds_experiments WHERE id=?",
+            "EVIDENCE":"SELECT c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",
+            "TRAINING_SESSION":"SELECT p.project_id FROM training_sessions s JOIN training_protocols p ON p.id=s.protocol_id WHERE s.id=?",
+            "EXPERIMENT_RESULT":"SELECT e.project_id FROM hds_experiment_results r JOIN hds_experiments e ON e.id=r.experiment_id WHERE r.id=?",
+            "PROJECT":"SELECT id AS project_id FROM projects WHERE id=?"
+        }
         for typ,nid in ((from_type,from_id),(to_type,to_id)):
-            table=allowed.get(str(typ).upper())
-            if table:
-                row=self.db.one(f"SELECT project_id FROM {table} WHERE id=?",(str(nid),))
+            query=ownership_queries.get(str(typ).upper())
+            if query:
+                row=self.db.one(query,(str(nid),))
                 if not row: raise ValueError(f"{typ} node not found")
-                if row.get("project_id") is not None and str(row["project_id"])!=str(project_id): raise ValueError(f"{typ} node belongs to another project")
+                if str(row["project_id"])!=str(project_id): raise ValueError(f"{typ} node belongs to another project")
         refs=[str(x) for x in provenance_refs]
         for ref in refs:
             ev=self.db.one("SELECT c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(ref,))
