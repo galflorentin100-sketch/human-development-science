@@ -781,7 +781,8 @@ def science_ai_constraints(principal: Principal = Depends(principal_from_header)
 
 @app.post("/api/research/run")
 def research_run(body: ResearchRequest, principal: Principal = Depends(principal_from_header)):
-    require_permission(principal, "EXECUTE"); return cycle.run(body.question)
+    require_execute(principal)
+    return cycle.run(body.question)
 @app.post("/api/studies/participants")
 def study_participant(body: StudyParticipantRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal); return StudyExecution(db).participant(body.study_id, body.external_ref, body.consent_status)
@@ -815,7 +816,7 @@ def create_experiment(body: ExperimentRequest, principal: Principal = Depends(pr
     return ResearchRepository(db).experiment(body.project_id, body.hypothesis, body.design)
 @app.post("/api/projects/{project_id}/next-tasks")
 def next_tasks(project_id: str, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)): raise HTTPException(404, "project not found")
     return AutonomousPlanner(db).create_next_tasks(project_id, [{"title":"Collect evidence","agent_id":"researcher","priority":1.0},{"title":"Challenge evidence","agent_id":"skeptic","priority":0.9},{"title":"Audit evidence","agent_id":"evidence-auditor","priority":0.9}])
 @app.get("/")
