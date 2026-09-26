@@ -64,6 +64,22 @@ class AgentOutputGate:
                     raise ValueError("output evidence belongs to another project")
         ts=now()
         with self.db.transaction() as con:
+            current=con.execute("SELECT status,project_id,evidence_refs FROM agent_output_reviews WHERE id=?", (review_id,)).fetchone()
+            if not current or current["status"]!="READY_FOR_REVIEW":
+                raise ValueError("output review was already resolved")
+            if str(current["project_id"]) != str(row["project_id"]):
+                raise ValueError("output review project changed unexpectedly")
+            if decision=="ACCEPT":
+                current_refs=json.loads(current["evidence_refs"] or "[]")
+                if not current_refs: raise ValueError("accepted output requires evidence")
+                for ref in current_refs:
+                    evidence=con.execute(
+                        "SELECT e.verified,c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",
+                        (str(ref),)).fetchone()
+                    if not evidence or not evidence["verified"]:
+                        raise ValueError("all output evidence must be verified before acceptance")
+                    if str(evidence["project_id"]) != str(current["project_id"]):
+                        raise ValueError("output evidence belongs to another project")
             updated=con.execute("UPDATE agent_output_reviews SET status=?,reviewer=?,rationale=?,reviewed_at=? WHERE id=? AND status='READY_FOR_REVIEW'",(status,reviewer,rationale,ts,review_id))
             if updated.rowcount != 1: raise ValueError("output review was already resolved")
             if decision=="ACCEPT":
