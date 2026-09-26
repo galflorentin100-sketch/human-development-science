@@ -15,11 +15,14 @@ class KnowledgeFreshness:
         try: return datetime.fromisoformat(str(s).replace("Z","+00:00"))
         except ValueError: return None
 
-    def register(self,entity_type,entity_id,review_interval_days=90,owner="system"):
+    def register(self,entity_type,entity_id,review_interval_days=90,owner="system",project_id=None):
         if entity_type not in {"CLAIM","INTERVENTION","TRAINING_PROTOCOL"}: raise ValueError("invalid entity_type")
         if int(review_interval_days)<1: raise ValueError("review interval must be positive")
         table={"CLAIM":"claims","INTERVENTION":"interventions","TRAINING_PROTOCOL":"training_protocols"}[entity_type]
-        if not self.db.one(f"SELECT id FROM {table} WHERE id=?",(entity_id,)): raise ValueError("entity not found")
+        entity=self.db.one(f"SELECT * FROM {table} WHERE id=?",(entity_id,))
+        if not entity: raise ValueError("entity not found")
+        if project_id is not None and "project_id" in entity.keys() and str(entity.get("project_id")) != str(project_id):
+            raise ValueError("entity belongs to another project")
         existing=self.db.one("SELECT * FROM knowledge_freshness WHERE entity_type=? AND entity_id=?",(entity_type,entity_id))
         if existing: return existing
         i=str(uuid4())
