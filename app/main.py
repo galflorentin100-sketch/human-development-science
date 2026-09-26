@@ -181,6 +181,11 @@ def synthesize_research_workspace(workspace_id: str, req: ResearchSynthesisReque
     except ValueError as exc:
         raise HTTPException(400,str(exc)) from exc
 
+@app.get("/api/science/research-syntheses/{synthesis_id}/evidence-audits")
+def research_evidence_audit_history(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    return {"items":db.all("SELECT * FROM research_evidence_audits WHERE synthesis_id=? ORDER BY created_at DESC",(synthesis_id,))}
+
 @app.get("/api/science/research-syntheses/{synthesis_id}/readiness")
 def research_synthesis_readiness(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
