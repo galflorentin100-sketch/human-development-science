@@ -28,7 +28,7 @@ class KnowledgeDependencyGraph:
             "TRAINING_PROTOCOL":"SELECT project_id FROM training_protocols WHERE id=?",
             "FINDING":"SELECT project_id FROM research_findings WHERE id=?",
             "QUESTION":"SELECT project_id FROM research_questions WHERE id=?",
-            "EXPERIMENT":"SELECT project_id FROM hds_experiments WHERE id=?",
+            "EXPERIMENT":"SELECT project_id FROM hds_experiments WHERE id=? UNION ALL SELECT project_id FROM experiments WHERE id=?",
             "EVIDENCE":"SELECT c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",
             "TRAINING_SESSION":"SELECT p.project_id FROM training_sessions s JOIN training_protocols p ON p.id=s.protocol_id WHERE s.id=?",
             "EXPERIMENT_RESULT":"SELECT e.project_id FROM hds_experiment_results r JOIN hds_experiments e ON e.id=r.experiment_id WHERE r.id=?",
@@ -37,7 +37,9 @@ class KnowledgeDependencyGraph:
         for typ,nid in ((from_type,from_id),(to_type,to_id)):
             query=ownership_queries.get(str(typ).upper())
             if query:
-                row=self.db.one(query,(str(nid),))
+                params=(str(nid),str(nid)) if str(typ).upper()=="EXPERIMENT" else (str(nid),)
+                rows=self.db.all(query,params)
+                row=rows[0] if rows else None
                 if not row: raise ValueError(f"{typ} node not found")
                 if str(row["project_id"])!=str(project_id): raise ValueError(f"{typ} node belongs to another project")
         refs=[str(x) for x in provenance_refs]
