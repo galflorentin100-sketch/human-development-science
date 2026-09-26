@@ -57,7 +57,7 @@ class EvidencePipeline:
             ).fetchone()
             if duplicate:
                 return dict(duplicate)
-            con.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            con.execute("INSERT OR IGNORE INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                 (eid,claim_id,source_id,stance,excerpt,int(verified),actor,excerpt_hash,ts))
         result=self.db.one("SELECT * FROM evidence WHERE id=?",(eid,))
         project=self.db.one("SELECT project_id FROM claims WHERE id=?",(claim_id,))
