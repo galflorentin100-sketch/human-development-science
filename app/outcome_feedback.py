@@ -54,6 +54,6 @@ class OutcomeFeedbackService:
         self.db.execute("""INSERT INTO research_findings
             (id,project_id,source_type,source_id,statement,classification,status,evidence_refs,interpretation,created_by,created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-            (finding_id,project_id,"MEASUREMENT",protocol_id,statement,"INFERENCE","CANDIDATE","[]",
+            (finding_id,project_id,"TRAINING_PROTOCOL",protocol_id,statement,"INFERENCE","CANDIDATE","[]",
              "Observed training measurements; no causal or generalization claim is made.",created_by,now()))
         return {"finding_id":finding_id,"summary":summary,"provenance":{"protocol_id":protocol_id,"participant_ref":participant_ref},"status":"CANDIDATE"}
