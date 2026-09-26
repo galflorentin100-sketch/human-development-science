@@ -95,9 +95,11 @@ class ExperimentEngine:
             raise ValueError("outcome and interpretation are required")
         refs=list(evidence_refs)
         for ref in refs:
-            ev=self.db.one("SELECT id,verified FROM evidence WHERE id=?",(str(ref),))
+            ev=self.db.one("SELECT e.id,e.verified,c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(str(ref),))
             if not ev or not ev["verified"]:
                 raise ValueError("experiment result evidence must reference verified evidence")
+            if str(ev["project_id"])!=str(row["project_id"]):
+                raise ValueError("experiment result evidence belongs to another project")
         if self.db.one("SELECT id FROM hds_experiment_results WHERE experiment_id=?",(experiment_id,)):
             raise ValueError("experiment already has a result")
         i=str(uuid4())
