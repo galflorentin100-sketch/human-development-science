@@ -1165,6 +1165,12 @@ def resolve_founder_approval(approval_id: str, status: str, principal: Principal
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.get("/api/founder/{project_id}/memory")
+def founder_memory(project_id: str, query: str = "", memory_type: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.company_memory import CompanyMemory
+    return {"items":CompanyMemory(db).search(project_id,query,memory_type)}
+
 @app.get("/api/founder/{project_id}/workflow")
 def founder_workflow(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
