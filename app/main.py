@@ -392,15 +392,23 @@ def resolve_approval(approval_id: str, status: str, principal: Principal = Depen
     require_write(principal)
     from app.approvals import ApprovalService, ApprovalStatus, ApprovalRequired
     try:
-        resolved = ApprovalService(db).resolve(approval_id, ApprovalStatus(status), principal.user_id)
-        if status == "APPROVED" and resolved["action"].startswith("SC001:STUDY:"):
-            study_id = resolved["action"].split(":", 2)[2]
-            db.execute("UPDATE studies SET status='APPROVED' WHERE id=? AND approval_id=?", (study_id, approval_id))
-        return resolved
+        resolved_status=ApprovalStatus(status)
+        with db.transaction() as con:
+            approval=ApprovalService(db)._resolve_in_transaction(
+                con, approval_id, resolved_status.value, principal.user_id)
+            if resolved_status is ApprovalStatus.APPROVED and approval["action"].startswith("SC001:STUDY:"):
+                study_id=approval["action"].split(":",2)[2]
+                updated=con.execute(
+                    "UPDATE studies SET status='APPROVED' WHERE id=? AND approval_id=?",
+                    (study_id,approval_id))
+                if getattr(updated,"rowcount",1) != 1:
+                    raise HTTPException(status_code=409, detail="approved study target no longer matches approval")
+        return approval
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ApprovalRequired as exc:
         raise HTTPException(status_code=409, detail="approval is not pending or has expired") from exc
+
 
 @app.post("/api/sc001/register/{project_id}")
 def sc001_register(project_id: str, principal: Principal = Depends(principal_from_header)):
