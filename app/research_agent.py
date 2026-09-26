@@ -7,7 +7,6 @@ from __future__ import annotations
 import json
 from app.models import now
 from app.tasks import TaskEngine
-from app.models import now
 
 class ResearchAgentService:
     ROLE="researcher"
