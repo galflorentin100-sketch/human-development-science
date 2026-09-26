@@ -36,8 +36,11 @@ class FindingClaimBridge:
             for ref in refs:
                 con.execute(
                     """INSERT INTO claim_revisions
-                    (id,claim_id,prior_classification,prior_confidence,new_classification,new_confidence,reason,evidence_id,review_required,created_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                    (str(uuid4()),claim_id,None,None,finding["classification"],0.0,
-                     "created from accepted research finding",str(ref),1,now()))
+                    (id,claim_id,prior_classification,prior_confidence,new_classification,new_confidence,reason,evidence_id,review_required,previous_statement,new_statement,previous_status,new_status,rationale,evidence_refs,revised_by,status,source_finding_id,created_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (str(uuid4()),claim_id,finding["classification"],0.0,finding["classification"],0.0,
+                     "created from accepted research finding",str(ref),1,
+                     finding["statement"],finding["statement"],"PROPOSED","PROPOSED",
+                     "created from accepted research finding",json.dumps([str(ref)]),
+                     actor,"PROPOSED",finding_id,now()))
         return {"claim_id":claim_id,"created":True,"status":"PROPOSED","source_finding_id":finding_id,"evidence_refs":refs}
