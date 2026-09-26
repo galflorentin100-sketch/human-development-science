@@ -65,7 +65,8 @@ class CostControl:
             if r["status"]!="RESERVED": return r
             con.execute("UPDATE budgets SET spent_amount=CASE WHEN spent_amount-? < 0 THEN 0 ELSE spent_amount-? END,updated_at=? WHERE id=? AND status='ACTIVE'",(r["amount"],r["amount"],now(),r["budget_id"]))
             con.execute("UPDATE cost_events SET status='RELEASED',metadata=? WHERE id=? AND status='RESERVED'",(json.dumps({"released":True}),r["id"]))
-            return self.db.one("SELECT * FROM cost_events WHERE id=?",(r["id"],))
+            cur=con.execute("SELECT * FROM cost_events WHERE id=?",(r["id"],))
+            return self._row_dict(cur,cur.fetchone())
     def release_stale_reservations(self,max_age_minutes=60,company_id="hds"):
         if max_age_minutes <= 0: raise ValueError("max_age_minutes must be positive")
         cutoff=(datetime.now(timezone.utc)-timedelta(minutes=max_age_minutes)).isoformat()
