@@ -70,10 +70,8 @@ class ExperimentEngine:
             raise ValueError("experiment not found")
         if row["status"] != "DRAFT":
             raise ValueError("only DRAFT experiments can be preregistered")
-        self.db.execute(
-            "UPDATE hds_experiments SET status='READY', preregistered=1, updated_at=? WHERE id=?",
-            (now(), experiment_id),
-        )
+        updated=self.db.execute("UPDATE hds_experiments SET status='READY', preregistered=1, updated_at=? WHERE id=? AND status='DRAFT'",(now(),experiment_id))
+        if getattr(updated,"rowcount",1)!=1: raise ValueError("experiment state changed concurrently")
         return self.get(experiment_id)
 
     def start(self, experiment_id):
@@ -83,10 +81,8 @@ class ExperimentEngine:
         safety=self.db.one("SELECT decision FROM experiment_safety_reviews WHERE experiment_id=?",(experiment_id,))
         if not safety or safety["decision"]!="ACCEPT":
             raise ValueError("experiment requires an accepted safety review before start")
-        self.db.execute(
-            "UPDATE hds_experiments SET status='RUNNING', updated_at=? WHERE id=?",
-            (now(), experiment_id),
-        )
+        updated=self.db.execute("UPDATE hds_experiments SET status='RUNNING', updated_at=? WHERE id=? AND status='READY'",(now(),experiment_id))
+        if getattr(updated,"rowcount",1)!=1: raise ValueError("experiment state changed concurrently")
         return self.get(experiment_id)
 
     def record_result(self, experiment_id, outcome, interpretation, evidence_refs=()):
