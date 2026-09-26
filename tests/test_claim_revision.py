@@ -25,6 +25,7 @@ def test_revision_approval_cannot_bypass_verified_evidence_gate(tmp_path):
 def test_revision_approval_accepts_supported_claim_only_with_verified_support(tmp_path):
     db,cid,sid=setup(tmp_path)
     ep=EvidencePipeline(db)
+    ep.ingest_text(sid,"seeded source content")
     ev=ep.attach(cid,sid,"seeded source content","SUPPORTS")
     ep.review(ev["id"],"auditor","VERIFIED","checked")
     service=ClaimRevisionService(db)
