@@ -18,7 +18,9 @@ class IdempotencyService:
     def run(self,key,actor,operation,fn,ttl_hours=24,lease_minutes=30):
         if ttl_hours <= 0: raise ValueError("ttl_hours must be positive")
         if lease_minutes <= 0: raise ValueError("lease_minutes must be positive")
-        if not key: return fn()
+        if not str(actor or '').strip(): raise ValueError('actor is required')
+        if not str(operation or '').strip(): raise ValueError('operation is required')
+        if not str(key or '').strip(): return fn()
         now=datetime.now(timezone.utc)
         expires=(now+timedelta(hours=ttl_hours)).isoformat()
         claim_token=str(uuid4())
@@ -34,7 +36,9 @@ class IdempotencyService:
                     active=self._parse_timestamp(data.get("lease_expires_at"))
                     if active and active > now:
                         raise IdempotencyConflict("idempotency operation is already in progress")
-                    con.execute("DELETE FROM idempotency_keys WHERE key=? AND claim_token=?",(key,data.get("claim_token")))
+                    # Never automatically take over a stale lease: the original callback may
+                    # still commit side effects after its lease expires. Recovery must be explicit.
+                    raise IdempotencyConflict("idempotency operation has a stale lease; explicit recovery is required")
                 elif data["expires_at"] and self._parse_timestamp(data["expires_at"]) > now:
                     return json.loads(data["response"])
                 else:
