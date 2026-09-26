@@ -290,6 +290,15 @@ def _migrate_phase4(self):
             raise RuntimeError("cannot enforce unique study sessions: existing duplicate sessions found")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_session_identity ON study_sessions(study_id,participant_id,phase,session_number)")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_measure_binding ON study_measure_bindings(study_id,measure_id,observation_type,timepoint)")
+        duplicate_evidence=con.execute("""
+            SELECT claim_id,source_id,stance,excerpt_hash,COUNT(*) AS n
+            FROM evidence
+            GROUP BY claim_id,source_id,stance,excerpt_hash
+            HAVING COUNT(*) > 1
+        """).fetchall()
+        if duplicate_evidence:
+            raise RuntimeError("cannot enforce unique evidence attachments: existing duplicate claim/source/stance/excerpt records found")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_evidence_attachment_identity ON evidence(claim_id,source_id,stance,excerpt_hash)")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation_no_session ON study_outcomes(study_id,participant_id,outcome_name,observation_type) WHERE session_id IS NULL")
 Database.migrate=_migrate_phase4
@@ -355,6 +364,15 @@ class PostgreSQLDatabase:
             if duplicate_assignments:
                 raise RuntimeError("cannot enforce unique study assignments: existing duplicate participant assignments found")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id)")
+            duplicate_evidence=con.execute("""
+                SELECT claim_id,source_id,stance,excerpt_hash,COUNT(*) AS n
+                FROM evidence
+                GROUP BY claim_id,source_id,stance,excerpt_hash
+                HAVING COUNT(*) > 1
+            """).fetchall()
+            if duplicate_evidence:
+                raise RuntimeError("cannot enforce unique evidence attachments: existing duplicate claim/source/stance/excerpt records found")
+            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_evidence_attachment_identity ON evidence(claim_id,source_id,stance,excerpt_hash)")
             duplicate_sessions=con.execute("""
                 SELECT study_id,participant_id,phase,session_number,COUNT(*) AS n
                 FROM study_sessions
