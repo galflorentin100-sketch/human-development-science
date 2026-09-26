@@ -479,28 +479,28 @@ def study_missingness(study_id: str, analysis_plan_id: str, outcome_name: str, p
 
 @app.post("/api/studies/{study_id}/analysis/{analysis_plan_id}/retention")
 def study_retention_analysis(study_id: str, analysis_plan_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_read(principal)
+    require_execute(principal)
     return ScientificAnalysisEngine(db).longitudinal_retention_analysis(study_id, analysis_plan_id, body["outcome_name"])
 
 @app.post("/api/studies/{study_id}/analysis/{analysis_plan_id}/inferential")
 def inferential_study_analysis(study_id: str, analysis_plan_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_read(principal)
+    require_execute(principal)
     return ScientificAnalysisEngine(db).inferential_randomized_arm_analysis(study_id, analysis_plan_id, body["outcome_name"])
 
 @app.post("/api/studies/{study_id}/analysis/{analysis_plan_id}/randomized")
 def analyze_randomized_study(study_id: str, analysis_plan_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_read(principal)
+    require_execute(principal)
     return ScientificAnalysisEngine(db).randomized_arm_analysis(study_id, analysis_plan_id, body["outcome_name"])
 
 @app.post("/api/studies/{study_id}/analysis/{analysis_plan_id}")
 def analyze_study(study_id: str, analysis_plan_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_read(principal)
+    require_execute(principal)
     return ScientificAnalysisEngine(db).analyze(study_id, analysis_plan_id, body["outcome_name"])
 
 @app.post("/api/science/claims/{claim_id}/transition")
 def transition_claim(claim_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
-    return ClaimStateService(db).transition(claim_id, body["status"], principal.subject, body["rationale"], body.get("evidence_id"))
+    return ClaimStateService(db).transition(claim_id, body["status"], principal.user_id, body["rationale"], body.get("evidence_id"))
 
 @app.get("/api/science/claims/{claim_id}/evidence-state")
 def claim_evidence_state(claim_id: str, principal: Principal = Depends(principal_from_header)):
@@ -588,13 +588,13 @@ def training_protocol_readiness(protocol_id: str, principal: Principal = Depends
 def propose_improvement(body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
     from app.continuous_improvement import ContinuousImprovementService
-    return ContinuousImprovementService(db).propose(body["title"],body["area"],body["hypothesis"],body["success_metric"],principal.subject)
+    return ContinuousImprovementService(db).propose(body["title"],body["area"],body["hypothesis"],body["success_metric"],principal.user_id)
 
 @app.post("/api/organization/improvements/{proposal_id}/experiment")
 def start_improvement_experiment(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
     from app.continuous_improvement import ContinuousImprovementService
-    return ContinuousImprovementService(db).start_experiment(proposal_id,body["experiment_design"],body["baseline_note"],principal.subject)
+    return ContinuousImprovementService(db).start_experiment(proposal_id,body["experiment_design"],body["baseline_note"],principal.user_id)
 
 @app.post("/api/organization/improvements/{proposal_id}/result")
 def record_improvement_result(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
@@ -606,7 +606,7 @@ def record_improvement_result(proposal_id: str, body: dict, principal: Principal
 def adopt_improvement(proposal_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
     from app.continuous_improvement import ContinuousImprovementService
-    return ContinuousImprovementService(db).adopt(proposal_id,principal.subject,body["rationale"])
+    return ContinuousImprovementService(db).adopt(proposal_id,principal.user_id,body["rationale"])
 
 @app.get("/api/organization/improvements")
 def list_improvements(area: str | None = None, principal: Principal = Depends(principal_from_header)):
@@ -899,7 +899,7 @@ def experiment_safety_review(experiment_id: str, payload: dict, principal: Princ
     require_approve(principal)
     from app.experiment_safety import ExperimentSafetyReviewer
     try:
-        return ExperimentSafetyReviewer(db).review(experiment_id,payload.get("decision",""),payload.get("rationale",""),principal.subject)
+        return ExperimentSafetyReviewer(db).review(experiment_id,payload.get("decision",""),payload.get("rationale",""),principal.user_id)
     except ValueError as exc:
         raise HTTPException(400,str(exc)) from exc
 
