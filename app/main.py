@@ -1223,6 +1223,15 @@ def list_agent_outputs(project_id: str, status: str | None = None, principal: Pr
     from app.agent_output_gate import AgentOutputGate
     return {"items":AgentOutputGate(db).list(project_id,status)}
 
+@app.post("/api/science/research-review/{review_id}/finalize")
+def finalize_research_review_agent(review_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.research_review_agent import ResearchReviewAgentAdapter
+    try:
+        return ResearchReviewAgentAdapter(db).finalize(review_id,principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
 @app.post("/api/science/agent-output/{review_id}/review")
 def review_agent_output(review_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
