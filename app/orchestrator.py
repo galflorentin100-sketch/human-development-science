@@ -69,7 +69,7 @@ class CompanyOrchestrator:
                 from app.scientific_completion import ScientificCompletionGate
                 gate=ScientificCompletionGate(self.db).check(project_id)
                 if not gate["ready"]:
-                    return {"status":"SCIENTIFIC_GATE_BLOCKED","steps":len(history),"history":history,"gate":gate}
+                    return {"status":"WAITING_FOR_APPROVAL","steps":len(history),"history":history,"gate":gate,"reason":"Scientific completion gate is not satisfied; further action requires review/validation."}
                 updated=self.db.execute("UPDATE projects SET status='COMPLETED',updated_at=? WHERE id=? AND status='RUNNING'",(now(),project_id))
                 if getattr(updated,"rowcount",1) != 1:
                     return {"status":"PROJECT_STATE_CHANGED","steps":len(history),"history":history}
