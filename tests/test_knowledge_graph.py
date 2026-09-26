@@ -27,10 +27,15 @@ def test_explicit_edges_are_idempotent_and_traceable(tmp_path):
 
 def test_impact_trace_does_not_claim_efficacy(tmp_path):
     db=Database(str(tmp_path/"impact.db")); ResearchCycle(db); pid=_setup(db)
+    from app.models import now
+    claim,intervention,protocol=[str(uuid.uuid4()) for _ in range(3)]
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,pid,"c","FACT","PRELIMINARY",0.5,"PROPOSED",now()))
+    db.execute("INSERT INTO interventions(id,project_id,name,target_construct_id,rationale,mechanism,evidence_level,dosage,population,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",(intervention,pid,"i",None,"r","m","PRELIMINARY","d","p","EXPERIMENTAL",now()))
+    db.execute("INSERT INTO training_protocols(id,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(protocol,pid,"p",None,claim,intervention,"m","d","dose","progress","transfer","retention","safe","PRELIMINARY","DRAFT",1,now()))
     g=KnowledgeDependencyGraph(db)
-    g.add_edge(pid,"CLAIM","c1","INFORMS","INTERVENTION","i1")
-    g.add_edge(pid,"INTERVENTION","i1","IMPLEMENTED_BY","TRAINING_PROTOCOL","p1")
-    result=g.impacted(pid,"CLAIM","c1")
+    g.add_edge(pid,"CLAIM",claim,"INFORMS","INTERVENTION",intervention)
+    g.add_edge(pid,"INTERVENTION",intervention,"IMPLEMENTED_BY","TRAINING_PROTOCOL",protocol)
+    result=g.impacted(pid,"CLAIM",claim)
     assert result["node_count"]==2
     assert "causal" in result["policy"] or "efficacy" in result["policy"]
 
