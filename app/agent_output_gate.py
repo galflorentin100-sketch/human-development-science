@@ -85,7 +85,9 @@ class AgentOutputGate:
             updated=con.execute("UPDATE agent_output_reviews SET status=?,reviewer=?,rationale=?,reviewed_at=? WHERE id=? AND status='READY_FOR_REVIEW'",(status,reviewer,rationale,ts,review_id))
             if updated.rowcount != 1: raise ValueError("output review was already resolved")
             if decision=="ACCEPT":
-                con.execute("UPDATE agent_runs SET verified=1,confidence=1.0 WHERE id=?",(row["agent_run_id"],))
+                # Human review verifies the output gate; it does not justify a confidence score of 1.0.
+                # Preserve the model/run confidence unless a separate confidence review establishes a new value.
+                con.execute("UPDATE agent_runs SET verified=1 WHERE id=?",(row["agent_run_id"],))
                 con.execute("UPDATE tasks SET status='COMPLETED',updated_at=? WHERE id=? AND status='REVIEW'",(ts,row["task_id"]))
             elif decision=="REJECT":
                 con.execute("UPDATE tasks SET status='FAILED',updated_at=? WHERE id=? AND status='REVIEW'",(ts,row["task_id"]))
