@@ -49,14 +49,19 @@ class ContinuousImprovementService:
         return self.get(ident)
 
     def start_experiment(self, proposal_id, experiment_design, baseline_note, owner):
-        p = self._require(proposal_id)
-        if p["status"] != "PROPOSED":
-            raise ValueError("only PROPOSED improvements can start an experiment")
-        if not experiment_design.strip() or not baseline_note.strip():
+        if not str(experiment_design or "").strip() or not str(baseline_note or "").strip():
             raise ValueError("experiment design and baseline are required")
-        if p["area"] == "SCIENCE" and not p["evidence_ref"]:
-            raise ValueError("SCIENCE improvements require an evidence reference or explicit research basis")
+        if not str(owner or "").strip():
+            raise ValueError("owner is required")
         with self.db.transaction() as con:
+            p=con.execute("SELECT * FROM improvement_proposals WHERE id=?",(proposal_id,)).fetchone()
+            if not p:
+                raise ValueError("improvement proposal not found")
+            p=dict(p)
+            if p["status"] != "PROPOSED":
+                raise ValueError("only PROPOSED improvements can start an experiment")
+            if p["area"] == "SCIENCE" and not p["evidence_ref"]:
+                raise ValueError("SCIENCE improvements require an evidence reference or explicit research basis")
             updated=con.execute(
                 """UPDATE improvement_proposals
                 SET status='EXPERIMENT', experiment_design=?, baseline_note=?, updated_at=?
@@ -68,14 +73,16 @@ class ContinuousImprovementService:
         return self.get(proposal_id)
 
     def record_result(self, proposal_id, result, outcome_note, evidence_ref=None):
-        p = self._require(proposal_id)
-        if p["status"] != "EXPERIMENT":
-            raise ValueError("only active experiments can record results")
         if result not in {"SUPPORTED","NOT_SUPPORTED","INCONCLUSIVE"}:
             raise ValueError("invalid experiment result")
-        if not str(outcome_note).strip():
+        if not str(outcome_note or "").strip():
             raise ValueError("outcome note is required")
         with self.db.transaction() as con:
+            p=con.execute("SELECT * FROM improvement_proposals WHERE id=?",(proposal_id,)).fetchone()
+            if not p:
+                raise ValueError("improvement proposal not found")
+            if p["status"] != "EXPERIMENT":
+                raise ValueError("only active experiments can record results")
             updated=con.execute(
                 """UPDATE improvement_proposals
                 SET experiment_result=?, outcome_note=?, evidence_ref=?, updated_at=?
@@ -87,14 +94,16 @@ class ContinuousImprovementService:
         return self.get(proposal_id)
 
     def adopt(self, proposal_id, actor, rationale):
-        p = self._require(proposal_id)
-        if p["status"] != "EXPERIMENT":
-            raise ValueError("only tested improvements can be adopted")
-        if p["experiment_result"] != "SUPPORTED":
-            raise ValueError("only supported experiments can be adopted")
-        if not rationale.strip():
-            raise ValueError("adoption rationale is required")
+        if not str(actor or "").strip() or not str(rationale or "").strip():
+            raise ValueError("actor and adoption rationale are required")
         with self.db.transaction() as con:
+            p=con.execute("SELECT * FROM improvement_proposals WHERE id=?",(proposal_id,)).fetchone()
+            if not p:
+                raise ValueError("improvement proposal not found")
+            if p["status"] != "EXPERIMENT":
+                raise ValueError("only tested improvements can be adopted")
+            if p["experiment_result"] != "SUPPORTED":
+                raise ValueError("only supported experiments can be adopted")
             updated=con.execute(
                 """UPDATE improvement_proposals
                 SET status='ADOPTED', adopted_by=?, adoption_rationale=?, updated_at=?
@@ -106,10 +115,14 @@ class ContinuousImprovementService:
         return self.get(proposal_id)
 
     def retire(self, proposal_id, actor, rationale):
-        p = self._require(proposal_id)
-        if not rationale.strip():
-            raise ValueError("retirement rationale is required")
+        if not str(actor or "").strip() or not str(rationale or "").strip():
+            raise ValueError("actor and retirement rationale are required")
         with self.db.transaction() as con:
+            p=con.execute("SELECT * FROM improvement_proposals WHERE id=?",(proposal_id,)).fetchone()
+            if not p:
+                raise ValueError("improvement proposal not found")
+            if p["status"] in {"RETIRED","REJECTED"}:
+                raise ValueError("improvement proposal is already closed")
             updated=con.execute(
                 """UPDATE improvement_proposals
                 SET status='RETIRED', retired_by=?, retirement_rationale=?, updated_at=?
