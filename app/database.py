@@ -117,7 +117,7 @@ class Database:
             return cursor
     def table_columns(self,table):
         if not str(table).replace("_","").isalnum(): raise ValueError("invalid table name")
-        return [row[1] for row in self.all(f"PRAGMA table_info({table})")]
+        return [row["name"] for row in self.all(f"PRAGMA table_info({table})")]
 
     def one(self,sql,params=()):
         with self.connect() as con: row=con.execute(sql,params).fetchone()
