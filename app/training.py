@@ -28,10 +28,14 @@ class TrainingProtocolService:
             raise ValueError("training protocol fields are required")
         if target_construct_id and not self.db.one("SELECT 1 FROM scientific_constructs WHERE id=?",(target_construct_id,)):
             raise ValueError("target construct not found")
-        if source_claim_id and not self.db.one("SELECT 1 FROM claims WHERE id=?",(source_claim_id,)):
-            raise ValueError("source claim not found")
-        if intervention_id and not self.db.one("SELECT 1 FROM interventions WHERE id=?",(intervention_id,)):
-            raise ValueError("intervention not found")
+        if source_claim_id:
+            claim=self.db.one("SELECT project_id FROM claims WHERE id=?",(source_claim_id,))
+            if not claim: raise ValueError("source claim not found")
+            if str(claim["project_id"])!=str(project_id): raise ValueError("source claim belongs to another project")
+        if intervention_id:
+            intervention=self.db.one("SELECT project_id FROM interventions WHERE id=?",(intervention_id,))
+            if not intervention: raise ValueError("intervention not found")
+            if str(intervention["project_id"])!=str(project_id): raise ValueError("intervention belongs to another project")
         i=str(uuid4())
         self.db.execute(
             "INSERT INTO training_protocols(id,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -46,10 +50,14 @@ class TrainingProtocolService:
     def link_basis(self,protocol_id,source_claim_id=None,intervention_id=None):
         protocol=self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
         if not protocol: raise ValueError("training protocol not found")
-        if source_claim_id is not None and not self.db.one("SELECT 1 FROM claims WHERE id=?",(source_claim_id,)):
-            raise ValueError("source claim not found")
-        if intervention_id is not None and not self.db.one("SELECT 1 FROM interventions WHERE id=?",(intervention_id,)):
-            raise ValueError("intervention not found")
+        if source_claim_id is not None:
+            claim=self.db.one("SELECT project_id FROM claims WHERE id=?",(source_claim_id,))
+            if not claim: raise ValueError("source claim not found")
+            if str(claim["project_id"])!=str(protocol["project_id"]): raise ValueError("source claim belongs to another project")
+        if intervention_id is not None:
+            intervention=self.db.one("SELECT project_id FROM interventions WHERE id=?",(intervention_id,))
+            if not intervention: raise ValueError("intervention not found")
+            if str(intervention["project_id"])!=str(protocol["project_id"]): raise ValueError("intervention belongs to another project")
         if source_claim_id is None and intervention_id is None:
             raise ValueError("scientific basis requires a source claim or intervention")
         self.db.execute("UPDATE training_protocols SET source_claim_id=?, intervention_id=? WHERE id=?",(source_claim_id,intervention_id,protocol_id))
