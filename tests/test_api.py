@@ -378,3 +378,19 @@ def test_sc001_registration_rolls_back_on_mid_pipeline_failure(tmp_path, monkeyp
     assert db.one("SELECT COUNT(*) AS n FROM hypotheses WHERE project_id=?",(p["id"],))["n"]==0
     assert db.one("SELECT COUNT(*) AS n FROM experiments WHERE project_id=?",(p["id"],))["n"]==0
     assert db.one("SELECT COUNT(*) AS n FROM studies WHERE project_id=?",(p["id"],))["n"]==0
+
+
+def test_approval_expected_action_is_enforced(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.approvals import ApprovalService, ApprovalRequired
+    db=Database(str(tmp_path/"approval_action.db")); ResearchCycle(db)
+    svc=ApprovalService(db)
+    approval=svc.request("DEPLOY","founder","deploy test","HIGH",correlation_id="corr-1")
+    svc.resolve(approval["id"],"APPROVED","founder")
+    try:
+        svc.require(approval["id"],expected_action="DELETE")
+        assert False, "mismatched approval action must be rejected"
+    except ApprovalRequired:
+        pass
+    assert svc.require(approval["id"],expected_action="DEPLOY",correlation_id="corr-1")["status"]=="APPROVED"
