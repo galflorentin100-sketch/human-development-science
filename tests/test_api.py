@@ -468,3 +468,42 @@ def test_intervention_request_accepts_project_id():
         project_id="project-a",
     )
     assert body.project_id=="project-a"
+
+
+def test_idempotency_stale_lease_requires_explicit_recovery(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.idempotency import IdempotencyService, IdempotencyConflict
+    from datetime import datetime, timezone, timedelta
+    db=Database(str(tmp_path/"idempotency-recovery.db")); ResearchCycle(db)
+    svc=IdempotencyService(db)
+    db.execute(
+        "INSERT INTO idempotency_keys(key,actor,operation,response,created_at,expires_at,status,claim_token,lease_expires_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        ("stale-1","actor","op",'{"status":"IN_PROGRESS"}',
+         datetime.now(timezone.utc).isoformat(),
+         (datetime.now(timezone.utc)+timedelta(hours=1)).isoformat(),
+         "IN_PROGRESS","token-1",
+         (datetime.now(timezone.utc)-timedelta(minutes=1)).isoformat()))
+    try:
+        svc.run("stale-1","actor","op",lambda: {"ok":True})
+        assert False, "stale leases must require explicit recovery"
+    except IdempotencyConflict:
+        pass
+    assert svc.recover_stale("stale-1","actor","op","token-1")["status"]=="RECOVERED"
+    assert svc.run("stale-1","actor","op",lambda: {"ok":True})["ok"] is True
+
+
+def test_task_retry_escalates_after_retry_limit(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.tasks import TaskEngine
+    db=Database(str(tmp_path/"task-retry.db")); ResearchCycle(db)
+    task=TaskEngine(db).create_task("retry test","failure recovery","project-1",retry_limit=1)
+    engine=TaskEngine(db)
+    engine.transition(task["id"],"ASSIGNED")
+    engine.transition(task["id"],"RUNNING")
+    assert engine.retry_or_escalate(task["id"],"first failure")["action"]=="RETRY"
+    engine.transition(task["id"],"ASSIGNED")
+    engine.transition(task["id"],"RUNNING")
+    assert engine.retry_or_escalate(task["id"],"second failure")["action"]=="ESCALATE"
+    assert db.one("SELECT status,escalation_required FROM tasks WHERE id=?",(task["id"],))["status"]=="FAILED"
