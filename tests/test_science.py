@@ -237,3 +237,25 @@ def test_scientific_interpretation_does_not_flag_frameworks_as_works(tmp_path):
     )
     assert statement.classification=="INFERENCE"
 
+
+
+def test_claim_admission_requires_supporting_evidence(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    from app.scientific_admission import ScientificAdmissionGate
+    from app.models import now
+    import uuid
+    db=Database(str(tmp_path/"admission.db")); ResearchCycle(db)
+    project=db.one("SELECT id FROM projects LIMIT 1")
+    claim_id=str(uuid.uuid4()); source_id=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+               (claim_id,project["id"],"claim","INFERENCE","VERIFIED",0.8,"SUPPORTED",now()))
+    db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",
+               (source_id,"contradictory","https://example.com/"+source_id,"PAPER","","test"))
+    pipeline=EvidencePipeline(db)
+    pipeline.ingest_text(source_id,"contradictory excerpt")
+    evidence=pipeline.attach(claim_id,source_id,"contradictory excerpt",stance="CONTRADICTS")
+    pipeline.review(evidence["id"],"independent-reviewer","VERIFIED","verified")
+    admission=ScientificAdmissionGate(db).claim(claim_id)
+    assert admission["verified_support"]==0
+    assert admission["verified_contradict"]==1
+    assert admission["supported"] is False
