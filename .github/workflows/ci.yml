@@ -17,3 +17,28 @@ jobs:
       - run: python scripts/migrate.py
       - run: python -m pytest -q
       - run: git diff --check
+
+  postgres-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hds_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hds_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python scripts/postgres_smoke.py
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hds_ci
