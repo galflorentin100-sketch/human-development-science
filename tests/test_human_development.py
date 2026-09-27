@@ -30,6 +30,8 @@ def test_hds_competition_is_project_scoped_and_measurable(tmp_path):
     competition = svc.create_competition(project["id"], "HDS Challenge Day", "multi_event", "founder")
     event = svc.add_event(competition["id"], challenge["id"], 1, "time_seconds")
     participant = svc.register_participant(competition["id"], "participant-1")
+    svc.create_safety_control(project["id"], challenge["id"], "MODERATE", "Stop on pain, loss of control, or unsafe conditions")
+    svc.approve_safety(challenge["id"], "reviewer", "APPROVED", "Supervision and stop criteria verified")
 
     try:
         svc.record_score(event["id"], participant["id"], "time_seconds", 120)
@@ -39,6 +41,7 @@ def test_hds_competition_is_project_scoped_and_measurable(tmp_path):
 
     consented = svc.record_consent(participant["id"])
     assert consented["consent_status"] == "CONSENTED"
+    svc.update_participant_safety(participant["id"], eligibility_status="ELIGIBLE", supervision_status="ASSIGNED")
     score = svc.record_score(event["id"], participant["id"], "time_seconds", 120)
     assert score["score"] == 120.0
 
