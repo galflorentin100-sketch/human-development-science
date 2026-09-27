@@ -37,6 +37,25 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="HDS Company OS", lifespan=lifespan)
 
+@app.get("/", response_class=HTMLResponse)
+def dashboard():
+    from app.dashboard import render_dashboard
+    return HTMLResponse(render_dashboard())
+
+@app.get("/api/founder/projects")
+def founder_projects(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    if principal.user_id == "local-development" and settings.environment != "production":
+        rows = db.all("SELECT * FROM projects ORDER BY created_at DESC")
+    else:
+        rows = db.all("""SELECT p.* FROM projects p
+                         JOIN project_memberships pm ON pm.project_id=p.id
+                         JOIN users u ON u.id=pm.user_id
+                         WHERE u.external_subject=? AND pm.status='ACTIVE'
+                         ORDER BY p.created_at DESC""", (principal.user_id,))
+    return {"items": rows}
+
+
 class Goal(BaseModel):
     goal: str = Field(min_length=1, max_length=2000)
 class ResearchRequest(BaseModel):
