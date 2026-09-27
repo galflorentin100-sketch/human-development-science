@@ -394,3 +394,52 @@ def test_approval_expected_action_is_enforced(tmp_path):
     except ApprovalRequired:
         pass
     assert svc.require(approval["id"],expected_action="DEPLOY",correlation_id="corr-1")["status"]=="APPROVED"
+
+
+def test_concurrent_approval_resolution_has_single_winner(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.approvals import ApprovalService
+
+    db=Database(str(tmp_path/"approval-concurrency.db")); ResearchCycle(db)
+    svc=ApprovalService(db)
+    approval=svc.request("CONCURRENCY_TEST","founder","race","HIGH",correlation_id="race-1")
+
+    def resolve(actor):
+        try:
+            return ("ok", svc.resolve(approval["id"],"APPROVED",actor)["status"])
+        except Exception as exc:
+            return ("error", type(exc).__name__)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results=list(pool.map(resolve,("reviewer-a","reviewer-b")))
+
+    assert sum(result[0]=="ok" for result in results)==1
+    assert sum(result[0]=="error" for result in results)==1
+    assert db.one("SELECT status FROM approvals WHERE id=?",(approval["id"],))["status"]=="APPROVED"
+    assert db.one("SELECT COUNT(*) AS n FROM approval_events WHERE approval_id=?",(approval["id"],))["n"]==1
+
+
+def test_concurrent_improvement_start_has_single_transition(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.continuous_improvement import ContinuousImprovementService
+
+    db=Database(str(tmp_path/"improvement-concurrency.db")); ResearchCycle(db)
+    svc=ContinuousImprovementService(db)
+    proposal=svc.propose("Concurrency test","PRODUCT","test hypothesis","test metric","founder")
+
+    def start():
+        try:
+            return ("ok", svc.start_experiment(proposal["id"],"parallel design","parallel baseline","founder")["status"])
+        except Exception as exc:
+            return ("error", type(exc).__name__)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results=list(pool.map(lambda _: start(),(1,2)))
+
+    assert sum(result[0]=="ok" for result in results)==1
+    assert sum(result[0]=="error" for result in results)==1
+    assert db.one("SELECT status FROM improvement_proposals WHERE id=?",(proposal["id"],))["status"]=="EXPERIMENT"
