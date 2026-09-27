@@ -2013,7 +2013,7 @@ def complete_hds_challenge(execution_id: str, principal: Principal = Depends(pri
     if not row: raise HTTPException(404,"challenge execution not found")
     require_project(principal,row["project_id"],"WRITE")
     from app.adaptive_training import ChallengeExecutionService
-    try: return ChallengeExecutionService(db).complete(execution_id)
+    try: return ChallengeExecutionService(db).complete(execution_id, principal.user_id)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
 
 @app.get("/api/hds/training/{protocol_id}/participants/{participant_ref}/adaptive")
