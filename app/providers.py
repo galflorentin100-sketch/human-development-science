@@ -94,9 +94,10 @@ class AnthropicMessagesProvider:
 
     def complete(self, request):
         import httpx
-        response=httpx.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
+        try:
+            response=httpx.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
                 "x-api-key": self.api_key,
                 "anthropic-version": "2023-06-01",
                 "content-type": "application/json",
@@ -106,8 +107,12 @@ class AnthropicMessagesProvider:
                 "max_tokens": 4096,
                 "messages":[{"role":"user","content":request.prompt}],
             },
-            timeout=self.timeout,
-        )
+                timeout=self.timeout,
+            )
+        except httpx.TimeoutException as exc:
+            raise TimeoutError("Anthropic request timed out") from exc
+        except httpx.ConnectError as exc:
+            raise ConnectionError("Anthropic connection failed") from exc
         if response.status_code >= 400:
             detail=response.text[:2000]
             if response.status_code in {408,429} or response.status_code >= 500:
