@@ -20,7 +20,7 @@ def test_hds_outcome_requires_preregistered_measure_and_consent(tmp_path):
     except Exception:
         pass
     db.execute("INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",(participant,study,"p1","PENDING",now()))
-    db.execute("INSERT INTO study_measure_definitions(id,study_id,name,operational_definition,method,scale_type,reliability_note,validity_note,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(measure,study,"run_time","time to complete","timed test","CONTINUOUS","test reliability","test validity","PREREGISTERED",now()))
+    db.execute("INSERT INTO study_measure_definitions(id,study_id,name,operational_definition,method,scale_type,reliability_note,validity_note,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",(measure,study,"run_time","time to complete","timed test","CONTINUOUS","test reliability","test validity","PREREGISTERED",now()))
     db.execute("INSERT INTO study_measure_bindings(id,study_id,measure_id,observation_type,timepoint,required) VALUES (?,?,?,?,?,?)",(binding,study,measure,"REAL_WORLD","POST",1))
 
     svc=HDSOutcomeService(db)
