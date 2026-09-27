@@ -245,6 +245,23 @@ CREATE TABLE IF NOT EXISTS hds_challenge_executions (
  created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_hds_challenge_exec_project ON hds_challenge_executions(project_id,challenge_id,participant_id,status);
+CREATE TABLE IF NOT EXISTS hds_safety_incidents (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ challenge_id TEXT REFERENCES hds_challenges(id),
+ execution_id TEXT REFERENCES hds_challenge_executions(id),
+ participant_id TEXT REFERENCES hds_competition_participants(id),
+ severity TEXT NOT NULL,
+ description TEXT NOT NULL,
+ immediate_action TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'OPEN',
+ reported_by TEXT NOT NULL,
+ reviewed_by TEXT,
+ review_note TEXT,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hds_safety_incidents_project ON hds_safety_incidents(project_id,status,created_at);
 CREATE TABLE IF NOT EXISTS hds_training_adjustments (
  id TEXT PRIMARY KEY,
  project_id TEXT NOT NULL REFERENCES projects(id),
