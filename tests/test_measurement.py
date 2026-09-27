@@ -42,3 +42,17 @@ def test_measurement_registry_rejects_invalid_scale(tmp_path):
         assert False
     except ValueError as exc:
         assert "scale type" in str(exc)
+
+
+def test_preregistered_outcome_persists_timepoint_and_rejects_duplicate(tmp_path):
+    db=make_db(tmp_path)
+    m=MeasurementRegistry(db).define("s","goal_execution_rate","Completed planned target actions divided by planned target actions","Structured daily log","PROPORTION")
+    MeasurementRegistry(db).bind("s",m["id"],"TRAINING","baseline")
+    p=StudyExecution(db).participant("s","p")
+    first=StudyExecution(db).outcome("s",p["id"],"goal_execution_rate",0.5,observation_type="TRAINING",measure_id=m["id"],timepoint="baseline")
+    assert first["timepoint"]=="baseline"
+    try:
+        StudyExecution(db).outcome("s",p["id"],"goal_execution_rate",0.6,observation_type="TRAINING",measure_id=m["id"],timepoint="baseline")
+        assert False
+    except ValueError as exc:
+        assert "duplicate" in str(exc)
