@@ -115,6 +115,15 @@ class HumanDevelopmentService:
             raise ValueError("participant is already registered") from exc
         return self.db.one("SELECT * FROM hds_competition_participants WHERE id=?", (i,))
 
+    def record_consent(self, participant_id):
+        row = self.db.one("SELECT * FROM hds_competition_participants WHERE id=?", (participant_id,))
+        if not row:
+            raise ValueError("participant not found")
+        if row["consent_status"] == "REVOKED":
+            raise ValueError("revoked participant consent cannot be reactivated")
+        self.db.execute("UPDATE hds_competition_participants SET consent_status='CONSENTED' WHERE id=?", (participant_id,))
+        return self.db.one("SELECT * FROM hds_competition_participants WHERE id=?", (participant_id,))
+
     def record_score(self, event_id, participant_id, metric, score):
         row = self.db.one(
             """SELECT ce.id, ce.competition_id, cp.id AS participant_id
