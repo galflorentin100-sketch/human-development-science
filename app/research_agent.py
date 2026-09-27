@@ -28,35 +28,22 @@ class ResearchAgentService:
         agent=agent_id or self._researcher_agent()
         if not agent: raise ValueError("researcher agent not found")
         payload={
-            "action":"research",
-            "workspace_id":workspace_id,
-            "question":ws["question"],
-            "scope":ws["scope"],
-            "inclusion_rules":json.loads(ws["inclusion_rules"] or "[]"),
+            "action":"research","workspace_id":workspace_id,"question":ws["question"],
+            "scope":ws["scope"],"inclusion_rules":json.loads(ws["inclusion_rules"] or "[]"),
             "exclusion_rules":json.loads(ws["exclusion_rules"] or "[]"),
-            "required_output":{
-                "sources":"source IDs with relevance and provenance",
-                "synthesis":"evidence-grounded synthesis",
-                "limitations":"known limitations",
-                "uncertainty":"explicit uncertainty",
-                "evidence_refs":"IDs only for evidence actually used"
-            },
-            "guardrails":[
-                "Do not invent sources or evidence IDs.",
-                "Do not claim causality from descriptive evidence.",
-                "Separate evidence from interpretation.",
-                "Return insufficient-evidence when support is missing."
-            ]
+            "required_output":{"sources":"source IDs with relevance and provenance","synthesis":"evidence-grounded synthesis","limitations":"known limitations","uncertainty":"explicit uncertainty","evidence_refs":"IDs only for evidence actually used"},
+            "guardrails":["Do not invent sources or evidence IDs.","Do not claim causality from descriptive evidence.","Separate evidence from interpretation.","Return insufficient-evidence when support is missing."]
         }
-        task=TaskEngine(self.db).create_task(
-            title=f"[RESEARCH] {ws['question']}",
-            description=json.dumps(payload,sort_keys=True),
-            project_id=ws["project_id"],
-            owner=agent,
-            required_permissions=["READ"],
-            priority=2.0,
-            retry_limit=1)
-        self.db.execute("INSERT INTO research_agent_tasks(task_id,workspace_id,agent_id,created_at) VALUES (?,?,?,?) ON CONFLICT(task_id) DO UPDATE SET workspace_id=excluded.workspace_id,agent_id=excluded.agent_id,created_at=excluded.created_at",(task["id"],workspace_id,agent,now()))
+        from uuid import uuid4
+        task_id=str(uuid4()); ts=now()
+        with self.db.transaction() as con:
+            con.execute(
+                "INSERT INTO tasks(id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at,owner,required_permissions,retry_limit) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (task_id,ws["project_id"],f"[RESEARCH] {ws['question']}","PLANNED",agent,2.0,json.dumps(payload,sort_keys=True),ts,ts,owner,json.dumps(["READ"]),1))
+            con.execute(
+                "INSERT INTO research_agent_tasks(task_id,workspace_id,agent_id,created_at) VALUES (?,?,?,?) ON CONFLICT(task_id) DO UPDATE SET workspace_id=excluded.workspace_id,agent_id=excluded.agent_id,created_at=excluded.created_at",
+                (task_id,workspace_id,agent,ts))
+        task=self.db.one("SELECT * FROM tasks WHERE id=?",(task_id,))
         return {"task":task,"workspace_id":workspace_id,"agent_id":agent,"input":payload}
 
     def _researcher_agent(self):
