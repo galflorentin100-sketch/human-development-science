@@ -213,3 +213,65 @@ def test_execute_next_recovers_when_agent_preflight_fails(tmp_path):
     result=CompanyOrchestrator(db).execute_next(p["id"])
     assert result["status"]=="EXECUTION_PREFLIGHT_FAILED"
     assert db.one("SELECT status FROM tasks WHERE id=?",(task["id"],))["status"] in ("PLANNED","FAILED")
+
+
+def test_idempotency_stale_claim_can_be_recovered_explicitly(tmp_path):
+    from datetime import datetime, timezone, timedelta
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.idempotency import IdempotencyService, IdempotencyConflict
+    db=Database(str(tmp_path/"idem-recovery.db")); ResearchCycle(db)
+    svc=IdempotencyService(db)
+    now=datetime.now(timezone.utc)
+    token="stale-token"
+    db.execute(
+        "INSERT INTO idempotency_keys(key,actor,operation,response,created_at,expires_at,status,claim_token,lease_expires_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        ("recover-key","founder","op",'{"status":"IN_PROGRESS"}',now.isoformat(),
+         (now+timedelta(hours=1)).isoformat(),"IN_PROGRESS",token,
+         (now-timedelta(minutes=1)).isoformat()))
+    recovered=svc.recover_stale("recover-key","founder","op",token)
+    assert recovered["status"]=="RECOVERED"
+    assert db.one("SELECT * FROM idempotency_keys WHERE key=?",("recover-key",)) is None
+    assert svc.run("recover-key","founder","op",lambda: {"ok":True})=={"ok":True}
+
+def test_idempotency_live_claim_cannot_be_recovered(tmp_path):
+    from datetime import datetime, timezone, timedelta
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.idempotency import IdempotencyService, IdempotencyConflict
+    db=Database(str(tmp_path/"idem-live.db")); ResearchCycle(db)
+    svc=IdempotencyService(db)
+    now=datetime.now(timezone.utc)
+    token="live-token"
+    db.execute(
+        "INSERT INTO idempotency_keys(key,actor,operation,response,created_at,expires_at,status,claim_token,lease_expires_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        ("live-key","founder","op",'{"status":"IN_PROGRESS"}',now.isoformat(),
+         (now+timedelta(hours=1)).isoformat(),"IN_PROGRESS",token,
+         (now+timedelta(minutes=10)).isoformat()))
+    try:
+        svc.recover_stale("live-key","founder","op",token)
+        assert False, "live lease must not be recoverable"
+    except IdempotencyConflict:
+        pass
+
+def test_sc001_registration_rolls_back_all_state_on_failure(tmp_path, monkeypatch):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.sc001 import SC001Protocol
+    from app.approvals import ApprovalService
+    db=Database(str(tmp_path/"sc001-atomic.db")); ResearchCycle(db)
+    p=ResearchCycle(db).run("SC001 atomic")["project"]
+    original=ApprovalService._request_in_transaction
+    def fail(*args,**kwargs):
+        raise RuntimeError("simulated approval failure")
+    monkeypatch.setattr(ApprovalService,"_request_in_transaction",fail)
+    try:
+        SC001Protocol().register(db,p["id"])
+        assert False, "registration should fail"
+    except RuntimeError:
+        pass
+    assert db.one("SELECT COUNT(*) AS n FROM studies WHERE project_id=?", (p["id"],))["n"]==0
+    assert db.one("SELECT COUNT(*) AS n FROM hypotheses WHERE project_id=?", (p["id"],))["n"]==0
+    assert db.one("SELECT COUNT(*) AS n FROM experiments WHERE project_id=?", (p["id"],))["n"]==0
+    assert db.one("SELECT COUNT(*) AS n FROM approvals WHERE action LIKE 'SC001:STUDY:%'")["n"]==0
+    monkeypatch.setattr(ApprovalService,"_request_in_transaction",original)
