@@ -29,6 +29,9 @@ def test_competition_score_can_enter_scientific_loop_only_through_preregistered_
 
     participant_row=svc.register_participant(competition["id"],"participant-1")
     svc.record_consent(participant_row["id"])
+    svc.create_safety_control(project["id"],challenge["id"],"MODERATE","Stop on unsafe conditions")
+    svc.approve_safety(challenge["id"],"reviewer","APPROVED","Safety reviewed")
+    svc.update_participant_safety(participant_row["id"],eligibility_status="ELIGIBLE",supervision_status="ASSIGNED")
     svc.bind_participant_to_study(competition["id"],participant_row["id"],participant)
     svc.bind_event_measure(event["id"],study,measure,"TRAINING","POST")
 
