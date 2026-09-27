@@ -6,7 +6,8 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.rate_limit import RateLimiter\nfrom app.observability import emit, request_id
+from app.rate_limit import RateLimiter
+from app.observability import emit, request_id
 from pydantic import BaseModel, Field
 from app.auth import AuthService, Principal
 from app.config import Settings
