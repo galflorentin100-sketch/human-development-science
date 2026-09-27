@@ -29,12 +29,15 @@ class AuthService:
             con.execute("INSERT INTO users(id,external_subject,email,created_at) VALUES (?,?,?,?)",(uid,external_subject,email,now()))
             con.execute("INSERT INTO company_memberships(company_id,user_id,role_id,status,created_at) VALUES ('hds',?,?,'ACTIVE',?)",(uid,role_row["id"],now()))
         return self.db.one("SELECT * FROM users WHERE id=?",(uid,))
-    def grant_project_access(self, external_subject, project_id, role="operator"):
+    def grant_project_access(self, actor_external_subject, target_external_subject, project_id, role="operator"):
         if role not in {"founder","operator","reviewer"}:
             raise ValueError("unknown role")
-        user=self.db.one("SELECT * FROM users WHERE external_subject=?",(external_subject,))
+        actor=self.authorize(actor_external_subject)
+        if actor.role != "founder":
+            raise PermissionError("only founder can grant project access")
+        user=self.db.one("SELECT * FROM users WHERE external_subject=?",(target_external_subject,))
         if not user: raise PermissionError("unknown principal")
-        project=self.db.one("SELECT id FROM projects WHERE id=?",(project_id,))
+        project=self.db.one("SELECT id FROM projects WHERE id=? AND company_id='hds'",(project_id,))
         if not project: raise ValueError("project not found")
         role_row=self.db.one("SELECT id FROM roles WHERE name=?",(role,))
         with self.db.transaction() as con:
@@ -42,7 +45,7 @@ class AuthService:
                 "INSERT INTO project_memberships(project_id,user_id,role_id,status,created_at) VALUES (?,?,?,?,?) "
                 "ON CONFLICT(project_id,user_id) DO UPDATE SET role_id=excluded.role_id,status='ACTIVE'",
                 (project_id,user["id"],role_row["id"],"ACTIVE",now()))
-        return self.project_authorize(external_subject,project_id)
+        return self.project_authorize(target_external_subject,project_id)
 
     def project_authorize(self, external_subject, project_id, required_permission=None):
         user=self.db.one("SELECT * FROM users WHERE external_subject=?",(external_subject,))
