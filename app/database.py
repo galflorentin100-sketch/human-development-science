@@ -421,6 +421,11 @@ def _migrate_phase4(self):
         con.execute("DROP INDEX IF EXISTS idx_study_outcome_observation_identity")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation_identity ON study_outcomes(study_id,participant_id,outcome_name,observation_type,COALESCE(session_id,''),timepoint) WHERE timepoint IS NOT NULL")
         con.executescript(PHASE_AGENT_OUTPUT_SCHEMA); con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA); con.executescript(PHASE6_SCHEMA); con.executescript(PHASE7_SCHEMA); con.executescript(OPTIONAL_SCIENCE_SCHEMA)
+        _ensure_hds_schema(con)
+        _ensure_hds_indexes(con)
+        existing_studies={row[1] for row in con.execute("PRAGMA table_info(studies)")}
+        if "project_id" not in existing_studies:
+            con.execute("ALTER TABLE studies ADD COLUMN project_id TEXT")
         existing_decisions={row[1] for row in con.execute("PRAGMA table_info(organizational_decisions)")}
         if "evidence" not in existing_decisions: con.execute("ALTER TABLE organizational_decisions ADD COLUMN evidence TEXT NOT NULL DEFAULT '[]'")
         existing={row[1] for row in con.execute("PRAGMA table_info(training_protocols)")}
