@@ -458,3 +458,13 @@ def test_approval_requires_separation_of_duties(tmp_path):
     except ApprovalRequired:
         pass
     assert db.one("SELECT status FROM approvals WHERE id=?",(approval["id"],))["status"]=="PENDING"
+
+
+def test_intervention_request_accepts_project_id():
+    from app.main import InterventionRequest
+    body=InterventionRequest(
+        name="test intervention", rationale="test rationale", mechanism="test mechanism",
+        evidence_level="PRELIMINARY", dosage="weekly", population="adults",
+        project_id="project-a",
+    )
+    assert body.project_id=="project-a"
