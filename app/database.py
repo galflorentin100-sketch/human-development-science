@@ -152,6 +152,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_impact_proposed_identity ON know
 CREATE TABLE IF NOT EXISTS research_review_tasks (task_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, synthesis_id TEXT NOT NULL, role TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(workspace_id,synthesis_id,role));
 CREATE TABLE IF NOT EXISTS company_memory (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, memory_type TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT, created_by TEXT NOT NULL, created_at TEXT NOT NULL);
 """
+
+def _ensure_hds_indexes(con):
+    con.execute("CREATE INDEX IF NOT EXISTS idx_hds_programs_project ON hds_programs(project_id,status)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_hds_challenges_program ON hds_challenges(program_id,status)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_hds_competitions_project ON hds_competitions(project_id,status)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_hds_scores_event_participant ON hds_competition_scores(event_id,participant_id)")
+
 class Database:
     def __init__(self,path="company_os.db"):
         self.path=Path(path)
@@ -186,6 +193,7 @@ class Database:
             con.executescript(PHASE7_SCHEMA)
             con.executescript(OPTIONAL_SCIENCE_SCHEMA)
             con.executescript(HUMAN_DEVELOPMENT_SCHEMA)
+            _ensure_hds_indexes(con)
             _add_phase2_columns(con)
             existing_impact={row[1] for row in con.execute("PRAGMA table_info(knowledge_impact_reviews)")}
             if "impact_type" not in existing_impact:
