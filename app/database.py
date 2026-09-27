@@ -336,6 +336,16 @@ def _migrate_phase4(self):
             raise RuntimeError("cannot enforce unique active research queue items: existing duplicate project/question items found")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_research_queue_active_identity ON hds_research_queue(project_id,question) WHERE status IN ('PROPOSED','APPROVED','IN_PROGRESS')")
 
+        duplicate_maintenance=con.execute("""
+            SELECT kind,entity_type,entity_id,COUNT(*) AS n
+            FROM maintenance_work
+            WHERE status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS')
+            GROUP BY kind,entity_type,entity_id HAVING COUNT(*) > 1
+        """).fetchall()
+        if duplicate_maintenance:
+            raise RuntimeError("cannot enforce unique active maintenance work: existing duplicate active items found")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_maintenance_active_identity ON maintenance_work(kind,entity_type,entity_id) WHERE status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS')")
+
         duplicate_agent_reviews=con.execute("""
             SELECT agent_run_id,COUNT(*) AS n FROM agent_output_reviews
             GROUP BY agent_run_id HAVING COUNT(*) > 1
