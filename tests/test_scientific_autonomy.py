@@ -76,3 +76,15 @@ def test_maintenance_approval_request_uses_single_transaction(tmp_path):
     assert result["status"]=="APPROVAL_PENDING"
     assert result["approval_id"] is not None
     assert db.one("SELECT status FROM approvals WHERE id=?",(result["approval_id"],))["status"]=="PENDING"
+
+
+def test_science_improvement_requires_existing_verified_evidence(tmp_path):
+    from app.continuous_improvement import ContinuousImprovementService
+    db=Database(str(tmp_path/"improvement-evidence.db")); ResearchCycle(db)
+    service=ContinuousImprovementService(db)
+    proposal=service.propose("Science change","SCIENCE","test hypothesis","metric","owner","missing")
+    try:
+        service.start_experiment(proposal["id"],"design","baseline","owner")
+        assert False, "missing evidence must be rejected"
+    except ValueError as exc:
+        assert "does not exist" in str(exc)
