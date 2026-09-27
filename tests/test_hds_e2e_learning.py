@@ -16,14 +16,14 @@ def test_measured_outcome_feeds_candidate_research_without_claim_promotion(tmp_p
                   VALUES (?,?,?,?,?)""",(participant,study,"p1","CONSENTED",now()))
     db.execute("""INSERT INTO study_measure_definitions
                   (id,study_id,name,operational_definition,method,scale_type,reliability_note,validity_note,status,created_at)
-                  VALUES (?,?,?,?,?,?,?,?,?)""",
+                  VALUES (?,?,?,?,?,?,?,?,?,?)""",
                (measure,study,"resilience_score","observed score","assessment","CONTINUOUS","known","known","PREREGISTERED",now()))
     db.execute("""INSERT INTO study_measure_bindings
                   (id,study_id,measure_id,observation_type,timepoint,required)
                   VALUES (?,?,?,?,?,?)""",(binding,study,measure,"TRAINING","POST",1))
     db.execute("""INSERT INTO study_outcomes
                   (id,study_id,participant_id,outcome_name,value,unit,observation_type,timepoint,session_id)
-                  VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                  VALUES (?,?,?,?,?,?,?,?,?)""",
                ("outcome-e2e",study,participant,"resilience_score",82.0,"points","TRAINING","POST",None))
 
     result=OutcomeFeedbackService(db).propose_research_from_study(
