@@ -21,9 +21,9 @@ class AutonomousScientificMaintenance:
         from app.knowledge_impact import KnowledgeImpactAnalyzer
         out=[]
         for x in KnowledgeFreshness(self.db).scan()["stale"]:
-            out.append({"kind":"REVALIDATION","priority":"HIGH","entity_type":x["entity_type"],"entity_id":x["entity_id"],"title":f"Revalidate {x['entity_type']} {x['entity_id']}","reason":"scientific review interval elapsed"})
+            out.append({"kind":"REVALIDATION","priority":"HIGH","entity_type":x["entity_type"],"entity_id":x["entity_id"],"title":f"Revalidate {x['entity_type']} {x['entity_id']}","reason":"scientific review interval elapsed","success_criteria":"Revalidate the entity against current evidence and record explicit uncertainty."})
         for x in KnowledgeImpactAnalyzer(self.db).contradiction_scan()["impacts"]:
-            out.append({"kind":"CONTRADICTION_REVIEW","priority":"HIGH","entity_type":"CLAIM","entity_id":x["claim_id"],"title":f"Review conflicted claim {x['claim_id']}","reason":x["reason"]})
+            out.append({"kind":"CONTRADICTION_REVIEW","priority":"HIGH","entity_type":"CLAIM","entity_id":x["claim_id"],"title":f"Review conflicted claim {x['claim_id']}","reason":x["reason"],"success_criteria":"Resolve or document the contradiction using independently reviewed evidence."})
         if project_id is not None:
             out=[p for p in out if self._entity_project(p["entity_type"],p["entity_id"]) == project_id]
         return {"count":len(out),"proposals":out,"policy":"proposal only; execution requires normal task, approval, cost and evidence gates"}
