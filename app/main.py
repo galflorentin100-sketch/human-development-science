@@ -87,6 +87,9 @@ class StudyParticipantRequest(BaseModel):
     study_id: str; external_ref: str = Field(min_length=1, max_length=200); consent_status: str = "CONSENTED"
 class StudyOutcomeRequest(BaseModel):
     study_id: str; participant_id: str; outcome_name: str = Field(min_length=1); value: float | None = None; unit: str | None = None; session_id: str | None = None; missing_reason: str | None = None; observation_type: str = "TRAINING"; measure_id: str | None = None; timepoint: str | None = None
+class FounderChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=8000)
+
 
 def principal_from_header(x_external_subject: str | None = Header(default=None)) -> Principal:
     if not x_external_subject:
@@ -1490,3 +1493,16 @@ def propose_claim_revision_from_finding(finding_id: str, claim_id: str, new_stat
     require_resource_project(principal, "claim", claim_id, "WRITE")
     from app.knowledge_update_proposer import KnowledgeUpdateProposer
     return KnowledgeUpdateProposer(db).propose_claim_revision(finding_id,claim_id,new_statement,new_status,rationale,evidence_refs or [])
+
+
+@app.post("/api/founder/{project_id}/chat")
+def founder_chat(project_id: str, req: FounderChatRequest, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    require_project(principal, project_id, "EXECUTE")
+    if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
+        raise HTTPException(404, "project not found")
+    from app.founder_chat import FounderChatService
+    try:
+        return FounderChatService(db).ask(project_id, req.message, principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
