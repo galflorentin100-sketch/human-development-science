@@ -1,3 +1,284 @@
+from __future__ import annotations
+
+import json
+import sqlite3
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Iterator
+
+SCHEMA = """CREATE TABLE IF NOT EXISTS companies (id TEXT PRIMARY KEY, name TEXT NOT NULL, mission TEXT NOT NULL, vision TEXT NOT NULL, core_principle TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL, mission TEXT NOT NULL, capabilities TEXT NOT NULL, permissions TEXT NOT NULL, version TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, company_id TEXT NOT NULL REFERENCES companies(id), objective TEXT NOT NULL, status TEXT NOT NULL, owner_agent_id TEXT NOT NULL REFERENCES agents(id), created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), title TEXT NOT NULL, status TEXT NOT NULL, assigned_agent_id TEXT REFERENCES agents(id), priority REAL NOT NULL, success_criteria TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_tasks_project_status ON tasks(project_id, status);
+CREATE TABLE IF NOT EXISTS sources (id TEXT PRIMARY KEY, title TEXT NOT NULL, url TEXT NOT NULL UNIQUE, authors TEXT, publication_year INTEGER, source_type TEXT NOT NULL, verified_at TEXT NOT NULL, provenance_note TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS claims (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), statement TEXT NOT NULL, classification TEXT NOT NULL, evidence_level TEXT NOT NULL DEFAULT 'UNVERIFIED', confidence REAL NOT NULL DEFAULT 0.0, status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS evidence (id TEXT PRIMARY KEY, claim_id TEXT NOT NULL REFERENCES claims(id), source_id TEXT NOT NULL REFERENCES sources(id), stance TEXT NOT NULL, excerpt TEXT NOT NULL, verified INTEGER NOT NULL, created_by TEXT NOT NULL DEFAULT 'system', created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS knowledge_items (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), kind TEXT NOT NULL, content TEXT NOT NULL, provenance TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS research_questions (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), question TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS agent_runs (id TEXT PRIMARY KEY, agent_id TEXT NOT NULL REFERENCES agents(id), task_id TEXT REFERENCES tasks(id), status TEXT NOT NULL, input_payload TEXT NOT NULL, output_payload TEXT NOT NULL, started_at TEXT NOT NULL, completed_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS evaluations (id TEXT PRIMARY KEY, agent_run_id TEXT NOT NULL REFERENCES agent_runs(id), evaluator TEXT NOT NULL, passed INTEGER NOT NULL, score REAL NOT NULL, details TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, actor TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS maintenance_work (
+ id TEXT PRIMARY KEY,
+ kind TEXT NOT NULL,
+ entity_type TEXT NOT NULL,
+ entity_id TEXT NOT NULL,
+ title TEXT NOT NULL,
+ reason TEXT NOT NULL,
+ success_criteria TEXT NOT NULL,
+ status TEXT NOT NULL,
+ approval_id TEXT,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_maintenance_work_status ON maintenance_work(status);
+CREATE INDEX IF NOT EXISTS idx_maintenance_work_entity ON maintenance_work(entity_type,entity_id,status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_maintenance_work_active_unique ON maintenance_work(kind,entity_type,entity_id) WHERE status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS');
+CREATE TABLE IF NOT EXISTS code_change_proposals (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ maintenance_work_id TEXT NOT NULL REFERENCES maintenance_work(id),
+ title TEXT NOT NULL,
+ patch_format TEXT NOT NULL,
+ patch_payload TEXT NOT NULL,
+ test_command TEXT NOT NULL,
+ risk_level TEXT NOT NULL,
+ status TEXT NOT NULL,
+ proposed_by TEXT NOT NULL,
+ approved_by TEXT,
+ verification_run_id TEXT,
+ rollback_payload TEXT,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_code_change_proposals_work ON code_change_proposals(maintenance_work_id,status);
+CREATE TABLE IF NOT EXISTS maintenance_task_links (task_id TEXT PRIMARY KEY REFERENCES tasks(id), kind TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(kind,entity_type,entity_id));
+CREATE INDEX IF NOT EXISTS idx_maintenance_task_links_entity ON maintenance_task_links(entity_type,entity_id);
+CREATE TABLE IF NOT EXISTS knowledge_freshness (
+ id TEXT PRIMARY KEY,
+ entity_type TEXT NOT NULL,
+ entity_id TEXT NOT NULL,
+ review_interval_days INTEGER NOT NULL,
+ last_validated_at TEXT NOT NULL,
+ next_review_at TEXT NOT NULL,
+ status TEXT NOT NULL,
+ owner TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ UNIQUE(entity_type,entity_id)
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_freshness_review ON knowledge_freshness(next_review_at,status);
+CREATE TABLE IF NOT EXISTS improvement_proposals (id TEXT PRIMARY KEY, title TEXT NOT NULL, area TEXT NOT NULL, hypothesis TEXT NOT NULL, success_metric TEXT NOT NULL, status TEXT NOT NULL, owner TEXT NOT NULL, experiment_design TEXT, baseline_note TEXT, experiment_result TEXT, outcome_note TEXT, evidence_ref TEXT, adopted_by TEXT, adoption_rationale TEXT, retired_by TEXT, retirement_rationale TEXT, created_at TEXT NOT NULL, updated_at TEXT);
+CREATE TABLE IF NOT EXISTS founder_briefs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), content TEXT NOT NULL, action_required INTEGER NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS failures (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), stage TEXT NOT NULL, expected_result TEXT NOT NULL, actual_result TEXT NOT NULL, root_cause TEXT NOT NULL, lesson TEXT NOT NULL, created_at TEXT NOT NULL);
+"""
+
+
+_HDS_LEGACY_COLUMNS = {"studies": {"project_id": "TEXT"}, "hds_competition_participants": {"eligibility_status": "TEXT NOT NULL DEFAULT 'ELIGIBILITY_PENDING'", "supervision_status": "TEXT NOT NULL DEFAULT 'UNASSIGNED'", "medical_review_status": "TEXT NOT NULL DEFAULT 'NOT_REQUIRED'"}}
+
+PROJECT_INDEX_SCHEMA = """CREATE INDEX IF NOT EXISTS idx_claims_project_created ON claims(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_studies_project_created ON studies(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_experiments_project_created ON experiments(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_hypotheses_project_created ON hypotheses(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_founder_briefs_project_created ON founder_briefs(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_failures_project_created ON failures(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_missions_project_created ON missions(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_autonomy_iterations_project_created ON autonomy_iterations(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_hds_experiments_project_created ON hds_experiments(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_research_workspaces_project_created ON research_workspaces(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_research_skeptic_reviews_project_created ON research_skeptic_reviews(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_organizational_decisions_project_created ON organizational_decisions(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_company_memory_project_created ON company_memory(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_agent_output_reviews_project_created ON agent_output_reviews(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_interventions_project_created ON interventions(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_training_protocols_project_created ON training_protocols(project_id,created_at);"""
+
+HUMAN_DEVELOPMENT_SCHEMA = """
+CREATE TABLE IF NOT EXISTS hds_constructs (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), domain_id TEXT NOT NULL,
+ name TEXT NOT NULL, operational_definition TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'ACTIVE',
+ created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hds_assessment_measures (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), construct_id TEXT NOT NULL REFERENCES hds_constructs(id),
+ name TEXT NOT NULL, unit TEXT NOT NULL, min_value REAL, max_value REAL, higher_is_better INTEGER NOT NULL DEFAULT 1,
+ status TEXT NOT NULL DEFAULT 'DRAFT', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hds_assessment_sessions (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), participant_ref TEXT NOT NULL,
+ timepoint TEXT NOT NULL, started_at TEXT NOT NULL, completed_at TEXT, status TEXT NOT NULL DEFAULT 'OPEN', created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hds_assessment_observations (
+ id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES hds_assessment_sessions(id), measure_id TEXT NOT NULL REFERENCES hds_assessment_measures(id),
+ value REAL NOT NULL, observed_at TEXT NOT NULL, note TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_hds_constructs_project ON hds_constructs(project_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_assessment_measures_project ON hds_assessment_measures(project_id,construct_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_assessment_sessions_project ON hds_assessment_sessions(project_id,participant_ref,timepoint);
+CREATE INDEX IF NOT EXISTS idx_hds_assessment_observations_session ON hds_assessment_observations(session_id,measure_id);
+
+CREATE TABLE IF NOT EXISTS hds_programs (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ name TEXT NOT NULL,
+ objective TEXT NOT NULL,
+ domain_id TEXT NOT NULL,
+ status TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hds_programs_project ON hds_programs(project_id,status);
+CREATE TABLE IF NOT EXISTS hds_challenges (
+ id TEXT PRIMARY KEY,
+ program_id TEXT NOT NULL REFERENCES hds_programs(id),
+ name TEXT NOT NULL,
+ description TEXT NOT NULL,
+ challenge_type TEXT NOT NULL,
+ difficulty INTEGER NOT NULL CHECK(difficulty BETWEEN 1 AND 10),
+ safety_constraints TEXT NOT NULL,
+ status TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hds_challenges_program ON hds_challenges(program_id,status);
+CREATE TABLE IF NOT EXISTS hds_competitions (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ name TEXT NOT NULL,
+ format TEXT NOT NULL,
+ status TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hds_competitions_project ON hds_competitions(project_id,status);
+CREATE TABLE IF NOT EXISTS hds_competition_events (
+ id TEXT PRIMARY KEY,
+ competition_id TEXT NOT NULL REFERENCES hds_competitions(id),
+ challenge_id TEXT NOT NULL REFERENCES hds_challenges(id),
+ sequence INTEGER NOT NULL,
+ scoring_rule TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(competition_id,sequence)
+);
+CREATE TABLE IF NOT EXISTS hds_competition_participants (
+ id TEXT PRIMARY KEY,
+ competition_id TEXT NOT NULL REFERENCES hds_competitions(id),
+ participant_ref TEXT NOT NULL,
+ consent_status TEXT NOT NULL,
+ eligibility_status TEXT NOT NULL DEFAULT 'ELIGIBILITY_PENDING',
+ created_at TEXT NOT NULL,
+ UNIQUE(competition_id,participant_ref)
+);
+CREATE TABLE IF NOT EXISTS hds_competition_scores (
+ id TEXT PRIMARY KEY,
+ event_id TEXT NOT NULL REFERENCES hds_competition_events(id),
+ participant_id TEXT NOT NULL REFERENCES hds_competition_participants(id),
+ metric TEXT NOT NULL,
+ score REAL NOT NULL,
+ observed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hds_scores_event_participant ON hds_competition_scores(event_id,participant_id);
+CREATE TABLE IF NOT EXISTS hds_organizations (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+ name TEXT NOT NULL, organization_type TEXT NOT NULL, status TEXT NOT NULL,
+ created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hds_customers (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+ external_ref TEXT NOT NULL, customer_type TEXT NOT NULL, status TEXT NOT NULL,
+ created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+ UNIQUE(project_id,external_ref)
+);
+CREATE TABLE IF NOT EXISTS hds_products (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+ name TEXT NOT NULL, product_type TEXT NOT NULL, description TEXT NOT NULL,
+ status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hds_program_enrollments (
+ id TEXT PRIMARY KEY, program_id TEXT NOT NULL REFERENCES hds_programs(id),
+ customer_id TEXT NOT NULL REFERENCES hds_customers(id),
+ status TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT
+);
+CREATE TABLE IF NOT EXISTS hds_coaches (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+ external_ref TEXT NOT NULL, role TEXT NOT NULL, status TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(project_id,external_ref)
+);
+CREATE TABLE IF NOT EXISTS hds_subscriptions (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+ customer_id TEXT NOT NULL REFERENCES hds_customers(id),
+ product_id TEXT NOT NULL REFERENCES hds_products(id),
+ status TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_hds_org_project ON hds_organizations(project_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_customer_project ON hds_customers(project_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_product_project ON hds_products(project_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_enrollment_program ON hds_program_enrollments(program_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_coach_project ON hds_coaches(project_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_subscription_customer ON hds_subscriptions(customer_id,status);
+CREATE TABLE IF NOT EXISTS hds_safety_controls (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ challenge_id TEXT NOT NULL REFERENCES hds_challenges(id),
+ risk_class TEXT NOT NULL,
+ eligibility_required INTEGER NOT NULL DEFAULT 1,
+ consent_required INTEGER NOT NULL DEFAULT 1,
+ supervision_required INTEGER NOT NULL DEFAULT 1,
+ medical_review_required INTEGER NOT NULL DEFAULT 0,
+ stop_criteria TEXT NOT NULL,
+ status TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ UNIQUE(challenge_id)
+);
+CREATE TABLE IF NOT EXISTS hds_safety_reviews (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ challenge_id TEXT NOT NULL REFERENCES hds_challenges(id),
+ reviewer TEXT NOT NULL,
+ decision TEXT NOT NULL,
+ rationale TEXT NOT NULL,
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hds_safety_project ON hds_safety_controls(project_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_safety_reviews_challenge ON hds_safety_reviews(challenge_id,created_at);
+CREATE TABLE IF NOT EXISTS hds_competition_study_bindings (
+ id TEXT PRIMARY KEY, competition_id TEXT NOT NULL REFERENCES hds_competitions(id),
+ participant_id TEXT NOT NULL REFERENCES hds_competition_participants(id),
+ study_participant_id TEXT NOT NULL REFERENCES study_participants(id),
+ UNIQUE(competition_id,participant_id), UNIQUE(study_participant_id)
+);
+CREATE TABLE IF NOT EXISTS hds_competition_measure_bindings (
+ id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES hds_competition_events(id),
+ study_id TEXT NOT NULL REFERENCES studies(id),
+ measure_id TEXT NOT NULL REFERENCES study_measure_definitions(id),
+ observation_type TEXT NOT NULL, timepoint TEXT NOT NULL,
+ UNIQUE(event_id,study_id,measure_id,observation_type,timepoint)
+);
+"""
+OPTIONAL_SCIENCE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS hds_experiments (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, research_question TEXT NOT NULL, hypothesis TEXT NOT NULL, design TEXT NOT NULL, population TEXT NOT NULL, intervention TEXT NOT NULL, comparison TEXT NOT NULL, outcomes TEXT NOT NULL, analysis_plan TEXT NOT NULL, status TEXT NOT NULL, preregistered INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS hds_experiment_results (id TEXT PRIMARY KEY, experiment_id TEXT NOT NULL, outcome TEXT NOT NULL, interpretation TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS research_workspaces (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, question TEXT NOT NULL, scope TEXT NOT NULL, inclusion_rules TEXT NOT NULL, exclusion_rules TEXT NOT NULL, status TEXT NOT NULL, owner TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS research_syntheses (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, synthesis TEXT NOT NULL, limitations TEXT NOT NULL, uncertainty TEXT NOT NULL, provenance_hash TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS research_skeptic_reviews (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, synthesis_id TEXT, project_id TEXT NOT NULL, reviewer_agent_id TEXT, status TEXT NOT NULL, objections TEXT NOT NULL, missing_evidence TEXT NOT NULL, alternative_explanations TEXT NOT NULL, created_at TEXT NOT NULL, reviewed_at TEXT);
+CREATE TABLE IF NOT EXISTS organizational_decisions (id TEXT PRIMARY KEY, project_id TEXT, decision_type TEXT NOT NULL, decision TEXT NOT NULL, evidence TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS hds_research_queue (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, question TEXT NOT NULL, rationale TEXT NOT NULL, trigger_type TEXT NOT NULL, priority TEXT NOT NULL, status TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS experiment_safety_reviews (id TEXT PRIMARY KEY, experiment_id TEXT NOT NULL UNIQUE, reviewer TEXT NOT NULL, decision TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS knowledge_impact_reviews (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, impact_type TEXT NOT NULL DEFAULT 'DEPENDENCY', affected_type TEXT NOT NULL, affected_id TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_impact_proposed_identity ON knowledge_impact_reviews(project_id,source_type,source_id,impact_type,affected_type,affected_id) WHERE status='PROPOSED';
+CREATE TABLE IF NOT EXISTS research_review_tasks (task_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, synthesis_id TEXT NOT NULL, role TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(workspace_id,synthesis_id,role));
+CREATE TABLE IF NOT EXISTS company_memory (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, memory_type TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT, created_by TEXT NOT NULL, created_at TEXT NOT NULL);
+"""
+
+def _ensure_hds_indexes(con):
+    con.execute("CREATE INDEX IF NOT EXISTS idx_hds_programs_project ON hds_programs(project_id,status)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_hds_challenges_program ON hds_challenges(program_id,status)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_hds_competitions_project ON hds_competitions(project_id,status)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_hds_scores_event_participant ON hds_competition_scores(event_id,participant_id)")
+
 def _ensure_hds_schema(con):
     con.execute("CREATE TABLE IF NOT EXISTS hds_constructs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), domain_id TEXT NOT NULL, name TEXT NOT NULL, operational_definition TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
     con.execute("CREATE TABLE IF NOT EXISTS hds_assessment_measures (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), construct_id TEXT NOT NULL REFERENCES hds_constructs(id), name TEXT NOT NULL, unit TEXT NOT NULL, min_value REAL, max_value REAL, higher_is_better INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'DRAFT', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
