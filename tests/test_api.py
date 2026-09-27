@@ -318,3 +318,29 @@ def test_science_improvement_requires_verified_evidence(tmp_path):
     EvidencePipeline(db).review(ev["id"],"independent-reviewer","VERIFIED","verified")
     proposal=svc.propose("Scientific improvement","SCIENCE","test hypothesis","test metric","founder",ev["id"])
     assert proposal["status"]=="PROPOSED"
+
+
+def test_agent_output_needs_evidence_can_be_reopened(tmp_path):
+    import json
+    import uuid
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.agent_output_gate import AgentOutputGate
+    from app.evidence_pipeline import EvidencePipeline
+    from app.models import now
+    db=Database(str(tmp_path/"output_gate.db")); ResearchCycle(db)
+    project=ResearchCycle(db).run("output gate")["project"]
+    agent=db.one("SELECT id FROM agents LIMIT 1")
+    task_id=str(uuid.uuid4()); run_id=str(uuid.uuid4())
+    db.execute("INSERT INTO tasks(id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+               (task_id,project["id"],"agent output","REVIEW",agent["id"],1.0,"review",now(),now()))
+    db.execute("INSERT INTO agent_runs(id,agent_id,task_id,status,input_payload,output_payload,started_at,completed_at) VALUES (?,?,?,?,?,?,?,?)",
+               (run_id,agent["id"],task_id,"COMPLETED","{}",json.dumps({"answer":"needs evidence"}),now(),now()))
+    review=AgentOutputGate(db).submit(run_id)
+    assert review["status"]=="NEEDS_EVIDENCE"
+    source=EvidencePipeline(db).register_source("Gate paper","https://example.org/gate-paper","Author",2026)
+    claim=db.one("SELECT id FROM claims WHERE project_id=? LIMIT 1",(project["id"],))
+    evidence=EvidencePipeline(db).attach(claim["id"],source["id"],"supporting excerpt",actor="auditor")
+    EvidencePipeline(db).review(evidence["id"],"auditor","VERIFIED","verified")
+    reopened=AgentOutputGate(db).provide_evidence(review["id"],[evidence["id"]])
+    assert reopened["status"]=="READY_FOR_REVIEW"
