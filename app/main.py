@@ -1048,7 +1048,7 @@ def science_record_experiment_result(experiment_id: str, body: dict, principal: 
 @app.get("/api/science/experiments/{experiment_id}/result")
 def science_get_experiment_result(experiment_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
-    require_resource_project(principal, "experiment", experiment_id, "EXECUTE")
+    require_resource_project(principal, "experiment", experiment_id, "READ")
     from app.experiment_engine import ExperimentEngine
     return ExperimentEngine(db).result(experiment_id)
 
