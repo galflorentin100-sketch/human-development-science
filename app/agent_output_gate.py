@@ -39,6 +39,36 @@ class AgentOutputGate:
                  json.dumps({"agent_run_id":agent_run_id,"evidence_count":len(refs),"status":status},sort_keys=True),ts))
         return self.db.one("SELECT * FROM agent_output_reviews WHERE id=?",(rid,))
 
+    def provide_evidence(self, review_id, evidence_refs):
+        """Attach verified project-scoped evidence to a blocked output and reopen review."""
+        if not isinstance(evidence_refs, (list, tuple)) or not evidence_refs:
+            raise ValueError("at least one evidence reference is required")
+        with self.db.transaction() as con:
+            row=con.execute(
+                "SELECT status,project_id FROM agent_output_reviews WHERE id=?",
+                (review_id,)).fetchone()
+            if not row:
+                raise ValueError("output review not found")
+            if row["status"] != "NEEDS_EVIDENCE":
+                raise ValueError("evidence can only be supplied to NEEDS_EVIDENCE reviews")
+            normalized=[str(ref) for ref in evidence_refs if str(ref).strip()]
+            if not normalized:
+                raise ValueError("at least one evidence reference is required")
+            for ref in normalized:
+                evidence=con.execute(
+                    "SELECT e.verified,c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",
+                    (ref,)).fetchone()
+                if not evidence or not evidence["verified"]:
+                    raise ValueError("all output evidence must be verified before review")
+                if str(evidence["project_id"]) != str(row["project_id"]):
+                    raise ValueError("output evidence belongs to another project")
+            updated=con.execute(
+                "UPDATE agent_output_reviews SET evidence_refs=?,status='READY_FOR_REVIEW' WHERE id=? AND status='NEEDS_EVIDENCE'",
+                (json.dumps(normalized),review_id))
+            if updated.rowcount != 1:
+                raise ValueError("output review changed concurrently")
+        return self.db.one("SELECT * FROM agent_output_reviews WHERE id=?",(review_id,))
+
     def review(self,review_id,reviewer,decision,rationale):
         row=self.db.one("SELECT * FROM agent_output_reviews WHERE id=?",(review_id,))
         if not row: raise ValueError("output review not found")
