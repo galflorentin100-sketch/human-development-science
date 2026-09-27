@@ -115,6 +115,14 @@ class ExperimentEngine:
         KnowledgeDependencyGraph(self.db).sync_project(row["project_id"])
         return self.db.one("SELECT * FROM hds_experiment_results WHERE id=?",(i,))
 
+    def analyze(self, experiment_id):
+        row=self.get(experiment_id)
+        if not row: raise ValueError("experiment not found")
+        results=self.db.all("SELECT outcome,interpretation,evidence_refs,created_at FROM hds_experiment_results WHERE experiment_id=?",(experiment_id,))
+        if not results: return {"experiment_id":experiment_id,"n_results":0,"estimand":"No prespecified quantitative estimate available","uncertainty":"insufficient data","causal_claim":False}
+        # Results are stored as qualitative outcomes; never manufacture an effect estimate from them.
+        return {"experiment_id":experiment_id,"n_results":len(results),"outcomes":[dict(r) for r in results],"estimand":"Not computed: individual-level numeric outcome data are not registered in the experiment result table","uncertainty":"insufficient structured data for effect-size estimation","causal_claim":False,"interpretation_policy":"descriptive only until an explicit analysis plan and compatible outcome dataset are available"}
+
     def result(self, experiment_id):
         return self.db.one("SELECT * FROM hds_experiment_results WHERE experiment_id=?",(experiment_id,))
 
