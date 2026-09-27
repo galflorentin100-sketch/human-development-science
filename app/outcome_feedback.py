@@ -11,6 +11,17 @@ class OutcomeFeedbackService:
     def __init__(self,db):
         self.db=db
 
+    def propose_research_from_study(self, study_id, outcome_name, observation_type="TRAINING", created_by="system"):
+        candidate=self.propose_from_study(study_id,outcome_name,observation_type,created_by)
+        from app.research_queue import ResearchQueue
+        finding=self.db.one("SELECT * FROM research_findings WHERE id=?",(candidate["finding_id"],))
+        question=f"Investigate the observed outcome pattern: {outcome_name}"
+        queue=ResearchQueue(self.db).propose(
+            finding["project_id"], question,
+            "Outcome feedback created a descriptive candidate finding; further research is required before causal or generalization claims.",
+            "OUTCOME_FEEDBACK", priority="NORMAL")
+        return {"finding":candidate,"research_proposal":queue,"scientific_status":"CANDIDATE_ONLY"}
+
     def propose_from_study(self, study_id, outcome_name, observation_type="TRAINING", created_by="system"):
         study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
         if not study: raise ValueError("study not found")
