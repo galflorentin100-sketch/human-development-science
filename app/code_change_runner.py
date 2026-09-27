@@ -73,6 +73,8 @@ class CodeChangeRunner:
         if not root.is_dir(): raise ValueError("workspace does not exist")
         timeout=min(max(int(timeout_seconds),1),MAX_TIMEOUT_SECONDS)
         command=self._command(proposal["test_command"]); run_id=str(uuid4())
+        if self.settings.code_runner_mode=="isolated":
+            return self._verify_isolated(proposal,proposal_id,root,command,timeout,run_id)
         with tempfile.TemporaryDirectory(prefix="hds-verify-") as temp:
             target=Path(temp)/"workspace"
             shutil.copytree(root,target,ignore=shutil.ignore_patterns(".git","__pycache__",".pytest_cache"))
