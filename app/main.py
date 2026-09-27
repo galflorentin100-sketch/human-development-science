@@ -120,6 +120,29 @@ def require_resource_project(principal: Principal, resource_type: str, resource_
         "finding": ("research_findings", "id"),
         "knowledge_impact_review": ("knowledge_impact_reviews", "id"),
     }
+    if resource_type == "maintenance_work":
+        work = db.one("SELECT * FROM maintenance_work WHERE id=?", (resource_id,))
+        if not work:
+            raise HTTPException(status_code=404, detail="maintenance work not found")
+        entity_map = {
+            "project": ("projects", "id"),
+            "claim": ("claims", "id"),
+            "evidence": ("evidence", "id"),
+            "research_finding": ("research_findings", "id"),
+            "training_protocol": ("training_protocols", "id"),
+            "intervention": ("interventions", "id"),
+            "experiment": ("hds_experiments", "id"),
+            "study": ("studies", "id"),
+            "research_workspace": ("research_workspaces", "id"),
+        }
+        if work["entity_type"] not in entity_map:
+            raise HTTPException(status_code=403, detail="maintenance work is not project-scoped")
+        table, key = entity_map[work["entity_type"]]
+        row = db.one(f"SELECT project_id FROM {table} WHERE {key}=?", (work["entity_id"],))
+        if not row or not row.get("project_id"):
+            raise HTTPException(status_code=404, detail="maintenance resource not found")
+        require_project(principal, row["project_id"], permission)
+        return row["project_id"]
     if resource_type not in tables:
         raise HTTPException(status_code=500, detail="unsupported resource type")
     table, key = tables[resource_type]
@@ -732,18 +755,21 @@ def discover_scientific_maintenance(principal: Principal = Depends(principal_fro
 @app.post("/api/science/maintenance/{work_id}/request-approval")
 def request_scientific_maintenance_approval(work_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "maintenance_work", work_id, "WRITE")
     from app.scientific_maintenance_controller import ScientificMaintenanceController
     return ScientificMaintenanceController(db).request_approval(work_id,principal.user_id)
 
 @app.post("/api/science/maintenance/{work_id}/approve")
 def approve_scientific_maintenance(work_id: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
+    require_resource_project(principal, "maintenance_work", work_id, "APPROVE")
     from app.scientific_maintenance_controller import ScientificMaintenanceController
     return ScientificMaintenanceController(db).approve(work_id,principal.user_id)
 
 @app.post("/api/science/maintenance/{work_id}/dispatch")
 def dispatch_scientific_maintenance(work_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "maintenance_work", work_id, "EXECUTE")
     from app.scientific_maintenance_controller import ScientificMaintenanceController
     return ScientificMaintenanceController(db).dispatch(work_id,principal.user_id)
 
