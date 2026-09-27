@@ -28,7 +28,7 @@ class OutcomeFeedbackService:
         rows=self.db.all("""SELECT participant_id,value,unit,session_id,missing_reason
                             FROM study_outcomes
                             WHERE study_id=? AND outcome_name=? AND observation_type=?
-                            ORDER BY created_at""",(study_id,outcome_name,observation_type))
+                            ORDER BY recorded_at""",(study_id,outcome_name,observation_type))
         if not rows: raise ValueError("no observed outcomes found")
         observed=[r for r in rows if r["value"] is not None]
         if not observed: raise ValueError("all outcomes are missing")
