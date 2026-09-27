@@ -36,17 +36,18 @@ async function refresh(){
  document.getElementById("status").textContent="Refreshing "+id+"…";
  try{
   const [s,w,d]=await Promise.all([api("/api/founder/"+id),api("/api/founder/"+id+"/workflow"),api("/api/founder/"+id+"/decisions")]);
-  const h=s.health||{};
+  const project=projects.find(p=>p.id===id)||{};
+  const h=s.scientific_health||{};
   document.getElementById("metrics").innerHTML=[
-   card("Project status",s.project?.status||"—"),card("Agents",h.agents??"—"),
-   card("Open risks",h.open_risks??0,h.open_risks?"danger":"good"),card("Pending approvals",h.pending_approvals??0,h.pending_approvals?"danger":"good"),
-   card("Blocked tasks",h.blocked_tasks??0,h.blocked_tasks?"danger":"good"),card("Completed tasks",h.completed_tasks??0,"good"),
-   card("Failed tasks",h.failed_tasks??0,h.failed_tasks?"danger":"good"),card("Agent runs",h.agent_runs??0)
+   card("Project status",project.status||"—"),card("Integrity",h.integrity||"—",h.integrity==="HEALTHY"?"good":"danger"),
+   card("Open contradictions",h.open_contradictions??0,h.open_contradictions?"danger":"good"),card("Decision queue",h.decision_queue??0,h.decision_queue?"danger":"good"),
+   card("High-priority decisions",h.high_priority_decisions??0,h.high_priority_decisions?"danger":"good"),card("Research approved",s.research?.approved??0),
+   card("Experiments running",s.experiments?.running??0),card("Founder attention",s.requires_founder_attention?"YES":"NO",s.requires_founder_attention?"danger":"good")
   ].join("");
   document.getElementById("snapshot").innerHTML=[
-   "<div><b>Objective</b><br><span class='muted'>"+esc(s.project?.objective)+"</span></div>",
-   "<div><b>Founder action</b><br>"+esc(s.founder_action_required??0)+"</div>",
-   "<div><b>Latest brief</b><br><span class='muted'>"+esc(s.brief?.content||"No brief available")+"</span></div>"
+   "<div><b>Objective</b><br><span class='muted'>"+esc(project.objective)+"</span></div>",
+   "<div><b>Founder action</b><br>"+esc(s.requires_founder_attention?"Required":"None")+"</div>",
+   "<div><b>Latest brief</b><br><span class='muted'>"+esc((s.research?.completed??0)+" research items completed; "+(s.experiments?.completed??0)+" experiments completed.")+"</span></div>"
   ].join('<div class="row">')+"</div>";
   document.getElementById("decisions").innerHTML=(d.items||[]).slice(0,12).map(x=>'<div class="row"><span class="tag">'+esc(x.type)+'</span><b>'+esc(x.title||x.reason||x.id)+'</b><br><span class="muted">'+esc(x.status||"pending")+'</span></div>').join("")||'<p>No active decisions.</p>';
   document.getElementById("workflow").innerHTML=[
