@@ -92,7 +92,7 @@ class ContinuousImprovementService:
             ref=str(evidence_ref or "").strip()
             if not ref:
                 raise ValueError("SCIENCE improvements require an independently verified evidence reference")
-            evidence=self.db.one("SELECT id,verified FROM evidence WHERE id=?",(ref,))
+            evidence=self.db.one("SELECT e.id,e.verified FROM evidence e WHERE e.id=? AND e.verified=1 AND EXISTS (SELECT 1 FROM evidence_reviews r WHERE r.evidence_id=e.id AND r.verdict='VERIFIED')",(ref,))
             if not evidence or not evidence["verified"]:
                 raise ValueError("SCIENCE improvements require an independently verified evidence reference")
         ident = str(uuid.uuid4())
