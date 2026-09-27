@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.rate_limit import RateLimiter
+from app.rate_limit import RateLimiter\nfrom app.observability import emit, request_id
 from pydantic import BaseModel, Field
 from app.auth import AuthService, Principal
 from app.config import Settings
@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     db.migrate()
     yield
 
-app = FastAPI(title="HDS Company OS", lifespan=lifespan)
+app = FastAPI(title="HDS Company OS", lifespan=lifespan)\n\nclass ObservabilityMiddleware(BaseHTTPMiddleware):\n    async def dispatch(self, request, call_next):\n        rid = request.headers.get("x-request-id") or request_id()\n        request.state.request_id = rid\n        try:\n            response = await call_next(request)\n            response.headers["X-Request-ID"] = rid\n            emit("http_request", request_id=rid, method=request.method, path=request.url.path, status_code=response.status_code)\n            return response\n        except Exception as exc:\n            emit("http_request_error", request_id=rid, method=request.method, path=request.url.path, error=type(exc).__name__)\n            raise\n\napp.add_middleware(ObservabilityMiddleware)
 _rate_limiter = RateLimiter()
 
 class SecurityMiddleware(BaseHTTPMiddleware):
@@ -56,7 +56,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityMiddleware)
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/health")\ndef health():\n    return {"status":"ok"}\n\n@app.get("/ready")\ndef readiness():\n    db.one("SELECT 1")\n    return {"status":"ready"}\n\n@app.get("/", response_class=HTMLResponse)
 def dashboard():
     from app.dashboard import render_dashboard
     return HTMLResponse(render_dashboard())
