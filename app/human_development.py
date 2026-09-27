@@ -1,0 +1,162 @@
+"""Human-development product layer for HDS.
+
+This module models the real-world product surface of HDS: programs, challenges,
+competitions, and measurable human-development domains. It deliberately keeps
+scientific claims separate from product activities.
+"""
+from uuid import uuid4
+from app.models import now
+
+HDS_DOMAINS = {
+    "MENTAL_TOUGHNESS": "Mental toughness and adaptive response to challenge",
+    "DISCIPLINE": "Self-regulation, consistency, and goal-directed behavior",
+    "RESILIENCE": "Recovery and adaptation following setbacks or stressors",
+    "PHYSICAL_PERFORMANCE": "Strength, endurance, speed, agility, and general physical capability",
+    "COMBAT_SPORTS": "Supervised combat-sport skill, control, and physical performance",
+    "OUTDOOR_ADVENTURE": "Navigation, terrain, environmental challenge, and expedition skills",
+    "CHARACTER": "Values and character-related behaviors studied with explicit operational definitions",
+    "TEAMWORK": "Coordination, cooperation, communication, and collective performance",
+    "LEADERSHIP": "Leadership behaviors studied through observable tasks and outcomes",
+    "PROBLEM_SOLVING": "Decision-making, reasoning, and adaptive problem solving",
+}
+
+PROGRAM_STATUSES = {"DRAFT", "ACTIVE", "PAUSED", "COMPLETED", "RETIRED"}
+CHALLENGE_STATUSES = {"DRAFT", "ACTIVE", "RETIRED"}
+COMPETITION_STATUSES = {"DRAFT", "REGISTRATION", "ACTIVE", "COMPLETED", "CANCELLED"}
+
+class HumanDevelopmentService:
+    def __init__(self, db):
+        self.db = db
+
+    def domains(self):
+        return [{"id": k, "name": v} for k, v in HDS_DOMAINS.items()]
+
+    def create_program(self, project_id, name, objective, domain_id, actor):
+        self._project(project_id)
+        if domain_id not in HDS_DOMAINS:
+            raise ValueError("unknown HDS domain")
+        if not str(name or "").strip() or not str(objective or "").strip():
+            raise ValueError("program name and objective are required")
+        i = str(uuid4())
+        self.db.execute(
+            "INSERT INTO hds_programs(id,project_id,name,objective,domain_id,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)",
+            (i, project_id, name.strip(), objective.strip(), domain_id, "DRAFT", now(), now()),
+        )
+        return self.db.one("SELECT * FROM hds_programs WHERE id=?", (i,))
+
+    def create_challenge(self, program_id, name, description, challenge_type, difficulty, safety_constraints, actor):
+        program = self.db.one("SELECT * FROM hds_programs WHERE id=?", (program_id,))
+        if not program:
+            raise ValueError("program not found")
+        required = (name, description, challenge_type, safety_constraints)
+        if any(not str(x or "").strip() for x in required):
+            raise ValueError("challenge fields are required")
+        difficulty = int(difficulty)
+        if difficulty < 1 or difficulty > 10:
+            raise ValueError("difficulty must be 1..10")
+        i = str(uuid4())
+        self.db.execute(
+            "INSERT INTO hds_challenges(id,program_id,name,description,challenge_type,difficulty,safety_constraints,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (i, program_id, name.strip(), description.strip(), challenge_type.strip(),
+             difficulty, safety_constraints.strip(), "DRAFT", now(), now()),
+        )
+        return self.db.one("SELECT * FROM hds_challenges WHERE id=?", (i,))
+
+    def create_competition(self, project_id, name, format, actor):
+        self._project(project_id)
+        if not str(name or "").strip() or not str(format or "").strip():
+            raise ValueError("competition name and format are required")
+        i = str(uuid4())
+        self.db.execute(
+            "INSERT INTO hds_competitions(id,project_id,name,format,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
+            (i, project_id, name.strip(), format.strip(), "DRAFT", now(), now()),
+        )
+        return self.db.one("SELECT * FROM hds_competitions WHERE id=?", (i,))
+
+    def add_event(self, competition_id, challenge_id, sequence, scoring_rule):
+        competition = self.db.one("SELECT project_id FROM hds_competitions WHERE id=?", (competition_id,))
+        if not competition:
+            raise ValueError("competition not found")
+        challenge = self.db.one(
+            "SELECT p.project_id FROM hds_challenges c JOIN hds_programs p ON p.id=c.program_id WHERE c.id=?",
+            (challenge_id,),
+        )
+        if not challenge:
+            raise ValueError("challenge not found")
+        if str(challenge["project_id"]) != str(competition["project_id"]):
+            raise ValueError("challenge belongs to another project")
+        sequence = int(sequence)
+        if sequence < 1:
+            raise ValueError("event sequence must be positive")
+        if not str(scoring_rule or "").strip():
+            raise ValueError("scoring rule is required")
+        i = str(uuid4())
+        self.db.execute(
+            "INSERT INTO hds_competition_events(id,competition_id,challenge_id,sequence,scoring_rule,created_at) VALUES (?,?,?,?,?,?)",
+            (i, competition_id, challenge_id, sequence, scoring_rule.strip(), now()),
+        )
+        return self.db.one("SELECT * FROM hds_competition_events WHERE id=?", (i,))
+
+    def register_participant(self, competition_id, participant_ref):
+        competition = self.db.one("SELECT id,status FROM hds_competitions WHERE id=?", (competition_id,))
+        if not competition:
+            raise ValueError("competition not found")
+        if competition["status"] not in {"DRAFT", "REGISTRATION"}:
+            raise ValueError("competition is not accepting registrations")
+        if not str(participant_ref or "").strip():
+            raise ValueError("participant reference is required")
+        i = str(uuid4())
+        try:
+            self.db.execute(
+                "INSERT INTO hds_competition_participants(id,competition_id,participant_ref,consent_status,created_at) VALUES (?,?,?,?,?)",
+                (i, competition_id, participant_ref.strip(), "PENDING", now()),
+            )
+        except Exception as exc:
+            raise ValueError("participant is already registered") from exc
+        return self.db.one("SELECT * FROM hds_competition_participants WHERE id=?", (i,))
+
+    def record_score(self, event_id, participant_id, metric, score):
+        row = self.db.one(
+            """SELECT ce.id, ce.competition_id, cp.id AS participant_id
+               FROM hds_competition_events ce
+               JOIN hds_competition_participants cp ON cp.competition_id=ce.competition_id
+               WHERE ce.id=? AND cp.id=?""",
+            (event_id, participant_id),
+        )
+        if not row:
+            raise ValueError("event and participant do not belong to the same competition")
+        if not str(metric or "").strip():
+            raise ValueError("score metric is required")
+        i = str(uuid4())
+        self.db.execute(
+            "INSERT INTO hds_competition_scores(id,event_id,participant_id,metric,score,observed_at) VALUES (?,?,?,?,?,?)",
+            (i, event_id, participant_id, metric.strip(), float(score), now()),
+        )
+        return self.db.one("SELECT * FROM hds_competition_scores WHERE id=?", (i,))
+
+    def competition_snapshot(self, competition_id):
+        competition = self.db.one("SELECT * FROM hds_competitions WHERE id=?", (competition_id,))
+        if not competition:
+            raise ValueError("competition not found")
+        events = self.db.all(
+            """SELECT ce.*, hc.name AS challenge_name, hc.challenge_type, hc.difficulty
+               FROM hds_competition_events ce
+               JOIN hds_challenges hc ON hc.id=ce.challenge_id
+               WHERE ce.competition_id=? ORDER BY ce.sequence""",
+            (competition_id,),
+        )
+        participants = self.db.all(
+            "SELECT * FROM hds_competition_participants WHERE competition_id=? ORDER BY created_at",
+            (competition_id,),
+        )
+        scores = self.db.all(
+            """SELECT cs.*, ce.sequence FROM hds_competition_scores cs
+               JOIN hds_competition_events ce ON ce.id=cs.event_id
+               WHERE ce.competition_id=? ORDER BY ce.sequence,cs.observed_at""",
+            (competition_id,),
+        )
+        return {"competition": competition, "events": events, "participants": participants, "scores": scores}
+
+    def _project(self, project_id):
+        if not self.db.one("SELECT id FROM projects WHERE id=?", (project_id,)):
+            raise ValueError("project not found")
