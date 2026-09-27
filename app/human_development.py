@@ -181,7 +181,6 @@ class HumanDevelopmentService:
         return self.db.one("SELECT * FROM hds_competition_measure_bindings WHERE id=?", (i,))
 
     def record_score_as_outcome(self, event_id, participant_id, metric, score):
-        score_row=self.record_score(event_id,participant_id,metric,score)
         binding=self.db.one("""SELECT cmb.study_id,cmb.observation_type,cmb.timepoint,sp.id AS study_participant_id,
                 md.name,md.unit
             FROM hds_competition_measure_bindings cmb
@@ -193,6 +192,7 @@ class HumanDevelopmentService:
             (participant_id,event_id,metric))
         if not binding:
             raise ValueError("score has no preregistered scientific outcome binding")
+        score_row=self.record_score(event_id,participant_id,metric,score)
         from app.hds_outcomes import HDSOutcomeService
         outcome=HDSOutcomeService(self.db).record(
             binding["study_id"],binding["study_participant_id"],binding["name"],
