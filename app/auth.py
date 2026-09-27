@@ -29,6 +29,39 @@ class AuthService:
             con.execute("INSERT INTO users(id,external_subject,email,created_at) VALUES (?,?,?,?)",(uid,external_subject,email,now()))
             con.execute("INSERT INTO company_memberships(company_id,user_id,role_id,status,created_at) VALUES ('hds',?,?,'ACTIVE',?)",(uid,role_row["id"],now()))
         return self.db.one("SELECT * FROM users WHERE id=?",(uid,))
+    def grant_project_access(self, external_subject, project_id, role="operator"):
+        if role not in {"founder","operator","reviewer"}:
+            raise ValueError("unknown role")
+        user=self.db.one("SELECT * FROM users WHERE external_subject=?",(external_subject,))
+        if not user: raise PermissionError("unknown principal")
+        project=self.db.one("SELECT id FROM projects WHERE id=?",(project_id,))
+        if not project: raise ValueError("project not found")
+        role_row=self.db.one("SELECT id FROM roles WHERE name=?",(role,))
+        with self.db.transaction() as con:
+            con.execute(
+                "INSERT INTO project_memberships(project_id,user_id,role_id,status,created_at) VALUES (?,?,?,?,?) "
+                "ON CONFLICT(project_id,user_id) DO UPDATE SET role_id=excluded.role_id,status='ACTIVE'",
+                (project_id,user["id"],role_row["id"],"ACTIVE",now()))
+        return self.project_authorize(external_subject,project_id)
+
+    def project_authorize(self, external_subject, project_id, required_permission=None):
+        user=self.db.one("SELECT * FROM users WHERE external_subject=?",(external_subject,))
+        if not user: raise PermissionError("unknown principal")
+        company=self.db.one(
+            "SELECT r.permissions FROM company_memberships m JOIN roles r ON r.id=m.role_id "
+            "WHERE m.company_id='hds' AND m.user_id=? AND m.status='ACTIVE'",(user["id"],))
+        if not company: raise PermissionError("inactive membership")
+        membership=self.db.one(
+            "SELECT r.name,r.permissions FROM project_memberships pm JOIN roles r ON r.id=pm.role_id "
+            "WHERE pm.project_id=? AND pm.user_id=? AND pm.status='ACTIVE'",
+            (project_id,user["id"]))
+        if not membership:
+            raise PermissionError("project access denied")
+        permissions=set(json.loads(membership["permissions"]))
+        if required_permission and required_permission not in permissions:
+            raise PermissionError("permission denied")
+        return Principal(user["id"],membership["name"],permissions)
+
     def authorize(self,external_subject,required_permission=None):
         user=self.db.one("SELECT * FROM users WHERE external_subject=?",(external_subject,))
         if not user: raise PermissionError("unknown principal")
