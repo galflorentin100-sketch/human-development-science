@@ -16,6 +16,7 @@ jobs:
       - run: python -m compileall app scripts tests
       - run: python scripts/migrate.py
       - run: python -m pytest -q
+      - run: python scripts/release_gate.py
       - run: git diff --check
 
   postgres-smoke:
