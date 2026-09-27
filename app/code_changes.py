@@ -25,6 +25,26 @@ class CodeChangeService:
         if not work: raise ValueError("maintenance work not found")
         if work["status"] not in {"PROPOSED","APPROVAL_PENDING","APPROVED"}:
             raise ValueError("maintenance work is not changeable")
+        entity_project_map = {
+            "project": ("projects", "id"),
+            "claim": ("claims", "id"),
+            "evidence": ("evidence", "id"),
+            "research_finding": ("research_findings", "id"),
+            "training_protocol": ("training_protocols", "id"),
+            "intervention": ("interventions", "id"),
+            "experiment": ("hds_experiments", "id"),
+            "study": ("studies", "id"),
+            "research_workspace": ("research_workspaces", "id"),
+        }
+        mapping = entity_project_map.get(work["entity_type"])
+        if not mapping:
+            raise ValueError("maintenance work is not project-scoped")
+        table, key = mapping
+        resource = self.db.one(f"SELECT project_id FROM {table} WHERE {key}=?", (work["entity_id"],))
+        if not resource or not resource.get("project_id"):
+            raise ValueError("maintenance resource not found")
+        if str(resource["project_id"]) != str(project_id):
+            raise ValueError("maintenance work belongs to another project")
         i=str(uuid4())
         self.db.execute("""INSERT INTO code_change_proposals
             (id,project_id,maintenance_work_id,title,patch_format,patch_payload,test_command,
