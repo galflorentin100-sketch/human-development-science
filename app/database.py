@@ -57,6 +57,23 @@ CREATE TABLE IF NOT EXISTS failures (id TEXT PRIMARY KEY, project_id TEXT REFERE
 """
 
 
+PROJECT_INDEX_SCHEMA = """CREATE INDEX IF NOT EXISTS idx_claims_project_created ON claims(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_studies_project_created ON studies(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_experiments_project_created ON experiments(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_hypotheses_project_created ON hypotheses(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_founder_briefs_project_created ON founder_briefs(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_failures_project_created ON failures(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_missions_project_created ON missions(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_autonomy_iterations_project_created ON autonomy_iterations(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_hds_experiments_project_created ON hds_experiments(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_research_workspaces_project_created ON research_workspaces(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_research_skeptic_reviews_project_created ON research_skeptic_reviews(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_organizational_decisions_project_created ON organizational_decisions(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_company_memory_project_created ON company_memory(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_agent_output_reviews_project_created ON agent_output_reviews(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_interventions_project_created ON interventions(project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_training_protocols_project_created ON training_protocols(project_id,created_at);"""
+
 OPTIONAL_SCIENCE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS hds_experiments (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, research_question TEXT NOT NULL, hypothesis TEXT NOT NULL, design TEXT NOT NULL, population TEXT NOT NULL, intervention TEXT NOT NULL, comparison TEXT NOT NULL, outcomes TEXT NOT NULL, analysis_plan TEXT NOT NULL, status TEXT NOT NULL, preregistered INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS hds_experiment_results (id TEXT PRIMARY KEY, experiment_id TEXT NOT NULL, outcome TEXT NOT NULL, interpretation TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL);
@@ -418,7 +435,7 @@ class PostgreSQLDatabase:
     def audit(self,event_type,entity_type,entity_id,actor,payload,created_at,audit_id): self.execute("INSERT INTO audit_logs VALUES (?, ?, ?, ?, ?, ?, ?)",(audit_id,event_type,entity_type,entity_id,actor,json.dumps(payload),created_at))
     def migrate(self):
         statements=[]
-        for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE_AGENT_OUTPUT_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA,PHASE6_SCHEMA,PHASE7_SCHEMA,OPTIONAL_SCIENCE_SCHEMA):
+        for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE_AGENT_OUTPUT_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA,PHASE6_SCHEMA,PHASE7_SCHEMA,OPTIONAL_SCIENCE_SCHEMA,PROJECT_INDEX_SCHEMA):
             statements.extend(s.strip() for s in schema.split(";") if s.strip() and not s.strip().startswith("PRAGMA"))
         with self.connect() as con:
             for statement in statements: con.execute(self._sql(statement))
@@ -496,6 +513,7 @@ class PostgreSQLDatabase:
             if duplicate_outcomes:
                 raise RuntimeError("cannot enforce unique study outcome observations: existing duplicate observations found")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation_identity ON study_outcomes(study_id,participant_id,outcome_name,observation_type,COALESCE(session_id,''),COALESCE(timepoint,''))")
+            con.executescript(PROJECT_INDEX_SCHEMA)
 
 def database_from_settings(settings):
     if settings.database_url:
