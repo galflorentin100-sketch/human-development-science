@@ -39,7 +39,22 @@ async def lifespan(app: FastAPI):
     db.migrate()
     yield
 
-app = FastAPI(title="HDS Company OS", lifespan=lifespan)\n\nclass ObservabilityMiddleware(BaseHTTPMiddleware):\n    async def dispatch(self, request, call_next):\n        rid = request.headers.get("x-request-id") or request_id()\n        request.state.request_id = rid\n        try:\n            response = await call_next(request)\n            response.headers["X-Request-ID"] = rid\n            emit("http_request", request_id=rid, method=request.method, path=request.url.path, status_code=response.status_code)\n            return response\n        except Exception as exc:\n            emit("http_request_error", request_id=rid, method=request.method, path=request.url.path, error=type(exc).__name__)\n            raise\n\napp.add_middleware(ObservabilityMiddleware)
+app = FastAPI(title="HDS Company OS", lifespan=lifespan)
+
+class ObservabilityMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        rid = request.headers.get("x-request-id") or request_id()
+        request.state.request_id = rid
+        try:
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = rid
+            emit("http_request", request_id=rid, method=request.method, path=request.url.path, status_code=response.status_code)
+            return response
+        except Exception as exc:
+            emit("http_request_error", request_id=rid, method=request.method, path=request.url.path, error=type(exc).__name__)
+            raise
+
+app.add_middleware(ObservabilityMiddleware)
 _rate_limiter = RateLimiter()
 
 class SecurityMiddleware(BaseHTTPMiddleware):
@@ -56,7 +71,16 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityMiddleware)
 
-@app.get("/health")\ndef health():\n    return {"status":"ok"}\n\n@app.get("/ready")\ndef readiness():\n    db.one("SELECT 1")\n    return {"status":"ready"}\n\n@app.get("/", response_class=HTMLResponse)
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+@app.get("/ready")
+def readiness():
+    db.one("SELECT 1")
+    return {"status": "ready"}
+
+@app.get("/", response_class=HTMLResponse)
 def dashboard():
     from app.dashboard import render_dashboard
     return HTMLResponse(render_dashboard())
