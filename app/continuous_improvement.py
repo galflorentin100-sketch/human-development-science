@@ -88,6 +88,13 @@ class ContinuousImprovementService:
             raise ValueError("title, hypothesis, success_metric and owner are required")
         if area == "SCIENCE" and evidence_ref is not None:
             self._validate_science_evidence(evidence_ref)
+        if area == "SCIENCE":
+            ref=str(evidence_ref or "").strip()
+            if not ref:
+                raise ValueError("SCIENCE improvements require an independently verified evidence reference")
+            evidence=self.db.one("SELECT id,verified FROM evidence WHERE id=?",(ref,))
+            if not evidence or not evidence["verified"]:
+                raise ValueError("SCIENCE improvements require an independently verified evidence reference")
         ident = str(uuid.uuid4())
         self.db.execute(
             """INSERT INTO improvement_proposals
