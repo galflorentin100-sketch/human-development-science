@@ -133,7 +133,7 @@ class SC001Protocol:
             "experiment":db.one("SELECT * FROM experiments WHERE id=?",(experiment_id,)),
             "measurements":definitions,
             "study":db.one("SELECT * FROM studies WHERE id=?",(study_id,)),
-            "approval":db.one("SELECT * FROM approvals WHERE id=?",(approval_id,)),
+            "approval":db.one("SELECT * FROM approvals WHERE id=?",(approval["id"],)),
         }
 
     def quality_gates(self,protocol:StudyProtocol):
