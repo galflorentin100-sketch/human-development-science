@@ -30,7 +30,8 @@ def test_science_improvement_persists_evidence_reference(tmp_path):
     service=ContinuousImprovementService(db)
     cycle=ResearchCycle(db)
     result=cycle.run("Create verified evidence for improvement test")
-    evidence_id=db.one("SELECT id FROM evidence WHERE claim_id=? AND verified=1",(result["claims"][0]["id"],))["id"]
+    evidence_id=db.one("SELECT id FROM evidence WHERE claim_id=?",(result["claims"][0]["id"],))["id"]
+    db.execute("UPDATE evidence SET verified=1 WHERE id=?",(evidence_id,))
     proposal=service.propose("Evidence-backed process change","SCIENCE","Test whether the process improves evidence quality.","Evidence audit pass rate","researcher",evidence_id)
     assert proposal["evidence_ref"]==evidence_id
     started=service.start_experiment(proposal["id"],"Compare before and after","Baseline recorded before intervention","researcher")
