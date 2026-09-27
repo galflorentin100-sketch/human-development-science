@@ -39,7 +39,22 @@ async def lifespan(app: FastAPI):
     db.migrate()
     yield
 
-app = FastAPI(title="HDS Company OS", lifespan=lifespan)\n\n_rate_limiter = RateLimiter()\n\nclass SecurityMiddleware(BaseHTTPMiddleware):\n    async def dispatch(self, request, call_next):\n        path = request.url.path\n        if path.startswith("/api/"):\n            subject = request.headers.get("x-external-subject") or (request.client.host if request.client else "unknown")\n            limit = 20 if path.endswith("/chat") else (30 if "autonomous" in path or "research" in path else 120)\n            api_group = path.removeprefix("/api/").split("/", 1)[0]\n            if not _rate_limiter.allow(f"{subject}:{api_group}", limit):\n                from fastapi.responses import JSONResponse\n                return JSONResponse({"detail":"rate limit exceeded"}, status_code=429, headers={"Retry-After":"60"})\n        return await call_next(request)\n\napp.add_middleware(SecurityMiddleware)
+app = FastAPI(title="HDS Company OS", lifespan=lifespan)
+_rate_limiter = RateLimiter()
+
+class SecurityMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        path = request.url.path
+        if path.startswith("/api/"):
+            subject = request.headers.get("x-external-subject") or (request.client.host if request.client else "unknown")
+            limit = 20 if path.endswith("/chat") else (30 if "autonomous" in path or "research" in path else 120)
+            api_group = path.removeprefix("/api/").split("/", 1)[0]
+            if not _rate_limiter.allow(f"{subject}:{api_group}", limit):
+                from fastapi.responses import JSONResponse
+                return JSONResponse({"detail":"rate limit exceeded"}, status_code=429, headers={"Retry-After":"60"})
+        return await call_next(request)
+
+app.add_middleware(SecurityMiddleware)
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard():
