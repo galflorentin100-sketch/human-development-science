@@ -63,6 +63,8 @@ jobs:
           context: .
           push: false
           tags: hds-ci:latest
+      - name: Build isolated code worker
+        run: docker build -f worker/Dockerfile -t hds-code-worker:ci .
       - run: docker compose -f docker-compose.production.yml config
         env:
           POSTGRES_DB: hds_ci
