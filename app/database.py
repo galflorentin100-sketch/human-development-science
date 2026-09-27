@@ -198,7 +198,7 @@ PHASE3_SCHEMA = """CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PR
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, external_subject TEXT NOT NULL UNIQUE, email TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS roles (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, permissions TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS company_memberships (company_id TEXT NOT NULL REFERENCES companies(id), user_id TEXT NOT NULL REFERENCES users(id), role_id TEXT NOT NULL REFERENCES roles(id), status TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(company_id,user_id));
-CREATE TABLE IF NOT EXISTS project_memberships (project_id TEXT NOT NULL REFERENCES projects(id), user_id TEXT NOT NULL REFERENCES users(id), role_id TEXT NOT NULL REFERENCES roles(id), status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL, PRIMARY KEY(project_id,user_id))
+CREATE TABLE IF NOT EXISTS project_memberships (project_id TEXT NOT NULL REFERENCES projects(id), user_id TEXT NOT NULL REFERENCES users(id), role_id TEXT NOT NULL REFERENCES roles(id), status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL, PRIMARY KEY(project_id,user_id));
 CREATE INDEX IF NOT EXISTS idx_project_memberships_user ON project_memberships(user_id,status);
 CREATE TABLE IF NOT EXISTS service_identities (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, permissions TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS approval_events (id TEXT PRIMARY KEY, approval_id TEXT NOT NULL REFERENCES approvals(id), actor TEXT NOT NULL, action TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
