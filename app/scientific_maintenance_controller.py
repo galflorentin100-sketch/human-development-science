@@ -20,9 +20,9 @@ class ScientificMaintenanceController:
             if existing:
                 created.append(existing); continue
             i=str(uuid4())
-            self.db.execute("""INSERT OR IGNORE INTO maintenance_work
+            self.db.execute("""INSERT INTO maintenance_work
                 (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(kind,entity_type,entity_id) DO NOTHING""",
                 (i,p["kind"],p["entity_type"],p["entity_id"],p["title"],p["reason"],p["success_criteria"],"PROPOSED",None,now(),now()))
             existing_after=self.db.one("SELECT * FROM maintenance_work WHERE kind=? AND entity_type=? AND entity_id=? AND status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS') ORDER BY created_at LIMIT 1",
                                        (p["kind"],p["entity_type"],p["entity_id"]))
