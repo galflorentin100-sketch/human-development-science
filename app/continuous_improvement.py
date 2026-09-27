@@ -146,7 +146,7 @@ class ContinuousImprovementService:
             if p["experiment_result"] != "SUPPORTED":
                 raise ValueError("only supported experiments can be adopted")
             if p["area"] == "SCIENCE":
-                self._require_verified_evidence(con, p["evidence_ref"])
+                self._require_verified_evidence(p["evidence_ref"], con)
             updated=con.execute(
                 """UPDATE improvement_proposals
                 SET status='ADOPTED', adopted_by=?, adoption_rationale=?, updated_at=?
