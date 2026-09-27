@@ -95,6 +95,29 @@ CREATE INDEX IF NOT EXISTS idx_interventions_project_created ON interventions(pr
 CREATE INDEX IF NOT EXISTS idx_training_protocols_project_created ON training_protocols(project_id,created_at);"""
 
 HUMAN_DEVELOPMENT_SCHEMA = """
+CREATE TABLE IF NOT EXISTS hds_constructs (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), domain_id TEXT NOT NULL,
+ name TEXT NOT NULL, operational_definition TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'ACTIVE',
+ created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hds_assessment_measures (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), construct_id TEXT NOT NULL REFERENCES hds_constructs(id),
+ name TEXT NOT NULL, unit TEXT NOT NULL, min_value REAL, max_value REAL, higher_is_better INTEGER NOT NULL DEFAULT 1,
+ status TEXT NOT NULL DEFAULT 'DRAFT', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hds_assessment_sessions (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), participant_ref TEXT NOT NULL,
+ timepoint TEXT NOT NULL, started_at TEXT NOT NULL, completed_at TEXT, status TEXT NOT NULL DEFAULT 'OPEN', created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hds_assessment_observations (
+ id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES hds_assessment_sessions(id), measure_id TEXT NOT NULL REFERENCES hds_assessment_measures(id),
+ value REAL NOT NULL, observed_at TEXT NOT NULL, note TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_hds_constructs_project ON hds_constructs(project_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_assessment_measures_project ON hds_assessment_measures(project_id,construct_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_assessment_sessions_project ON hds_assessment_sessions(project_id,participant_ref,timepoint);
+CREATE INDEX IF NOT EXISTS idx_hds_assessment_observations_session ON hds_assessment_observations(session_id,measure_id);
+
 CREATE TABLE IF NOT EXISTS hds_programs (
  id TEXT PRIMARY KEY,
  project_id TEXT NOT NULL REFERENCES projects(id),
