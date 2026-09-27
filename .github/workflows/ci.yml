@@ -42,3 +42,4 @@ jobs:
       - run: python scripts/postgres_smoke.py
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hds_ci
+          PYTHONPATH: .
