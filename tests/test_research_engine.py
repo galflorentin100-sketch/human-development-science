@@ -184,6 +184,7 @@ def test_research_review_pipeline_rolls_back_partial_task_creation(tmp_path):
     from app.research_engine import ResearchEngine
     from app.research_review_pipeline import ResearchReviewPipeline
     from app.models import now
+    from app.evidence_pipeline import EvidencePipeline
     db=Database(str(tmp_path/"review-rollback.db")); ResearchCycle(db); pid=_setup(db)
     # Keep a skeptic reviewer available but make the second reviewer unavailable.
     db.execute("UPDATE agents SET status='INACTIVE' WHERE role IN ('evidence-auditor','evidence')")
