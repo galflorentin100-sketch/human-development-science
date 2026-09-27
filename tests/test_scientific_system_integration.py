@@ -253,3 +253,41 @@ def test_training_evidence_cannot_cross_project(tmp_path):
         assert False, "cross-project evidence must be rejected"
     except ValueError as exc:
         assert "another project" in str(exc)
+
+
+def test_training_provenance_findings_are_linked_by_shared_claim_evidence(tmp_path):
+    from app.models import now
+    from app.scientific_training_pipeline import ScientificTrainingPipeline
+    from app.training import TrainingProtocolService
+
+    db=Database(str(tmp_path/"finding-links.db")); ResearchCycle(db); pid=_setup(db)
+    claim=str(uuid.uuid4()); other_claim=str(uuid.uuid4()); source=str(uuid.uuid4())
+    for cid,statement in ((claim,"linked"),(other_claim,"unrelated")):
+        db.execute(
+            "INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+            (cid,pid,statement,"FACT","SUPPORTED",1.0,"SUPPORTED",now())
+        )
+    db.execute(
+        "INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",
+        (source,"s","https://x/"+source,"PAPER","","test")
+    )
+    ep=EvidencePipeline(db); ep.ingest_text(source,"linked excerpt; unrelated excerpt")
+    linked_ev=ep.attach(claim,source,"linked excerpt"); other_ev=ep.attach(other_claim,source,"unrelated excerpt")
+    ep.review(linked_ev["id"],"r1","VERIFIED","checked")
+    ep.review(other_ev["id"],"r2","VERIFIED","checked")
+
+    protocol=TrainingProtocolService(db).create(
+        pid,"protocol","mechanism","challenge","dose","progress",
+        "transfer","retention","safety",evidence_level="SUPPORTED",source_claim_id=claim
+    )
+    finding1=str(uuid.uuid4()); finding2=str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO research_findings(id,project_id,source_type,source_id,statement,classification,status,evidence_refs,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (finding1,pid,"OBSERVATION",None,"linked finding","INFERENCE","CANDIDATE",json.dumps([linked_ev["id"]]),"researcher",now())
+    )
+    db.execute(
+        "INSERT INTO research_findings(id,project_id,source_type,source_id,statement,classification,status,evidence_refs,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (finding2,pid,"OBSERVATION",None,"unrelated finding","INFERENCE","CANDIDATE",json.dumps([other_ev["id"]]),"researcher",now())
+    )
+    graph=ScientificTrainingPipeline(db).trace(protocol["id"])
+    assert [x["id"] for x in graph["finding_links"]]==[finding1]
