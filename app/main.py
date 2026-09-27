@@ -110,6 +110,7 @@ def require_resource_project(principal: Principal, resource_type: str, resource_
         "finding": ("research_findings", "id"),
         "research_workspace": ("research_workspaces", "id"),
         "research_synthesis": ("research_syntheses", "id"),
+        "skeptic_review": ("research_skeptic_reviews", "id"),
         "research_queue": ("hds_research_queue", "id"),
         "intervention": ("interventions", "id"),
         "contradiction": ("scientific_contradictions", "id"),
@@ -263,6 +264,7 @@ def create_research_review_tasks(synthesis_id: str, principal: Principal = Depen
 @app.post("/api/science/research-workspaces/{workspace_id}/skeptic")
 def create_skeptic_review(workspace_id: str, synthesis_id: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "research_workspace", workspace_id, "EXECUTE")
     from app.skeptic import SkepticService
     try:
         return SkepticService(db).create(workspace_id,synthesis_id)
@@ -272,6 +274,7 @@ def create_skeptic_review(workspace_id: str, synthesis_id: str | None = None, pr
 @app.post("/api/science/skeptic/{review_id}/record")
 def record_skeptic_review(review_id: str, objections: list[str] = [], missing_evidence: list[str] = [], alternative_explanations: list[str] = [], principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "skeptic_review", review_id, "WRITE")
     from app.skeptic import SkepticService
     try:
         return SkepticService(db).record(review_id,objections,missing_evidence,alternative_explanations)
@@ -281,6 +284,7 @@ def record_skeptic_review(review_id: str, objections: list[str] = [], missing_ev
 @app.post("/api/science/skeptic/{review_id}/review")
 def review_skeptic(review_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
+    require_resource_project(principal, "skeptic_review", review_id, "APPROVE")
     from app.skeptic import SkepticService
     try:
         return SkepticService(db).review(review_id,decision.upper(),principal.user_id,rationale)
@@ -300,6 +304,7 @@ def audit_research_synthesis(synthesis_id: str, principal: Principal = Depends(p
 @app.post("/api/science/research-agent/{review_id}/finalize")
 def finalize_research_agent_output(review_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "agent_output_review", review_id, "EXECUTE")
     from app.research_agent import ResearchAgentService
     try:
         return ResearchAgentService(db).finalize_review(review_id,principal.user_id)
@@ -309,6 +314,7 @@ def finalize_research_agent_output(review_id: str, principal: Principal = Depend
 @app.post("/api/science/research-syntheses/{synthesis_id}/candidate-finding")
 def promote_research_synthesis_to_finding(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "research_synthesis", synthesis_id, "EXECUTE")
     from app.research_engine import ResearchEngine
     try:
         return ResearchEngine(db).promote_to_candidate_finding(synthesis_id,principal.user_id)
