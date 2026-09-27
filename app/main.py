@@ -155,6 +155,11 @@ class HDSSafetyControlRequest(BaseModel):
     consent_required: bool = True
     supervision_required: bool = True
     medical_review_required: bool = False
+class HDSSafetyStatusRequest(BaseModel):
+    eligibility_status: str | None = None
+    supervision_status: str | None = None
+    medical_review_status: str | None = None
+
 class HDSSafetyReviewRequest(BaseModel):
     reviewer: str = Field(min_length=1, max_length=300)
     decision: str
@@ -1839,4 +1844,14 @@ def review_hds_safety(challenge_id: str, req: HDSSafetyReviewRequest, principal:
     require_project(principal,challenge["project_id"],"APPROVE")
     from app.human_development import HumanDevelopmentService
     try: return HumanDevelopmentService(db).approve_safety(challenge_id,req.reviewer,req.decision,req.rationale)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+@app.post("/api/hds/competitions/{competition_id}/participants/{participant_id}/safety-status")
+def update_hds_participant_safety(competition_id: str, participant_id: str, req: HDSSafetyStatusRequest, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    competition=db.one("SELECT project_id FROM hds_competitions WHERE id=?",(competition_id,))
+    participant=db.one("SELECT competition_id FROM hds_competition_participants WHERE id=?",(participant_id,))
+    if not competition or not participant or participant["competition_id"] != competition_id: raise HTTPException(404,"participant or competition not found")
+    require_project(principal,competition["project_id"],"APPROVE")
+    from app.human_development import HumanDevelopmentService
+    try: return HumanDevelopmentService(db).update_participant_safety(participant_id,req.eligibility_status,req.supervision_status,req.medical_review_status)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
