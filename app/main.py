@@ -1641,6 +1641,33 @@ def founder_chat(project_id: str, req: FounderChatRequest, principal: Principal 
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.post("/api/hds/safety/incidents")
+def report_hds_safety_incident(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    project_id=body.get("project_id")
+    require_project(principal, project_id, "WRITE")
+    from app.human_development import HumanDevelopmentService
+    try:
+        return HumanDevelopmentService(db).report_safety_incident(
+            project_id, body.get("description"), body.get("immediate_action"),
+            body.get("severity","MEDIUM"), principal.user_id,
+            body.get("challenge_id"), body.get("execution_id"), body.get("participant_id"))
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/safety/incidents/{incident_id}/review")
+def review_hds_safety_incident(incident_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    incident=db.one("SELECT project_id FROM hds_safety_incidents WHERE id=?",(incident_id,))
+    if not incident: raise HTTPException(404,"incident not found")
+    require_project(principal, incident["project_id"], "APPROVE")
+    from app.human_development import HumanDevelopmentService
+    try:
+        return HumanDevelopmentService(db).review_safety_incident(
+            incident_id, principal.user_id, body.get("status","REVIEWED"), body.get("review_note"))
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
 @app.post("/api/hds/studies/{study_id}/outcomes")
 def record_hds_outcome(study_id: str, req: HDSOutcomeRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
