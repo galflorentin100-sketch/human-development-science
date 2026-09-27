@@ -387,7 +387,7 @@ def test_approval_expected_action_is_enforced(tmp_path):
     db=Database(str(tmp_path/"approval_action.db")); ResearchCycle(db)
     svc=ApprovalService(db)
     approval=svc.request("DEPLOY","founder","deploy test","HIGH",correlation_id="corr-1")
-    svc.resolve(approval["id"],"APPROVED","founder")
+    svc.resolve(approval["id"],"APPROVED","reviewer")
     try:
         svc.require(approval["id"],expected_action="DELETE")
         assert False, "mismatched approval action must be rejected"
