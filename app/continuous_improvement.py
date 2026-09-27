@@ -33,10 +33,49 @@ class ContinuousImprovementService:
 
     def __init__(self, db):
         self.db = db
+    def _require_verified_evidence(self, evidence_ref, con=None):
+        if not str(evidence_ref or "").strip():
+            raise ValueError("SCIENCE improvements require an evidence reference")
+        if con is None:
+            row=self.db.one(
+                """SELECT e.id,e.verified
+                   FROM evidence e
+                   WHERE e.id=?
+                     AND e.verified=1
+                     AND EXISTS (
+                       SELECT 1 FROM evidence_reviews r
+                       WHERE r.evidence_id=e.id AND r.verdict='VERIFIED'
+                     )
+                     AND NOT EXISTS (
+                       SELECT 1 FROM evidence_reviews r
+                       WHERE r.evidence_id=e.id AND r.verdict IN ('REJECTED','CONFLICTED')
+                     )""",
+                (str(evidence_ref),))
+        else:
+            row=con.execute(
+                """SELECT e.id,e.verified
+                   FROM evidence e
+                   WHERE e.id=?
+                     AND e.verified=1
+                     AND EXISTS (
+                       SELECT 1 FROM evidence_reviews r
+                       WHERE r.evidence_id=e.id AND r.verdict='VERIFIED'
+                     )
+                     AND NOT EXISTS (
+                       SELECT 1 FROM evidence_reviews r
+                       WHERE r.evidence_id=e.id AND r.verdict IN ('REJECTED','CONFLICTED')
+                     )""",
+                (str(evidence_ref),)).fetchone()
+        if not row:
+            raise ValueError("SCIENCE improvement evidence must be independently verified and non-conflicted")
+        return True
+
 
     def propose(self, title, area, hypothesis, success_metric, owner, evidence_ref=None):
         if area not in AREAS:
             raise ValueError("invalid improvement area")
+        if area == "SCIENCE":
+            self._require_verified_evidence(evidence_ref)
         if not all(str(x).strip() for x in (title, hypothesis, success_metric, owner)):
             raise ValueError("title, hypothesis, success_metric and owner are required")
         ident = str(uuid.uuid4())
