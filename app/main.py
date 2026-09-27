@@ -75,6 +75,15 @@ class StudyOutcomeRequest(BaseModel):
     study_id: str; participant_id: str; outcome_name: str = Field(min_length=1); value: float | None = None; unit: str | None = None; session_id: str | None = None; missing_reason: str | None = None; observation_type: str = "TRAINING"; measure_id: str | None = None; timepoint: str | None = None
 class FounderChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
+class HDSOutcomeRequest(BaseModel):
+    participant_id: str
+    outcome_name: str
+    value: float | None = None
+    unit: str | None = None
+    observation_type: str
+    timepoint: str
+    session_id: str | None = None
+
 class HDSProgramRequest(BaseModel):
     project_id: str
     name: str = Field(min_length=1, max_length=300)
@@ -1538,6 +1547,35 @@ def founder_chat(project_id: str, req: FounderChatRequest, principal: Principal 
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
+
+@app.post("/api/hds/studies/{study_id}/outcomes")
+def record_hds_outcome(study_id: str, req: HDSOutcomeRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    study = db.one("SELECT id, project_id FROM studies WHERE id=?", (study_id,))
+    if not study:
+        raise HTTPException(404, "study not found")
+    require_project(principal, study["project_id"], "WRITE")
+    from app.hds_outcomes import HDSOutcomeService
+    try:
+        return HDSOutcomeService(db).record(
+            study_id, req.participant_id, req.outcome_name, req.value, req.unit,
+            req.observation_type, req.timepoint, req.session_id
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.get("/api/hds/studies/{study_id}/outcomes")
+def list_hds_outcomes(study_id: str, observation_type: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    study = db.one("SELECT id, project_id FROM studies WHERE id=?", (study_id,))
+    if not study:
+        raise HTTPException(404, "study not found")
+    require_project(principal, study["project_id"], "READ")
+    from app.hds_outcomes import HDSOutcomeService
+    try:
+        return {"items": HDSOutcomeService(db).list_for_study(study_id, observation_type)}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 @app.get("/api/hds/domains")
 def hds_domains(principal: Principal = Depends(principal_from_header)):
