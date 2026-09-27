@@ -234,10 +234,10 @@ class StudyExecution:
         i=str(uuid4()); ts=now()
         with self.db.transaction() as con:
             if session_id:
-                duplicate=con.execute("SELECT 1 FROM study_outcomes WHERE study_id=? AND participant_id=? AND outcome_name=? AND observation_type=? AND session_id=?",(study_id,participant_id,outcome_name,observation_type,session_id)).fetchone()
+                duplicate=con.execute("SELECT 1 FROM study_outcomes WHERE study_id=? AND participant_id=? AND outcome_name=? AND observation_type=? AND session_id=? AND COALESCE(timepoint,'')=COALESCE(?,'')",(study_id,participant_id,outcome_name,observation_type,session_id,timepoint)).fetchone()
                 if duplicate:
                     raise ValueError("duplicate observation")
-            con.execute("INSERT INTO study_outcomes(id,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?)",(i,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,ts))
+            con.execute("INSERT INTO study_outcomes(id,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",(i,study_id,participant_id,session_id,outcome_name,value,unit,missing_reason,observation_type,timepoint,ts))
         return self.db.one("SELECT * FROM study_outcomes WHERE id=?",(i,))
     def _validate_execution_readiness(self, study_id):
         study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
