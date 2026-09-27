@@ -9,7 +9,12 @@ MAX_TIMEOUT_SECONDS=900
 MAX_OUTPUT_BYTES=200_000
 
 class CodeChangeRunner:
-    def __init__(self,db): self.db=db
+    def __init__(self,db):
+        self.db=db
+        from app.config import Settings
+        self.settings=Settings.load()
+        if self.settings.environment=="production" and self.settings.code_runner_mode!="isolated":
+            raise RuntimeError("production code runner requires an isolated execution worker")
 
     def _proposal(self,proposal_id):
         row=self.db.one("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,))
