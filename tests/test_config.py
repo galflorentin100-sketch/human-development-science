@@ -27,5 +27,10 @@ def test_production_requires_identity_secret():
 
 def test_production_accepts_identity_secret():
     from app.config import Settings
-    settings=Settings(environment="production", database_url="postgresql://example", auth_hmac_secret="secret")
+    settings=Settings(environment="production", database_url="postgresql://example", auth_hmac_secret="secret", code_runner_mode="isolated")
     assert settings.auth_hmac_secret=="secret"
+
+
+def test_production_rejects_non_isolated_code_runner():
+    with pytest.raises(ValueError, match="HDS_CODE_RUNNER_MODE=isolated"):
+        Settings(environment="production", database_url="postgresql://example", auth_hmac_secret="secret")
