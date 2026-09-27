@@ -5,6 +5,7 @@ from app.human_development import HumanDevelopmentService
 
 def test_hds_domains_include_core_human_development_areas(tmp_path):
     db = Database(str(tmp_path / "hds-domains.db"))
+    assert "hds_programs" in db.table_names()
     domains = HumanDevelopmentService(db).domains()
     ids = {item["id"] for item in domains}
     assert {"MENTAL_TOUGHNESS", "DISCIPLINE", "PHYSICAL_PERFORMANCE", "COMBAT_SPORTS", "CHARACTER", "TEAMWORK"} <= ids
@@ -12,6 +13,7 @@ def test_hds_domains_include_core_human_development_areas(tmp_path):
 
 def test_hds_competition_is_project_scoped_and_measurable(tmp_path):
     db = Database(str(tmp_path / "hds-competition.db"))
+    assert "hds_programs" in db.table_names()
     project = ResearchCycle(db).run("HDS competition")["project"]
     svc = HumanDevelopmentService(db)
 
