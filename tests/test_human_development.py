@@ -78,3 +78,28 @@ def test_hds_api_routes_are_wired():
     assert "/api/hds/programs" in paths
     assert "/api/hds/competitions" in paths
     assert "/api/hds/competitions/{competition_id}" in paths
+
+
+def test_hds_safety_blocks_unqualified_participant(tmp_path):
+    db = Database(str(tmp_path / "hds-safety.db"))
+    project = ResearchCycle(db).run("HDS safety")["project"]
+    svc = HumanDevelopmentService(db)
+    program = svc.create_program(project["id"], "Safety Program", "Objective", "COMBAT_SPORTS", "founder")
+    challenge = svc.create_challenge(program["id"], "Controlled combat challenge", "Supervised", "COMBAT", 4, "Stop criteria", "founder")
+    competition = svc.create_competition(project["id"], "Safety Competition", "single_event", "founder")
+    event = svc.add_event(competition["id"], challenge["id"], 1, "score")
+    participant = svc.register_participant(competition["id"], "p1")
+    svc.create_safety_control(project["id"], challenge["id"], "HIGH", "Immediate stop on unsafe condition", medical_review_required=True)
+    svc.approve_safety(challenge["id"], "safety-reviewer", "APPROVED", "Reviewed")
+    svc.record_consent(participant["id"])
+    try:
+        svc.record_score(event["id"], participant["id"], "score", 1)
+        assert False, "unqualified participant must be blocked"
+    except ValueError as exc:
+        assert "eligibility" in str(exc).lower()
+    svc.update_participant_safety(participant["id"], eligibility_status="ELIGIBLE", supervision_status="ASSIGNED")
+    try:
+        svc.record_score(event["id"], participant["id"], "score", 1)
+        assert False, "medical review must be required"
+    except ValueError as exc:
+        assert "medical" in str(exc).lower()
