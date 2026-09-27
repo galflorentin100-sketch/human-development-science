@@ -99,3 +99,11 @@ class HDSCompanyService:
                 JOIN hds_programs p ON p.id=e.program_id
                 WHERE c.project_id=? AND e.status='ACTIVE' ORDER BY e.started_at DESC""",(project_id,))
         }
+
+    def analytics(self, project_id):
+        self._project(project_id)
+        customers=self.db.one("SELECT COUNT(*) AS n FROM hds_customers WHERE project_id=?",(project_id,))["n"]
+        subscribers=self.db.one("SELECT COUNT(DISTINCT customer_id) AS n FROM hds_subscriptions WHERE project_id=? AND status='ACTIVE'",(project_id,))["n"]
+        enrollments=self.db.one("""SELECT COUNT(*) AS n FROM hds_program_enrollments e JOIN hds_programs p ON p.id=e.program_id WHERE p.project_id=? AND e.status='ACTIVE'""",(project_id,))["n"]
+        completed_assessments=self.db.one("SELECT COUNT(*) AS n FROM hds_assessment_sessions WHERE project_id=? AND status='COMPLETED'",(project_id,))["n"]
+        return {"customers":customers,"active_subscriber_customers":subscribers,"active_program_enrollments":enrollments,"completed_assessments":completed_assessments,"observed_conversion_rate":(subscribers/customers if customers else None),"data_policy":"descriptive operational metrics only; no causal or predictive inference"}
