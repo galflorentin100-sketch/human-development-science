@@ -58,33 +58,6 @@ class IdempotencyService:
                 raise IdempotencyConflict("idempotency claim was lost before completion")
         return result
     def recover_stale(self,key,actor,operation,claim_token):
-        """Explicitly release a stale claim after the caller has confirmed the prior attempt stopped."""
-        if not str(key or "").strip() or not str(claim_token or "").strip():
-            raise ValueError("key and claim_token are required")
-        if not str(actor or "").strip() or not str(operation or "").strip():
-            raise ValueError("actor and operation are required")
-        now=datetime.now(timezone.utc)
-        with self.db.transaction() as con:
-            row=con.execute("SELECT * FROM idempotency_keys WHERE key=?",(key,)).fetchone()
-            if not row:
-                raise IdempotencyConflict("idempotency claim not found")
-            data=dict(row)
-            if data["actor"]!=actor or data["operation"]!=operation:
-                raise IdempotencyConflict("idempotency key belongs to another actor or operation")
-            if data["claim_token"]!=claim_token or data["status"]!="IN_PROGRESS":
-                raise IdempotencyConflict("idempotency claim is not recoverable")
-            lease=self._parse_timestamp(data.get("lease_expires_at"))
-            if lease and lease > now:
-                raise IdempotencyConflict("idempotency lease is still active")
-            deleted=con.execute(
-                "DELETE FROM idempotency_keys WHERE key=? AND claim_token=? AND status='IN_PROGRESS'",
-                (key,claim_token),
-            )
-            if deleted.rowcount != 1:
-                raise IdempotencyConflict("idempotency claim changed concurrently")
-        return {"key":key,"status":"RECOVERED","claim_token":claim_token}
-
-    def recover_stale(self,key,actor,operation,claim_token):
         """Explicitly release an expired in-progress claim.
         
         Recovery never takes over a live lease. A stale callback that later tries
