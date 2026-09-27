@@ -22,5 +22,5 @@ def test_research_loop_requires_explicit_finding_to_claim_provenance(tmp_path):
     from app.research import ResearchFindingService
     f=ResearchFindingService(db).create(p["id"],"candidate","INFERENCE","OBSERVATION",created_by="u")
     try: loop.attach_finding(run["id"],f["id"])
-    except ValueError as e: assert "loop synthesis" in str(e)
+    except ValueError as e: assert "awaiting finding" in str(e)
     else: assert False
