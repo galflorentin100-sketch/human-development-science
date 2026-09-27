@@ -385,6 +385,14 @@ class Database:
             con.executescript(OPTIONAL_SCIENCE_SCHEMA)
             _ensure_hds_schema(con)
             _ensure_hds_indexes(con)
+            for name,definition in {
+                "eligibility_status":"TEXT NOT NULL DEFAULT 'ELIGIBILITY_PENDING'",
+                "supervision_status":"TEXT NOT NULL DEFAULT 'UNASSIGNED'",
+                "medical_review_status":"TEXT NOT NULL DEFAULT 'NOT_REQUIRED'",
+            }.items():
+                existing={row[1] for row in con.execute("PRAGMA table_info(hds_competition_participants)").fetchall()}
+                if name not in existing:
+                    con.execute(f"ALTER TABLE hds_competition_participants ADD COLUMN {name} {definition}")
             _add_phase2_columns(con)
             existing_impact={row[1] for row in con.execute("PRAGMA table_info(knowledge_impact_reviews)")}
             if "impact_type" not in existing_impact:
