@@ -89,6 +89,37 @@ class StudyOutcomeRequest(BaseModel):
     study_id: str; participant_id: str; outcome_name: str = Field(min_length=1); value: float | None = None; unit: str | None = None; session_id: str | None = None; missing_reason: str | None = None; observation_type: str = "TRAINING"; measure_id: str | None = None; timepoint: str | None = None
 class FounderChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
+class HDSProgramRequest(BaseModel):
+    project_id: str
+    name: str = Field(min_length=1, max_length=300)
+    objective: str = Field(min_length=1, max_length=5000)
+    domain_id: str
+
+class HDSChallengeRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=300)
+    description: str = Field(min_length=1, max_length=5000)
+    challenge_type: str = Field(min_length=1, max_length=100)
+    difficulty: int = Field(ge=1, le=10)
+    safety_constraints: str = Field(min_length=1, max_length=5000)
+
+class HDSCompetitionRequest(BaseModel):
+    project_id: str
+    name: str = Field(min_length=1, max_length=300)
+    format: str = Field(min_length=1, max_length=1000)
+
+class HDSCompetitionEventRequest(BaseModel):
+    challenge_id: str
+    sequence: int = Field(ge=1)
+    scoring_rule: str = Field(min_length=1, max_length=2000)
+
+class HDSParticipantRequest(BaseModel):
+    participant_ref: str = Field(min_length=1, max_length=200)
+
+class HDSScoreRequest(BaseModel):
+    participant_id: str
+    metric: str = Field(min_length=1, max_length=200)
+    score: float
+
 
 
 def principal_from_header(x_external_subject: str | None = Header(default=None)) -> Principal:
@@ -1506,3 +1537,95 @@ def founder_chat(project_id: str, req: FounderChatRequest, principal: Principal 
         return FounderChatService(db).ask(project_id, req.message, principal.user_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/hds/domains")
+def hds_domains(principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.human_development import HumanDevelopmentService
+    return {"items": HumanDevelopmentService(db).domains()}
+
+@app.post("/api/hds/programs")
+def create_hds_program(req: HDSProgramRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    require_project(principal, req.project_id, "WRITE")
+    from app.human_development import HumanDevelopmentService
+    try:
+        return HumanDevelopmentService(db).create_program(req.project_id, req.name, req.objective, req.domain_id, principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/hds/programs/{program_id}/challenges")
+def create_hds_challenge(program_id: str, req: HDSChallengeRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    program = db.one("SELECT project_id FROM hds_programs WHERE id=?", (program_id,))
+    if not program:
+        raise HTTPException(404, "program not found")
+    require_project(principal, program["project_id"], "WRITE")
+    from app.human_development import HumanDevelopmentService
+    try:
+        return HumanDevelopmentService(db).create_challenge(program_id, req.name, req.description, req.challenge_type, req.difficulty, req.safety_constraints, principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/hds/competitions")
+def create_hds_competition(req: HDSCompetitionRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    require_project(principal, req.project_id, "WRITE")
+    from app.human_development import HumanDevelopmentService
+    try:
+        return HumanDevelopmentService(db).create_competition(req.project_id, req.name, req.format, principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/hds/competitions/{competition_id}/events")
+def add_hds_competition_event(competition_id: str, req: HDSCompetitionEventRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    competition = db.one("SELECT project_id FROM hds_competitions WHERE id=?", (competition_id,))
+    if not competition:
+        raise HTTPException(404, "competition not found")
+    require_project(principal, competition["project_id"], "WRITE")
+    from app.human_development import HumanDevelopmentService
+    try:
+        return HumanDevelopmentService(db).add_event(competition_id, req.challenge_id, req.sequence, req.scoring_rule)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/hds/competitions/{competition_id}/participants")
+def register_hds_participant(competition_id: str, req: HDSParticipantRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    competition = db.one("SELECT project_id FROM hds_competitions WHERE id=?", (competition_id,))
+    if not competition:
+        raise HTTPException(404, "competition not found")
+    require_project(principal, competition["project_id"], "WRITE")
+    from app.human_development import HumanDevelopmentService
+    try:
+        return HumanDevelopmentService(db).register_participant(competition_id, req.participant_ref)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/hds/competitions/{competition_id}/events/{event_id}/scores")
+def record_hds_score(competition_id: str, event_id: str, req: HDSScoreRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    competition = db.one("SELECT project_id FROM hds_competitions WHERE id=?", (competition_id,))
+    if not competition:
+        raise HTTPException(404, "competition not found")
+    require_project(principal, competition["project_id"], "WRITE")
+    event = db.one("SELECT competition_id FROM hds_competition_events WHERE id=?", (event_id,))
+    if not event or event["competition_id"] != competition_id:
+        raise HTTPException(404, "competition event not found")
+    from app.human_development import HumanDevelopmentService
+    try:
+        return HumanDevelopmentService(db).record_score(event_id, req.participant_id, req.metric, req.score)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.get("/api/hds/competitions/{competition_id}")
+def hds_competition_snapshot(competition_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    competition = db.one("SELECT project_id FROM hds_competitions WHERE id=?", (competition_id,))
+    if not competition:
+        raise HTTPException(404, "competition not found")
+    require_project(principal, competition["project_id"], "READ")
+    from app.human_development import HumanDevelopmentService
+    return HumanDevelopmentService(db).competition_snapshot(competition_id)
