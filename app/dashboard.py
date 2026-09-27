@@ -25,6 +25,11 @@ h2{font-size:16px;margin-top:0}.list{display:grid;gap:8px}.row{border-top:1px so
 <div class="cols" style="margin-top:16px"><section class="card"><h2>Scientific workflow</h2><div id="workflow" class="list"></div></section>
 <section class="card"><h2>Latest findings</h2><div id="findings" class="list"></div></section></div>
 </main>
+<div id="chat" class="card" style="position:fixed;right:18px;bottom:18px;width:min(420px,calc(100vw - 36px));display:none;box-shadow:0 20px 60px #0008">
+<h2>Founder AI</h2><div id="chatlog" style="max-height:280px;overflow:auto"></div>
+<textarea id="chatmsg" maxlength="8000" placeholder="Ask about the current company state…" style="width:100%;min-height:70px;background:#0b1020;color:inherit;border:1px solid var(--line);border-radius:9px;padding:10px"></textarea>
+<div class="toolbar" style="margin-top:8px"><button class="primary" onclick="askChat()">Ask</button><button onclick="document.getElementById('chat').style.display='none'">Close</button></div></div>
+<button onclick="document.getElementById('chat').style.display='block'" style="position:fixed;right:18px;bottom:18px;border-radius:99px;background:var(--accent);border-color:var(--accent);font-weight:700">Founder AI</button>
 <script>
 let projects=[];
 const esc=x=>String(x??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -58,6 +63,14 @@ async function refresh(){
  }catch(e){document.getElementById("status").textContent="Could not load project state: "+e.message}
 }
 async function init(){try{projects=(await api("/api/founder/projects")).items||[];const s=document.getElementById("project");s.innerHTML=projects.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.objective||p.id)+'</option>').join("");await refresh()}catch(e){document.getElementById("status").textContent="Authentication or API error: "+e.message}}
+async function askChat(){
+ const msg=document.getElementById("chatmsg").value.trim(); if(!msg)return;
+ const log=document.getElementById("chatlog"); log.innerHTML+='<div class="row"><b>You</b><br>'+esc(msg)+'</div>';
+ document.getElementById("chatmsg").value="";
+ try{const r=await api("/api/founder/"+selected()+"/chat",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({message:msg})});
+ log.innerHTML+='<div class="row"><b>HDS AI</b><br>'+esc(r.answer)+'<br><span class="muted">Unverified advisory output.</span></div>';
+ }catch(e){log.innerHTML+='<div class="row danger">Chat blocked: '+esc(e.message)+'</div>'}
+}
 async function runCycle(){const id=selected();if(!id)return;document.getElementById("status").textContent="Running governed research cycle…";try{await api("/api/science/research-cycle/"+id,{method:"POST"});await refresh()}catch(e){document.getElementById("status").textContent="Cycle blocked: "+e.message}}
 document.getElementById("project").addEventListener("change",refresh);init();
 </script></body></html>"""
