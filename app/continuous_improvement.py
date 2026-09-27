@@ -48,6 +48,18 @@ class ContinuousImprovementService:
         )
         return self.get(ident)
 
+    @staticmethod
+    def _require_verified_evidence(con, evidence_ref):
+        ref=str(evidence_ref or "").strip()
+        if not ref:
+            raise ValueError("evidence reference is required")
+        row=con.execute("SELECT id,verified FROM evidence WHERE id=?",(ref,)).fetchone()
+        if not row:
+            raise ValueError("evidence reference does not exist")
+        if not row["verified"]:
+            raise ValueError("evidence reference must be verified")
+        return ref
+
     def start_experiment(self, proposal_id, experiment_design, baseline_note, owner):
         if not str(experiment_design or "").strip() or not str(baseline_note or "").strip():
             raise ValueError("experiment design and baseline are required")
@@ -60,8 +72,8 @@ class ContinuousImprovementService:
             p=dict(p)
             if p["status"] != "PROPOSED":
                 raise ValueError("only PROPOSED improvements can start an experiment")
-            if p["area"] == "SCIENCE" and not p["evidence_ref"]:
-                raise ValueError("SCIENCE improvements require an evidence reference or explicit research basis")
+            if p["area"] == "SCIENCE":
+                self._require_verified_evidence(con, p["evidence_ref"])
             updated=con.execute(
                 """UPDATE improvement_proposals
                 SET status='EXPERIMENT', experiment_design=?, baseline_note=?, updated_at=?
@@ -83,9 +95,9 @@ class ContinuousImprovementService:
                 raise ValueError("improvement proposal not found")
             if p["status"] != "EXPERIMENT":
                 raise ValueError("only active experiments can record results")
-            if p["area"] == "SCIENCE" and not str(evidence_ref or p["evidence_ref"] or "").strip():
-                raise ValueError("SCIENCE results require an evidence reference")
             retained_evidence_ref = evidence_ref if evidence_ref is not None else p["evidence_ref"]
+            if p["area"] == "SCIENCE":
+                retained_evidence_ref = self._require_verified_evidence(con, retained_evidence_ref)
             updated=con.execute(
                 """UPDATE improvement_proposals
                 SET experiment_result=?, outcome_note=?, evidence_ref=?, updated_at=?
@@ -107,8 +119,8 @@ class ContinuousImprovementService:
                 raise ValueError("only tested improvements can be adopted")
             if p["experiment_result"] != "SUPPORTED":
                 raise ValueError("only supported experiments can be adopted")
-            if p["area"] == "SCIENCE" and not str(p["evidence_ref"] or "").strip():
-                raise ValueError("SCIENCE improvements require evidence provenance before adoption")
+            if p["area"] == "SCIENCE":
+                self._require_verified_evidence(con, p["evidence_ref"])
             updated=con.execute(
                 """UPDATE improvement_proposals
                 SET status='ADOPTED', adopted_by=?, adoption_rationale=?, updated_at=?
