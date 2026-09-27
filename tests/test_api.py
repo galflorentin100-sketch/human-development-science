@@ -339,6 +339,7 @@ def test_agent_output_needs_evidence_can_be_reopened(tmp_path):
     review=AgentOutputGate(db).submit(run_id)
     assert review["status"]=="NEEDS_EVIDENCE"
     source=EvidencePipeline(db).register_source("Gate paper","https://example.org/gate-paper","Author",2026)
+    EvidencePipeline(db).ingest_text(source["id"],"supporting excerpt")
     claim=db.one("SELECT id FROM claims WHERE project_id=? LIMIT 1",(project["id"],))
     evidence=EvidencePipeline(db).attach(claim["id"],source["id"],"supporting excerpt",actor="auditor")
     EvidencePipeline(db).review(evidence["id"],"auditor","VERIFIED","verified")
