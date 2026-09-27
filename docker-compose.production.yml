@@ -38,6 +38,7 @@ services:
       COMPANY_OS_ENV: production
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       HDS_AUTH_HMAC_SECRET: ${HDS_AUTH_HMAC_SECRET:?set HDS_AUTH_HMAC_SECRET}
+      HDS_CODE_RUNNER_MODE: isolated
       COMPANY_OS_LOG_LEVEL: INFO
     ports:
       - "8000:8000"
@@ -47,6 +48,20 @@ services:
       timeout: 5s
       start_period: 20s
       retries: 5
+
+  code-worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    restart: "no"
+    network_mode: "none"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    environment:
+      HDS_WORKER_NETWORK: none
 
 volumes:
   postgres_data:
