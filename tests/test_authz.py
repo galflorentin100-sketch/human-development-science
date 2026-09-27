@@ -6,7 +6,8 @@ import uuid
 def _project(db):
     from app.models import now
     company,agent,project=[str(uuid.uuid4()) for _ in range(3)]
-    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",(company,"c","m","v","p",now()))
+    company="hds"
+    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",(company,"c","m","v","p",now()))
     db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(agent,"a","r","m","[]","[]","1","ACTIVE",now()))
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(project,company,"o","ACTIVE",agent,now()))
     return project
