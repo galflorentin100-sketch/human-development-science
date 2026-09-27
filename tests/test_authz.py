@@ -15,10 +15,11 @@ def _project(db):
 def test_project_authorization_is_scoped_and_permission_checked(tmp_path):
     db=Database(str(tmp_path/"authz.db")); ResearchCycle(db); auth=AuthService(db)
     p1=_project(db); p2=_project(db)
+    auth.create_user("founder","founder@example.test","founder")
     auth.create_user("user-a","a@example.test","operator")
     auth.create_user("user-b","b@example.test","reviewer")
-    auth.grant_project_access("user-a",p1,"operator")
-    auth.grant_project_access("user-b",p2,"reviewer")
+    auth.grant_project_access("founder","user-a",p1,"operator")
+    auth.grant_project_access("founder","user-b",p2,"reviewer")
 
     assert auth.project_authorize("user-a",p1,"WRITE").role=="operator"
     try:
@@ -35,9 +36,10 @@ def test_project_authorization_is_scoped_and_permission_checked(tmp_path):
 
 def test_project_access_cannot_be_granted_to_unknown_project(tmp_path):
     db=Database(str(tmp_path/"authz-missing.db")); ResearchCycle(db); auth=AuthService(db)
+    auth.create_user("founder","founder@example.test","founder")
     auth.create_user("user-a","a@example.test","operator")
     try:
-        auth.grant_project_access("user-a",str(uuid.uuid4()),"operator")
+        auth.grant_project_access("founder","user-a",str(uuid.uuid4()),"operator")
         assert False
     except ValueError as exc:
         assert "project not found" in str(exc)
