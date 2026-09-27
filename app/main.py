@@ -118,6 +118,7 @@ def require_resource_project(principal: Principal, resource_type: str, resource_
         "agent_output_review": ("agent_output_reviews", "id"),
         "agent_run": ("agent_runs", "id"),
         "finding": ("research_findings", "id"),
+        "construct": ("scientific_constructs", "id"),
         "knowledge_impact_review": ("knowledge_impact_reviews", "id"),
     }
     if resource_type == "maintenance_work":
@@ -615,21 +616,27 @@ def claim_evidence_state(claim_id: str, principal: Principal = Depends(principal
 @app.post("/api/science/constructs")
 def science_construct(body: ConstructRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    if body.project_id is not None:
+        require_project(principal, body.project_id, "WRITE")
     return ScientificRegistry(db).construct(body.name, body.definition, body.construct_type, body.project_id)
 
 @app.post("/api/science/measures")
 def science_measure(body: MeasureRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "construct", body.construct_id, "WRITE")
     return ScientificRegistry(db).measure(body.construct_id, body.name, body.operational_definition, body.method, body.unit, body.reliability_note, body.validity_note)
 
 @app.post("/api/science/interventions")
 def science_intervention(body: InterventionRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    if body.target_construct_id:
+        require_resource_project(principal, "construct", body.target_construct_id, "WRITE")
     return ScientificRegistry(db).intervention(body.name, body.rationale, body.mechanism, body.evidence_level, body.dosage, body.population, body.target_construct_id)
 
 @app.post("/api/science/training-protocols")
 def create_training_protocol(body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_project(principal, body["project_id"], "WRITE")
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).create(
         body["project_id"],body["name"],body["mechanism_hypothesis"],body["challenge_domain"],
@@ -693,7 +700,6 @@ def training_protocol_scientific_readiness(protocol_id: str, principal: Principa
 @app.get("/api/science/training-protocols/{protocol_id}/readiness")
 def training_protocol_readiness(protocol_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
-    require_resource_project(principal, "training_protocol", protocol_id, "READ")
     require_resource_project(principal, "training_protocol", protocol_id, "READ")
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).readiness(protocol_id)
@@ -911,18 +917,24 @@ def research_run(body: ResearchRequest, principal: Principal = Depends(principal
     return cycle.run(body.question)
 @app.post("/api/studies/participants")
 def study_participant(body: StudyParticipantRequest, principal: Principal = Depends(principal_from_header)):
-    require_write(principal); return StudyExecution(db).participant(body.study_id, body.external_ref, body.consent_status)
+    require_write(principal)
+    require_resource_project(principal, "study", body.study_id, "WRITE")
+    return StudyExecution(db).participant(body.study_id, body.external_ref, body.consent_status)
 @app.post("/api/studies/outcomes")
 def study_outcome(body: StudyOutcomeRequest, principal: Principal = Depends(principal_from_header)):
-    require_write(principal); return StudyExecution(db).outcome(body.study_id, body.participant_id, body.outcome_name, body.value, body.unit, body.session_id, body.missing_reason, body.observation_type, body.measure_id, body.timepoint)
+    require_write(principal)
+    require_resource_project(principal, "study", body.study_id, "WRITE")
+    return StudyExecution(db).outcome(body.study_id, body.participant_id, body.outcome_name, body.value, body.unit, body.session_id, body.missing_reason, body.observation_type, body.measure_id, body.timepoint)
 @app.post("/api/studies/measures")
 def study_measure(body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "study", body["study_id"], "WRITE")
     return MeasurementRegistry(db).define(body["study_id"], body["name"], body["operational_definition"], body["method"], body["scale_type"], body.get("unit"), body.get("reliability_note",""), body.get("validity_note",""), body.get("construct_id"))
 
 @app.post("/api/studies/measure-bindings")
 def study_measure_binding(body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "study", body["study_id"], "WRITE")
     return MeasurementRegistry(db).bind(body["study_id"], body["measure_id"], body["observation_type"], body["timepoint"], body.get("required",True))
 
 @app.post("/api/studies/{study_id}/start")
@@ -1101,6 +1113,7 @@ def science_research_queue(project_id: str, principal: Principal = Depends(princ
 @app.post("/api/science/research-queue")
 def science_propose_research(body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_project(principal, body["project_id"], "WRITE")
     from app.research_queue import ResearchQueue
     return ResearchQueue(db).propose(
         body["project_id"], body["question"], body["rationale"],
@@ -1138,7 +1151,6 @@ def science_scan_contradictions(claim_id: str, principal: Principal = Depends(pr
 @app.post("/api/science/contradictions/{contradiction_id}/resolve")
 def science_resolve_contradiction(contradiction_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
-    require_resource_project(principal, "contradiction", contradiction_id, "APPROVE")
     require_resource_project(principal, "contradiction", contradiction_id, "APPROVE")
     from app.contradiction_engine import ContradictionEngine
     try:
@@ -1221,7 +1233,6 @@ def scientific_impact(project_id: str, source_type: str, source_id: str, princip
 def scientific_impact_reviews(project_id: str, status: str = None, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     require_project(principal, project_id, "READ")
-    require_project(principal, project_id, "READ")
     from app.knowledge_impact_engine import KnowledgeImpactEngine
     return KnowledgeImpactEngine(db).list(project_id, status)
 
@@ -1238,7 +1249,6 @@ def science_sync_knowledge_graph(project_id: str, principal: Principal = Depends
 @app.get("/api/science/knowledge-graph/{project_id}")
 def science_knowledge_graph(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
-    require_project(principal, project_id, "READ")
     require_project(principal, project_id, "READ")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
