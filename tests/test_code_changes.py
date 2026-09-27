@@ -20,3 +20,42 @@ def test_code_change_requires_separation_of_duties_and_verification(tmp_path):
     assert verified["status"]=="VERIFIED"
     rolled=svc.rollback(p["id"],"bob")
     assert rolled["status"]=="ROLLED_BACK"
+
+
+def test_code_change_runner_only_executes_approved_allowlisted_patch(tmp_path):
+    from app.code_change_runner import CodeChangeRunner
+    import json
+    workspace=tmp_path/"workspace"
+    workspace.mkdir()
+    (workspace/"test_generated.py").write_text("def test_ok():\n    assert 2 + 2 == 4\n")
+    db=Database(str(tmp_path/"runner.db"))
+    project=ResearchCycle(db).run("runner")["project"]
+    db.execute("""INSERT INTO maintenance_work
+        (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        ("mw-run","ENGINEERING","project",project["id"],"Fix","reason","tests","PROPOSED",None,"now","now"))
+    svc=CodeChangeService(db)
+    payload=json.dumps({"test_generated.py":"def test_ok():\n    assert 3 * 3 == 9\n"})
+    p=svc.propose(project["id"],"mw-run","runner patch","FILE_REPLACEMENT",payload,"pytest test_generated.py","LOW","alice")
+    svc.approve(p["id"],"bob")
+    result=CodeChangeRunner(db).verify_and_record(p["id"],str(workspace),30)
+    assert result["passed"] is True
+    assert db.one("SELECT status FROM code_change_proposals WHERE id=?",(p["id"],))["status"]=="VERIFIED"
+
+
+def test_code_change_runner_rejects_unapproved_and_dynamic_commands(tmp_path):
+    from app.code_change_runner import CodeChangeRunner
+    db=Database(str(tmp_path/"runner-reject.db"))
+    project=ResearchCycle(db).run("runner reject")["project"]
+    db.execute("""INSERT INTO maintenance_work
+        (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        ("mw-reject","ENGINEERING","project",project["id"],"Fix","reason","tests","PROPOSED",None,"now","now"))
+    svc=CodeChangeService(db)
+    p=svc.propose(project["id"],"mw-reject","runner patch","FILE_REPLACEMENT",'{"x.py":"x=1"}',"pytest -c evil","LOW","alice")
+    runner=CodeChangeRunner(db)
+    try: runner.verify(p["id"],str(tmp_path),30); assert False
+    except ValueError as exc: assert "approved" in str(exc)
+    svc.approve(p["id"],"bob")
+    try: runner.verify(p["id"],str(tmp_path),30); assert False
+    except ValueError as exc: assert "allowlisted" in str(exc)
