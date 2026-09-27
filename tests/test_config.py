@@ -15,3 +15,17 @@ def test_production_requires_database_url():
 def test_development_defaults_are_valid():
     settings=Settings()
     assert settings.environment=="development"
+
+
+
+def test_production_requires_identity_secret():
+    from app.config import Settings
+    import pytest
+    with pytest.raises(ValueError, match="HDS_AUTH_HMAC_SECRET"):
+        Settings(environment="production", database_url="postgresql://example", auth_hmac_secret=None)
+
+
+def test_production_accepts_identity_secret():
+    from app.config import Settings
+    settings=Settings(environment="production", database_url="postgresql://example", auth_hmac_secret="secret")
+    assert settings.auth_hmac_secret=="secret"
