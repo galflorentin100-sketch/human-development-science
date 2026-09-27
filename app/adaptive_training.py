@@ -4,7 +4,7 @@ from app.models import now
 
 class ChallengeExecutionService:
     def __init__(self,db): self.db=db
-    def start(self,project_id,challenge_id,participant_id):
+    def start(self,project_id,challenge_id,participant_id,actor="system"):
         from app.human_development import HumanDevelopmentService
         challenge=self.db.one("""SELECT c.id,p.project_id FROM hds_challenges c JOIN hds_programs p ON p.id=c.program_id WHERE c.id=?""",(challenge_id,))
         if not challenge or challenge["project_id"]!=project_id: raise ValueError("challenge does not belong to project")
@@ -14,19 +14,24 @@ class ChallengeExecutionService:
         if active: return active
         i=str(uuid4()); ts=now()
         self.db.execute("INSERT INTO hds_challenge_executions(id,project_id,challenge_id,participant_id,status,started_at,created_at) VALUES (?,?,?,?,?,?,?)",(i,project_id,challenge_id,participant_id,"RUNNING",ts,ts))
+        self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",(str(uuid4()),"hds.challenge.started","hds_challenge_execution",i,actor,"{}",ts))
         return self.db.one("SELECT * FROM hds_challenge_executions WHERE id=?",(i,))
-    def stop(self,execution_id,reason):
+    def stop(self,execution_id,reason,actor="system"):
         if not str(reason or "").strip(): raise ValueError("stop reason is required")
         row=self.db.one("SELECT * FROM hds_challenge_executions WHERE id=?",(execution_id,))
         if not row: raise ValueError("challenge execution not found")
         if row["status"]!="RUNNING": raise ValueError("challenge execution is not running")
-        self.db.execute("UPDATE hds_challenge_executions SET status='STOPPED',stopped_at=?,stop_reason=? WHERE id=? AND status='RUNNING'",(now(),reason.strip(),execution_id))
+        updated=self.db.execute("UPDATE hds_challenge_executions SET status='STOPPED',stopped_at=?,stop_reason=? WHERE id=? AND status='RUNNING'",(now(),reason.strip(),execution_id))
+        if getattr(updated,"rowcount",1)!=1: raise ValueError("challenge execution changed concurrently")
+        self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",(str(uuid4()),"hds.challenge.stopped","hds_challenge_execution",execution_id,actor,"{}",now()))
         return self.db.one("SELECT * FROM hds_challenge_executions WHERE id=?",(execution_id,))
-    def complete(self,execution_id):
+    def complete(self,execution_id,actor="system"):
         row=self.db.one("SELECT * FROM hds_challenge_executions WHERE id=?",(execution_id,))
         if not row: raise ValueError("challenge execution not found")
         if row["status"]!="RUNNING": raise ValueError("challenge execution is not running")
-        self.db.execute("UPDATE hds_challenge_executions SET status='COMPLETED',stopped_at=? WHERE id=? AND status='RUNNING'",(now(),execution_id))
+        updated=self.db.execute("UPDATE hds_challenge_executions SET status='COMPLETED',stopped_at=? WHERE id=? AND status='RUNNING'",(now(),execution_id))
+        if getattr(updated,"rowcount",1)!=1: raise ValueError("challenge execution changed concurrently")
+        self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",(str(uuid4()),"hds.challenge.completed","hds_challenge_execution",execution_id,actor,"{}",now()))
         return self.db.one("SELECT * FROM hds_challenge_executions WHERE id=?",(execution_id,))
 
 class AdaptiveTrainingService:
