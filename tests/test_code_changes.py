@@ -75,3 +75,27 @@ def test_code_change_cannot_cross_project_maintenance_work(tmp_path):
         assert False
     except ValueError as exc:
         assert "another project" in str(exc)
+
+
+def test_code_change_runner_isolated_mode_uses_worker_job_transport(tmp_path, monkeypatch):
+    import json, threading, time
+    from app.code_change_runner import CodeChangeRunner
+    workspace=tmp_path/"workspace"; workspace.mkdir()
+    (workspace/"test_generated.py").write_text("def test_ok():\n    assert 5 * 5 == 25\n")
+    shared=tmp_path/"worker"; monkeypatch.setenv("HDS_CODE_RUNNER_MODE","isolated")
+    monkeypatch.setenv("HDS_WORKER_SHARED_DIR",str(shared))
+    from worker.runner import main as worker_main
+    thread=threading.Thread(target=worker_main,daemon=True); thread.start()
+    db=Database(str(tmp_path/"isolated.db"))
+    project=ResearchCycle(db).run("isolated runner")["project"]
+    db.execute("""INSERT INTO maintenance_work
+        (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        ("mw-isolated","ENGINEERING","project",project["id"],"Fix","reason","tests","PROPOSED",None,"now","now"))
+    svc=CodeChangeService(db)
+    payload=json.dumps({"test_generated.py":"def test_ok():\n    assert 7 * 7 == 49\n"})
+    p=svc.propose(project["id"],"mw-isolated","isolated patch","FILE_REPLACEMENT",payload,"pytest test_generated.py","LOW","alice")
+    svc.approve(p["id"],"bob")
+    result=CodeChangeRunner(db).verify_and_record(p["id"],str(workspace),20)
+    assert result["passed"] is True
+    assert db.one("SELECT status FROM code_change_proposals WHERE id=?",(p["id"],))["status"]=="VERIFIED"
