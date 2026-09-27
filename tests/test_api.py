@@ -275,3 +275,24 @@ def test_sc001_registration_rolls_back_all_state_on_failure(tmp_path, monkeypatc
     assert db.one("SELECT COUNT(*) AS n FROM experiments WHERE project_id=?", (p["id"],))["n"]==0
     assert db.one("SELECT COUNT(*) AS n FROM approvals WHERE action LIKE 'SC001:STUDY:%'")["n"]==0
     monkeypatch.setattr(ApprovalService,"_request_in_transaction",original)
+
+
+def test_maintenance_materialize_is_idempotent(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
+    db=Database(str(tmp_path/"maintenance.db")); ResearchCycle(db)
+    p=ResearchCycle(db).run("maintenance")["project"]
+    db.execute(
+        "INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        ("claim-maint",p["id"],"test claim","INFERENCE","UNVERIFIED",0.0,"SUPPORTED","2026-01-01T00:00:00+00:00"))
+    # Force a maintenance proposal directly so the materializer path is exercised.
+    db.execute(
+        "INSERT INTO knowledge_freshness(id,entity_type,entity_id,review_interval_days,last_validated_at,next_review_at,status,owner,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        ("fresh-maint","CLAIM","claim-maint",1,"2025-01-01T00:00:00+00:00","2025-01-02T00:00:00+00:00","STALE","system","2025-01-01T00:00:00+00:00","2025-01-01T00:00:00+00:00"))
+    service=AutonomousScientificMaintenance(db)
+    first=service.materialize()
+    second=service.materialize()
+    assert first["count"]==1
+    assert second["count"]==0
+    assert db.one("SELECT COUNT(*) AS n FROM maintenance_work WHERE entity_id='claim-maint'")["n"]==1
