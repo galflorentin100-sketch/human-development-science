@@ -260,6 +260,37 @@ def _ensure_hds_schema(con):
         observation_type TEXT NOT NULL, timepoint TEXT NOT NULL,
         UNIQUE(event_id,study_id,measure_id,observation_type,timepoint)
     )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS hds_organizations (
+        id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+        name TEXT NOT NULL, organization_type TEXT NOT NULL, status TEXT NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS hds_customers (
+        id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+        external_ref TEXT NOT NULL, customer_type TEXT NOT NULL, status TEXT NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(project_id,external_ref)
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS hds_products (
+        id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+        name TEXT NOT NULL, product_type TEXT NOT NULL, description TEXT NOT NULL,
+        status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS hds_program_enrollments (
+        id TEXT PRIMARY KEY, program_id TEXT NOT NULL REFERENCES hds_programs(id),
+        customer_id TEXT NOT NULL REFERENCES hds_customers(id), status TEXT NOT NULL,
+        started_at TEXT NOT NULL, ended_at TEXT
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS hds_coaches (
+        id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+        external_ref TEXT NOT NULL, role TEXT NOT NULL, status TEXT NOT NULL,
+        created_at TEXT NOT NULL, UNIQUE(project_id,external_ref)
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS hds_subscriptions (
+        id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+        customer_id TEXT NOT NULL REFERENCES hds_customers(id),
+        product_id TEXT NOT NULL REFERENCES hds_products(id), status TEXT NOT NULL,
+        started_at TEXT NOT NULL, ended_at TEXT
+    )""")
 
 class Database:
     def __init__(self,path="company_os.db"):
