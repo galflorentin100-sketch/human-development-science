@@ -159,6 +159,9 @@ def _ensure_hds_indexes(con):
     con.execute("CREATE INDEX IF NOT EXISTS idx_hds_competitions_project ON hds_competitions(project_id,status)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_hds_scores_event_participant ON hds_competition_scores(event_id,participant_id)")
 
+def _ensure_hds_schema(con):
+    con.executescript(HUMAN_DEVELOPMENT_SCHEMA)
+
 class Database:
     def __init__(self,path="company_os.db"):
         self.path=Path(path)
@@ -192,7 +195,7 @@ class Database:
             con.executescript(PHASE6_SCHEMA)
             con.executescript(PHASE7_SCHEMA)
             con.executescript(OPTIONAL_SCIENCE_SCHEMA)
-            con.executescript(HUMAN_DEVELOPMENT_SCHEMA)
+            _ensure_hds_schema(con)
             _ensure_hds_indexes(con)
             _add_phase2_columns(con)
             existing_impact={row[1] for row in con.execute("PRAGMA table_info(knowledge_impact_reviews)")}
