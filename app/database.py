@@ -435,7 +435,7 @@ class PostgreSQLDatabase:
     def audit(self,event_type,entity_type,entity_id,actor,payload,created_at,audit_id): self.execute("INSERT INTO audit_logs VALUES (?, ?, ?, ?, ?, ?, ?)",(audit_id,event_type,entity_type,entity_id,actor,json.dumps(payload),created_at))
     def migrate(self):
         statements=[]
-        for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE_AGENT_OUTPUT_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA,PHASE6_SCHEMA,PHASE7_SCHEMA,OPTIONAL_SCIENCE_SCHEMA,PROJECT_INDEX_SCHEMA):
+        for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE_AGENT_OUTPUT_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA,PHASE6_SCHEMA,PHASE7_SCHEMA,OPTIONAL_SCIENCE_SCHEMA):
             statements.extend(s.strip() for s in schema.split(";") if s.strip() and not s.strip().startswith("PRAGMA"))
         with self.connect() as con:
             for statement in statements: con.execute(self._sql(statement))
@@ -443,6 +443,8 @@ class PostgreSQLDatabase:
                 existing={row["column_name"] for row in con.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=%s",(table,)).fetchall()}
                 for name,definition in columns.items():
                     if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+            for statement in (s.strip() for s in PROJECT_INDEX_SCHEMA.split(";") if s.strip()):
+                con.execute(self._sql(statement))
             duplicate_maintenance=con.execute("""
                 SELECT kind,entity_type,entity_id,COUNT(*) AS n
                 FROM maintenance_work
