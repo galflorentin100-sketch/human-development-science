@@ -137,6 +137,45 @@ CREATE TABLE IF NOT EXISTS hds_competition_scores (
  observed_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_hds_scores_event_participant ON hds_competition_scores(event_id,participant_id);
+CREATE TABLE IF NOT EXISTS hds_organizations (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+ name TEXT NOT NULL, organization_type TEXT NOT NULL, status TEXT NOT NULL,
+ created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hds_customers (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+ external_ref TEXT NOT NULL, customer_type TEXT NOT NULL, status TEXT NOT NULL,
+ created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+ UNIQUE(project_id,external_ref)
+);
+CREATE TABLE IF NOT EXISTS hds_products (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+ name TEXT NOT NULL, product_type TEXT NOT NULL, description TEXT NOT NULL,
+ status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hds_program_enrollments (
+ id TEXT PRIMARY KEY, program_id TEXT NOT NULL REFERENCES hds_programs(id),
+ customer_id TEXT NOT NULL REFERENCES hds_customers(id),
+ status TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT
+);
+CREATE TABLE IF NOT EXISTS hds_coaches (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+ external_ref TEXT NOT NULL, role TEXT NOT NULL, status TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(project_id,external_ref)
+);
+CREATE TABLE IF NOT EXISTS hds_subscriptions (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+ customer_id TEXT NOT NULL REFERENCES hds_customers(id),
+ product_id TEXT NOT NULL REFERENCES hds_products(id),
+ status TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_hds_org_project ON hds_organizations(project_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_customer_project ON hds_customers(project_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_product_project ON hds_products(project_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_enrollment_program ON hds_program_enrollments(program_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_coach_project ON hds_coaches(project_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_subscription_customer ON hds_subscriptions(customer_id,status);
 """
 OPTIONAL_SCIENCE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS hds_experiments (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, research_question TEXT NOT NULL, hypothesis TEXT NOT NULL, design TEXT NOT NULL, population TEXT NOT NULL, intervention TEXT NOT NULL, comparison TEXT NOT NULL, outcomes TEXT NOT NULL, analysis_plan TEXT NOT NULL, status TEXT NOT NULL, preregistered INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
