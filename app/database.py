@@ -194,6 +194,32 @@ CREATE INDEX IF NOT EXISTS idx_hds_product_project ON hds_products(project_id,st
 CREATE INDEX IF NOT EXISTS idx_hds_enrollment_program ON hds_program_enrollments(program_id,status);
 CREATE INDEX IF NOT EXISTS idx_hds_coach_project ON hds_coaches(project_id,status);
 CREATE INDEX IF NOT EXISTS idx_hds_subscription_customer ON hds_subscriptions(customer_id,status);
+CREATE TABLE IF NOT EXISTS hds_safety_controls (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ challenge_id TEXT NOT NULL REFERENCES hds_challenges(id),
+ risk_class TEXT NOT NULL,
+ eligibility_required INTEGER NOT NULL DEFAULT 1,
+ consent_required INTEGER NOT NULL DEFAULT 1,
+ supervision_required INTEGER NOT NULL DEFAULT 1,
+ medical_review_required INTEGER NOT NULL DEFAULT 0,
+ stop_criteria TEXT NOT NULL,
+ status TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ UNIQUE(challenge_id)
+);
+CREATE TABLE IF NOT EXISTS hds_safety_reviews (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ challenge_id TEXT NOT NULL REFERENCES hds_challenges(id),
+ reviewer TEXT NOT NULL,
+ decision TEXT NOT NULL,
+ rationale TEXT NOT NULL,
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hds_safety_project ON hds_safety_controls(project_id,status);
+CREATE INDEX IF NOT EXISTS idx_hds_safety_reviews_challenge ON hds_safety_reviews(challenge_id,created_at);
 CREATE TABLE IF NOT EXISTS hds_competition_study_bindings (
  id TEXT PRIMARY KEY, competition_id TEXT NOT NULL REFERENCES hds_competitions(id),
  participant_id TEXT NOT NULL REFERENCES hds_competition_participants(id),
@@ -308,6 +334,19 @@ def _ensure_hds_schema(con):
         customer_id TEXT NOT NULL REFERENCES hds_customers(id),
         product_id TEXT NOT NULL REFERENCES hds_products(id), status TEXT NOT NULL,
         started_at TEXT NOT NULL, ended_at TEXT
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS hds_safety_controls (
+        id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+        challenge_id TEXT NOT NULL REFERENCES hds_challenges(id), risk_class TEXT NOT NULL,
+        eligibility_required INTEGER NOT NULL DEFAULT 1, consent_required INTEGER NOT NULL DEFAULT 1,
+        supervision_required INTEGER NOT NULL DEFAULT 1, medical_review_required INTEGER NOT NULL DEFAULT 0,
+        stop_criteria TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        UNIQUE(challenge_id)
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS hds_safety_reviews (
+        id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+        challenge_id TEXT NOT NULL REFERENCES hds_challenges(id), reviewer TEXT NOT NULL,
+        decision TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL
     )""")
 
 class Database:
