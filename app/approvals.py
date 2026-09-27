@@ -83,6 +83,7 @@ class ApprovalService:
         if row["status"]=="PENDING" and row["expires_at"] and datetime.fromisoformat(row["expires_at"])<=datetime.now(timezone.utc): self._expire(row); raise ApprovalRequired(i)
         if row["status"]!="APPROVED": raise ApprovalRequired(i)
         if row["expires_at"] and datetime.fromisoformat(row["expires_at"])<=datetime.now(timezone.utc): self._expire(row); raise ApprovalRequired(i)
+        if expected_action is not None and row.get("action")!=expected_action: raise ApprovalRequired(i)
         if correlation_id is not None and row.get("correlation_id")!=correlation_id: raise ApprovalRequired(i)
         if expected_action is not None and str(row.get("action")) != str(expected_action): raise ApprovalRequired(i)
         return row
