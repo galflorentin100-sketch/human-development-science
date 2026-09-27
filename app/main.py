@@ -108,6 +108,16 @@ class HDSScoreRequest(BaseModel):
 
 
 
+def principal_from_header(x_external_subject: str | None = Header(default=None)) -> Principal:
+    if not x_external_subject:
+        if settings.environment != "production":
+            return Principal("local-development", "founder", {"READ","WRITE","EXECUTE","PUBLISH","SPEND","DELETE","DEPLOY","CONTACT_EXTERNAL_PARTY","APPROVE"})
+        raise HTTPException(status_code=401, detail="authentication required")
+    try:
+        return auth.authorize(x_external_subject)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
 @app.get("/api/founder/projects")
 def founder_projects(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
@@ -121,16 +131,6 @@ def founder_projects(principal: Principal = Depends(principal_from_header)):
                          ORDER BY p.created_at DESC""", (principal.user_id,))
     return {"items": rows}
 
-
-def principal_from_header(x_external_subject: str | None = Header(default=None)) -> Principal:
-    if not x_external_subject:
-        if settings.environment != "production":
-            return Principal("local-development", "founder", {"READ","WRITE","EXECUTE","PUBLISH","SPEND","DELETE","DEPLOY","CONTACT_EXTERNAL_PARTY","APPROVE"})
-        raise HTTPException(status_code=401, detail="authentication required")
-    try:
-        return auth.authorize(x_external_subject)
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 def require_permission(principal: Principal, permission: str) -> None:
     if principal.user_id == "local-development" and settings.environment != "production":
