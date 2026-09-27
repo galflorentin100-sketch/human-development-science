@@ -21,7 +21,7 @@ class KnowledgeDependencyGraph:
 
     def add_edge(self,project_id,from_type,from_id,relation,to_type,to_id,provenance_refs=(),created_by="system"):
         if not self.db.one("SELECT 1 FROM projects WHERE id=?",(project_id,)): raise ValueError("project not found")
-        allowed={"CLAIM":"claims","INTERVENTION":"interventions","TRAINING_PROTOCOL":"training_protocols","FINDING":"research_findings","QUESTION":"research_questions","EXPERIMENT":"hds_experiments"}
+        allowed={"CLAIM","INTERVENTION","TRAINING_PROTOCOL","FINDING","QUESTION","EXPERIMENT","EVIDENCE","SOURCE","TRAINING_SESSION","EXPERIMENT_RESULT","PROJECT","HYPOTHESIS"}
         ownership_queries={
             "CLAIM":"SELECT project_id FROM claims WHERE id=?",
             "INTERVENTION":"SELECT project_id FROM interventions WHERE id=?",
@@ -32,10 +32,15 @@ class KnowledgeDependencyGraph:
             "EVIDENCE":"SELECT c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",
             "TRAINING_SESSION":"SELECT p.project_id FROM training_sessions s JOIN training_protocols p ON p.id=s.protocol_id WHERE s.id=?",
             "EXPERIMENT_RESULT":"SELECT e.project_id FROM hds_experiment_results r JOIN hds_experiments e ON e.id=r.experiment_id WHERE r.id=? UNION ALL SELECT e.project_id FROM experiment_results r JOIN experiments e ON e.id=r.experiment_id WHERE r.id=?",
-            "PROJECT":"SELECT id AS project_id FROM projects WHERE id=?"
+            "PROJECT":"SELECT id AS project_id FROM projects WHERE id=?",
+            "SOURCE":"SELECT c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id JOIN sources s ON s.id=e.source_id WHERE s.id=? LIMIT 1",
+            "HYPOTHESIS":"SELECT project_id FROM hypotheses WHERE id=?",
         }
         for typ,nid in ((from_type,from_id),(to_type,to_id)):
-            query=ownership_queries.get(str(typ).upper())
+            typ=str(typ).upper()
+            if typ not in allowed:
+                raise ValueError(f"unsupported graph node type: {typ}")
+            query=ownership_queries.get(typ)
             if query:
                 params=(str(nid),str(nid)) if str(typ).upper() in {"EXPERIMENT","EXPERIMENT_RESULT"} else (str(nid),)
                 rows=self.db.all(query,params)
