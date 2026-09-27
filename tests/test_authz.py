@@ -87,3 +87,21 @@ def test_project_authorization_denies_cross_project_resource_even_with_company_m
         assert False, "company membership must not imply project membership"
     except PermissionError as exc:
         assert "project access denied" in str(exc)
+
+
+def test_intervention_inherits_target_construct_project(tmp_path):
+    from app.models import now
+    from app.science import ScientificRegistry
+
+    db=Database(str(tmp_path/"intervention-project.db")); ResearchCycle(db)
+    p1=_project(db)
+    db.execute(
+        "INSERT INTO scientific_constructs(id,project_id,name,definition,construct_type,status,version,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        ("construct-intervention",p1,"resilience","test","CAPABILITY","ACTIVE",1,now()),
+    )
+    registry=ScientificRegistry(db)
+    intervention=registry.intervention(
+        "intervention-a","rationale","mechanism","PRELIMINARY","weekly","adults",
+        "construct-intervention",project_id=p1,
+    )
+    assert intervention["project_id"] == p1
