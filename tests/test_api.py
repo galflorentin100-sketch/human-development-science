@@ -358,3 +358,28 @@ def test_record_attempt_numbers_are_atomic(tmp_path):
     second=TaskEngine(db).record_attempt(task["id"],"RETRY")
     assert first["attempt_number"]==1
     assert second["attempt_number"]==2
+
+
+def test_sc001_registration_rolls_back_on_mid_pipeline_failure(tmp_path, monkeypatch):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.sc001 import SC001Protocol
+    from app.measurement import MeasurementRegistry
+    db=Database(str(tmp_path/"sc001_atomic.db")); ResearchCycle(db)
+    p=ResearchCycle(db).run("SC001 atomic")["project"]
+    original_bind=MeasurementRegistry.bind
+    calls={"n":0}
+    def failing_bind(self,*args,**kwargs):
+        calls["n"]+=1
+        if calls["n"]==2:
+            raise RuntimeError("simulated registration failure")
+        return original_bind(self,*args,**kwargs)
+    monkeypatch.setattr(MeasurementRegistry,"bind",failing_bind)
+    try:
+        SC001Protocol().register(db,p["id"])
+        assert False, "registration should fail"
+    except RuntimeError:
+        pass
+    assert db.one("SELECT COUNT(*) AS n FROM hypotheses WHERE project_id=?",(p["id"],))["n"]==0
+    assert db.one("SELECT COUNT(*) AS n FROM experiments WHERE project_id=?",(p["id"],))["n"]==0
+    assert db.one("SELECT COUNT(*) AS n FROM studies WHERE project_id=?",(p["id"],))["n"]==0
