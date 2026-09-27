@@ -404,6 +404,11 @@ def _ensure_hds_schema(con):
         stop_criteria TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
         UNIQUE(challenge_id)
     )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS research_loop_runs (
+        id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+        gap TEXT NOT NULL, workspace_id TEXT, synthesis_id TEXT, finding_id TEXT,
+        claim_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )""")
     con.execute("""CREATE TABLE IF NOT EXISTS hds_challenge_executions (
         id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
         challenge_id TEXT NOT NULL REFERENCES hds_challenges(id),
