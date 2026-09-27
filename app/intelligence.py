@@ -1,6 +1,6 @@
 class IntelligenceService:
     def __init__(self,db): self.db=db
-    def findings(self): return self.db.all("SELECT * FROM findings ORDER BY created_at DESC LIMIT 20")
+    def findings(self): return self.db.all("SELECT * FROM research_findings ORDER BY created_at DESC LIMIT 20")
     def timeline(self): return self.db.all("SELECT event_type,entity_type,entity_id,actor,created_at FROM audit_logs ORDER BY created_at DESC LIMIT 30")
     def workforce(self):
         return self.db.all("""SELECT a.id,a.name,a.role,a.status,a.manager,
