@@ -33,9 +33,20 @@ class AutonomousResearchLoop:
     def attach_synthesis(self,run_id,synthesis_id):
         run=self.get(run_id); syn=self.db.one("SELECT rs.*,rw.project_id FROM research_syntheses rs JOIN research_workspaces rw ON rw.id=rs.workspace_id WHERE rs.id=?",(synthesis_id,))
         if not syn or syn["project_id"]!=run["project_id"] or syn["workspace_id"]!=run["workspace_id"]: raise ValueError("synthesis is outside this research loop")
+        if syn["status"]!="ACCEPTED": raise ValueError("research synthesis must be independently reviewed and ACCEPTED")
+        from app.research_engine import ResearchEngine
+        readiness=ResearchEngine(self.db).readiness(synthesis_id)
+        if not readiness["ready"]: raise ValueError("research synthesis is not ready: "+",".join(readiness["blockers"]))
         if run["status"]!="RESEARCH_ACTIVE": raise ValueError("loop is not awaiting synthesis")
         self.db.execute("UPDATE research_loop_runs SET synthesis_id=?,status='SYNTHESIS_READY',updated_at=? WHERE id=? AND status='RESEARCH_ACTIVE'",(synthesis_id,now(),run_id))
         return self.get(run_id)
+    def promote_reviewed_synthesis_to_finding(self,run_id,actor="system"):
+        run=self.get(run_id)
+        if run["status"]!="SYNTHESIS_READY": raise ValueError("loop is not awaiting finding")
+        from app.research_engine import ResearchEngine
+        finding=ResearchEngine(self.db).promote_to_candidate_finding(run["synthesis_id"],actor)
+        return self.attach_finding(run_id,finding["id"])
+
     def attach_finding(self,run_id,finding_id):
         run=self.get(run_id); f=self.db.one("SELECT * FROM research_findings WHERE id=?",(finding_id,))
         if not f or f["project_id"]!=run["project_id"]: raise ValueError("finding is outside this project")
