@@ -236,3 +236,23 @@ def test_scientific_interpretation_does_not_flag_frameworks_as_works(tmp_path):
         causal_design=False,
     )
     assert statement.classification=="INFERENCE"
+
+
+def test_science_improvement_rejects_unverified_evidence_reference(tmp_path):
+    from app.continuous_improvement import ContinuousImprovementService
+    from app.evidence_pipeline import EvidencePipeline
+    from app.models import now
+    import uuid
+    db=Database(str(tmp_path/"improvement-evidence.db")); ResearchCycle(db)
+    project=db.one("SELECT id FROM projects LIMIT 1")
+    source=EvidencePipeline(db).register_source("Paper","https://example.org/improvement","Author",2025)
+    claim_id=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+               (claim_id,project["id"],"candidate claim","INFERENCE","PRELIMINARY",0.5,"PROPOSED",now()))
+    evidence=EvidencePipeline(db).attach(claim_id,source["id"],"Relevant excerpt","SUPPORTS",actor="researcher")
+    service=ContinuousImprovementService(db)
+    try:
+        service.propose("Scientific change","SCIENCE","test hypothesis","verified outcome","researcher",evidence_ref=evidence["id"])
+        assert False, "unverified scientific evidence must not be accepted"
+    except ValueError as exc:
+        assert "must be verified" in str(exc)
