@@ -231,13 +231,13 @@ def synthesize_research_workspace(workspace_id: str, req: ResearchSynthesisReque
 @app.get("/api/science/research-syntheses/{synthesis_id}/evidence-audits")
 def research_evidence_audit_history(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
-    require_resource_project(principal, "research_synthesis", synthesis_id, "READ")
+    require_resource_project(principal, "research_synthesis", synthesis_id, "APPROVE")
     return {"items":db.all("SELECT * FROM research_evidence_audits WHERE synthesis_id=? ORDER BY created_at DESC",(synthesis_id,))}
 
 @app.get("/api/science/research-syntheses/{synthesis_id}/readiness")
 def research_synthesis_readiness(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
-    require_resource_project(principal, "research_synthesis", synthesis_id, "READ")
+    require_resource_project(principal, "research_synthesis", synthesis_id, "APPROVE")
     from app.research_engine import ResearchEngine
     try:
         return ResearchEngine(db).readiness(synthesis_id)
@@ -318,7 +318,7 @@ def promote_research_synthesis_to_finding(synthesis_id: str, principal: Principa
 @app.post("/api/science/research-syntheses/{synthesis_id}/review")
 def review_research_synthesis(synthesis_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
-    require_resource_project(principal, "research_synthesis", synthesis_id, "READ")
+    require_resource_project(principal, "research_synthesis", synthesis_id, "APPROVE")
     from app.research_engine import ResearchEngine
     try:
         return ResearchEngine(db).review(synthesis_id,principal.user_id,decision.upper(),rationale)
@@ -537,38 +537,38 @@ def claim_evidence_resolution(claim_id: str, principal: Principal = Depends(prin
 
 def study_analysis_audit(study_id: str, analysis_plan_id: str, outcome_name: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
-    require_resource_project(principal, "study", study_id, "READ")
+    require_resource_project(principal, "study", study_id, "EXECUTE")
     return ScientificAnalysisEngine(db).analysis_audit(study_id, analysis_plan_id, outcome_name)
 
 @app.get("/api/studies/{study_id}/analysis/{analysis_plan_id}/missingness")
 def study_missingness(study_id: str, analysis_plan_id: str, outcome_name: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
-    require_resource_project(principal, "study", study_id, "READ")
+    require_resource_project(principal, "study", study_id, "EXECUTE")
     ScientificAnalysisEngine(db)._plan(study_id, analysis_plan_id)
     return ScientificAnalysisEngine(db).missingness_report(study_id, outcome_name)
 
 @app.post("/api/studies/{study_id}/analysis/{analysis_plan_id}/retention")
 def study_retention_analysis(study_id: str, analysis_plan_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
-    require_resource_project(principal, "study", study_id, "READ")
+    require_resource_project(principal, "study", study_id, "EXECUTE")
     return ScientificAnalysisEngine(db).longitudinal_retention_analysis(study_id, analysis_plan_id, body["outcome_name"])
 
 @app.post("/api/studies/{study_id}/analysis/{analysis_plan_id}/inferential")
 def inferential_study_analysis(study_id: str, analysis_plan_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
-    require_resource_project(principal, "study", study_id, "READ")
+    require_resource_project(principal, "study", study_id, "EXECUTE")
     return ScientificAnalysisEngine(db).inferential_randomized_arm_analysis(study_id, analysis_plan_id, body["outcome_name"])
 
 @app.post("/api/studies/{study_id}/analysis/{analysis_plan_id}/randomized")
 def analyze_randomized_study(study_id: str, analysis_plan_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
-    require_resource_project(principal, "study", study_id, "READ")
+    require_resource_project(principal, "study", study_id, "EXECUTE")
     return ScientificAnalysisEngine(db).randomized_arm_analysis(study_id, analysis_plan_id, body["outcome_name"])
 
 @app.post("/api/studies/{study_id}/analysis/{analysis_plan_id}")
 def analyze_study(study_id: str, analysis_plan_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
-    require_resource_project(principal, "study", study_id, "READ")
+    require_resource_project(principal, "study", study_id, "EXECUTE")
     return ScientificAnalysisEngine(db).analyze(study_id, analysis_plan_id, body["outcome_name"])
 
 @app.post("/api/science/claims/{claim_id}/transition")
@@ -896,13 +896,13 @@ def study_measure_binding(body: dict, principal: Principal = Depends(principal_f
 @app.post("/api/studies/{study_id}/start")
 def study_start(study_id: str, principal: Principal = Depends(principal_from_header)):
     require_permission(principal, "EXECUTE")
-    require_resource_project(principal, "study", study_id, "READ")
+    require_resource_project(principal, "study", study_id, "EXECUTE")
     return StudyExecution(db).start(study_id)
 
 @app.post("/api/studies/{study_id}/complete")
 def study_complete(study_id: str, principal: Principal = Depends(principal_from_header)):
     require_permission(principal, "EXECUTE")
-    require_resource_project(principal, "study", study_id, "READ")
+    require_resource_project(principal, "study", study_id, "EXECUTE")
     return StudyExecution(db).complete(study_id)
 
 @app.post("/api/experiments")
@@ -983,7 +983,7 @@ def science_preregister_experiment(experiment_id: str, principal: Principal = De
 @app.get("/api/science/experiments/{experiment_id}/analysis")
 def experiment_analysis(experiment_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
-    require_resource_project(principal, "experiment", experiment_id, "READ")
+    require_resource_project(principal, "experiment", experiment_id, "EXECUTE")
     from app.experiment_analyzer import ExperimentAnalyzer
     try:
         return ExperimentAnalyzer(db).analyze(experiment_id)
@@ -1003,7 +1003,7 @@ def experiment_candidate_finding(experiment_id: str, principal: Principal = Depe
 @app.post("/api/science/experiments/{experiment_id}/safety-review")
 def experiment_safety_review(experiment_id: str, payload: dict, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
-    require_resource_project(principal, "experiment", experiment_id, "READ")
+    require_resource_project(principal, "experiment", experiment_id, "APPROVE")
     from app.experiment_safety import ExperimentSafetyReviewer
     try:
         return ExperimentSafetyReviewer(db).review(experiment_id,payload.get("decision",""),payload.get("rationale",""),principal.user_id)
@@ -1013,7 +1013,7 @@ def experiment_safety_review(experiment_id: str, payload: dict, principal: Princ
 @app.post("/api/science/experiments/{experiment_id}/start")
 def science_start_experiment(experiment_id: str, principal: Principal = Depends(principal_from_header)):
     require_permission(principal, "EXECUTE")
-    require_resource_project(principal, "experiment", experiment_id, "READ")
+    require_resource_project(principal, "experiment", experiment_id, "EXECUTE")
     from app.experiment_engine import ExperimentEngine
     try:
         return ExperimentEngine(db).start(experiment_id)
@@ -1023,7 +1023,7 @@ def science_start_experiment(experiment_id: str, principal: Principal = Depends(
 @app.post("/api/science/experiments/{experiment_id}/complete")
 def science_complete_experiment(experiment_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
-    require_resource_project(principal, "experiment", experiment_id, "READ")
+    require_resource_project(principal, "experiment", experiment_id, "EXECUTE")
     from app.experiment_engine import ExperimentEngine
     try:
         return ExperimentEngine(db).complete(experiment_id)
@@ -1048,7 +1048,7 @@ def science_record_experiment_result(experiment_id: str, body: dict, principal: 
 @app.get("/api/science/experiments/{experiment_id}/result")
 def science_get_experiment_result(experiment_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
-    require_resource_project(principal, "experiment", experiment_id, "READ")
+    require_resource_project(principal, "experiment", experiment_id, "EXECUTE")
     from app.experiment_engine import ExperimentEngine
     return ExperimentEngine(db).result(experiment_id)
 
@@ -1078,7 +1078,7 @@ def science_propose_research(body: dict, principal: Principal = Depends(principa
 @app.post("/api/science/research-queue/{item_id}/approve")
 def science_approve_research(item_id: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
-    require_resource_project(principal, "research_queue", item_id, "READ")
+    require_resource_project(principal, "research_queue", item_id, "APPROVE")
     from app.research_queue import ResearchQueue
     try:
         return ResearchQueue(db).approve(item_id, principal.user_id)
@@ -1106,8 +1106,8 @@ def science_scan_contradictions(claim_id: str, principal: Principal = Depends(pr
 @app.post("/api/science/contradictions/{contradiction_id}/resolve")
 def science_resolve_contradiction(contradiction_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
-    require_resource_project(principal, "contradiction", contradiction_id, "READ")
-    require_resource_project(principal, "contradiction", contradiction_id, "READ")
+    require_resource_project(principal, "contradiction", contradiction_id, "APPROVE")
+    require_resource_project(principal, "contradiction", contradiction_id, "APPROVE")
     from app.contradiction_engine import ContradictionEngine
     try:
         return ContradictionEngine(db).resolve(contradiction_id, principal.user_id, body["resolution"])
@@ -1136,7 +1136,7 @@ def science_claim_revision_history(claim_id: str, principal: Principal = Depends
 @app.post("/api/science/revisions/{revision_id}/approve")
 def science_approve_claim_revision(revision_id: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
-    require_resource_project(principal, "claim_revision", revision_id, "READ")
+    require_resource_project(principal, "claim_revision", revision_id, "APPROVE")
     from app.claim_revision import ClaimRevisionService
     try:
         return ClaimRevisionService(db).approve(revision_id, principal.user_id)
@@ -1269,7 +1269,7 @@ def science_knowledge_impact(project_id: str, node_type: str, node_id: str, dept
 @app.post("/api/science/impact-review/{review_id}")
 def review_knowledge_impact(review_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
-    require_resource_project(principal, "knowledge_impact_review", review_id, "READ")
+    require_resource_project(principal, "knowledge_impact_review", review_id, "APPROVE")
     from app.knowledge_impact_engine import KnowledgeImpactEngine
     try:
         return KnowledgeImpactEngine(db).review(review_id,principal.user_id,decision,rationale)
@@ -1391,7 +1391,7 @@ def finalize_research_review_agent(review_id: str, principal: Principal = Depend
 @app.post("/api/science/agent-output/{review_id}/review")
 def review_agent_output(review_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
-    require_resource_project(principal, "agent_output_review", review_id, "READ")
+    require_resource_project(principal, "agent_output_review", review_id, "APPROVE")
     from app.agent_output_gate import AgentOutputGate
     return AgentOutputGate(db).review(review_id,principal.user_id,decision,rationale)
 
@@ -1399,7 +1399,7 @@ def review_agent_output(review_id: str, decision: str, rationale: str, principal
 @app.post("/api/science/findings/{finding_id}/review")
 def review_scientific_finding(finding_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
-    require_resource_project(principal, "finding", finding_id, "READ")
+    require_resource_project(principal, "finding", finding_id, "APPROVE")
     from app.research import ResearchFindingService
     try:
         return ResearchFindingService(db).review(finding_id,principal.user_id,decision.upper(),rationale)
