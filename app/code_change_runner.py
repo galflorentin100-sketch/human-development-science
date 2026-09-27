@@ -1,6 +1,6 @@
 """Governed verification runner for approved code changes."""
 from __future__ import annotations
-import os, shlex, shutil, subprocess, tempfile
+import json, os, shlex, shutil, subprocess, tempfile, time
 from pathlib import Path
 from uuid import uuid4
 
@@ -48,6 +48,25 @@ class CodeChangeRunner:
             return
         raise ValueError("unsupported patch format")
 
+    def _verify_isolated(self, proposal, proposal_id, workspace, command, timeout, run_id):
+        shared = Path(os.getenv('HDS_WORKER_SHARED_DIR', '/var/lib/hds-code-worker')).resolve()
+        jobs = shared / 'jobs'; jobs.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='hds-verify-') as temp:
+            target = Path(temp) / 'workspace'
+            shutil.copytree(Path(workspace).resolve(), target, ignore=shutil.ignore_patterns('.git','__pycache__','.pytest_cache'))
+            self._apply_patch(proposal, target)
+            job_dir = jobs / run_id; job_dir.mkdir()
+            shutil.copytree(target, job_dir / 'workspace', ignore=shutil.ignore_patterns('.git','__pycache__','.pytest_cache'))
+            (job_dir / 'request.json').write_text(json.dumps({'command': command, 'timeout': timeout}), encoding='utf-8')
+            deadline=time.monotonic()+timeout+30; result_file=job_dir/'result.json'
+            try:
+                while time.monotonic() < deadline:
+                    if result_file.exists():
+                        result=json.loads(result_file.read_text(encoding='utf-8'))
+                        return {'verification_run_id':run_id,'proposal_id':proposal_id,'passed':bool(result.get('passed')),'return_code':result.get('return_code'),'timed_out':bool(result.get('timed_out')),'output':str(result.get('output',''))[-MAX_OUTPUT_BYTES:]}
+                    time.sleep(0.25)
+                return {'verification_run_id':run_id,'proposal_id':proposal_id,'passed':False,'return_code':None,'timed_out':True,'output':'isolated worker did not return a result before timeout'}
+            finally: shutil.rmtree(job_dir, ignore_errors=True)
     def verify(self,proposal_id,workspace,timeout_seconds=300):
         proposal=self._proposal(proposal_id)
         root=Path(workspace).resolve()
