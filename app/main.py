@@ -1943,3 +1943,53 @@ def hds_training_progression(protocol_id: str, participant_ref: str, principal: 
     from app.training import TrainingProtocolService
     try: return TrainingProtocolService(db).progression(protocol_id,participant_ref)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/challenges/{challenge_id}/participants/{participant_id}/start")
+def start_hds_challenge(challenge_id: str, participant_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.adaptive_training import ChallengeExecutionService
+    project_id=body.get("project_id")
+    if not project_id: raise HTTPException(400,"project_id is required")
+    require_project(principal,project_id,"WRITE")
+    try: return ChallengeExecutionService(db).start(project_id,challenge_id,participant_id)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/challenge-executions/{execution_id}/stop")
+def stop_hds_challenge(execution_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    row=db.one("SELECT project_id FROM hds_challenge_executions WHERE id=?",(execution_id,))
+    if not row: raise HTTPException(404,"challenge execution not found")
+    require_project(principal,row["project_id"],"WRITE")
+    from app.adaptive_training import ChallengeExecutionService
+    try: return ChallengeExecutionService(db).stop(execution_id,body.get("reason"))
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/challenge-executions/{execution_id}/complete")
+def complete_hds_challenge(execution_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    row=db.one("SELECT project_id FROM hds_challenge_executions WHERE id=?",(execution_id,))
+    if not row: raise HTTPException(404,"challenge execution not found")
+    require_project(principal,row["project_id"],"WRITE")
+    from app.adaptive_training import ChallengeExecutionService
+    try: return ChallengeExecutionService(db).complete(execution_id)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.get("/api/hds/training/{protocol_id}/participants/{participant_ref}/adaptive")
+def adaptive_hds_training(protocol_id: str, participant_ref: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    protocol=db.one("SELECT project_id FROM training_protocols WHERE id=?",(protocol_id,))
+    if not protocol: raise HTTPException(404,"training protocol not found")
+    require_project(principal,protocol["project_id"],"READ")
+    from app.adaptive_training import AdaptiveTrainingService
+    try: return AdaptiveTrainingService(db).recommend(protocol_id,participant_ref)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/training/{protocol_id}/participants/{participant_ref}/adaptive")
+def apply_adaptive_hds_training(protocol_id: str, participant_ref: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    protocol=db.one("SELECT project_id FROM training_protocols WHERE id=?",(protocol_id,))
+    if not protocol: raise HTTPException(404,"training protocol not found")
+    require_project(principal,protocol["project_id"],"WRITE")
+    from app.adaptive_training import AdaptiveTrainingService
+    try: return AdaptiveTrainingService(db).apply(protocol["project_id"],protocol_id,participant_ref,body["new_difficulty"],body["rationale"])
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
