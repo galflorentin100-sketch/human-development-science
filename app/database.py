@@ -233,6 +233,30 @@ CREATE TABLE IF NOT EXISTS hds_safety_controls (
  updated_at TEXT NOT NULL,
  UNIQUE(challenge_id)
 );
+CREATE TABLE IF NOT EXISTS hds_challenge_executions (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ challenge_id TEXT NOT NULL REFERENCES hds_challenges(id),
+ participant_id TEXT NOT NULL REFERENCES hds_competition_participants(id),
+ status TEXT NOT NULL,
+ started_at TEXT NOT NULL,
+ stopped_at TEXT,
+ stop_reason TEXT,
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hds_challenge_exec_project ON hds_challenge_executions(project_id,challenge_id,participant_id,status);
+CREATE TABLE IF NOT EXISTS hds_training_adjustments (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ protocol_id TEXT NOT NULL REFERENCES training_protocols(id),
+ participant_ref TEXT NOT NULL,
+ previous_difficulty REAL,
+ new_difficulty REAL NOT NULL,
+ rationale TEXT NOT NULL,
+ evidence_basis TEXT NOT NULL,
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hds_training_adjustments_project ON hds_training_adjustments(project_id,protocol_id,participant_ref,created_at);
 CREATE TABLE IF NOT EXISTS hds_safety_reviews (
  id TEXT PRIMARY KEY,
  project_id TEXT NOT NULL REFERENCES projects(id),
