@@ -51,5 +51,19 @@ class TaskEngine:
             con.execute("INSERT INTO retry_events(id,task_id,attempt,reason,action,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,next_attempt,reason,"ESCALATE",now()))
             return {"action":"ESCALATE","attempt":next_attempt,"limit":limit}
     def record_attempt(self,task_id,outcome,error=None):
-        row=self.db.one("SELECT COALESCE(MAX(attempt_number),0)+1 AS n FROM task_attempts WHERE task_id=?",(task_id,))
-        attempt=row["n"]; self.db.execute("INSERT INTO task_attempts(id,task_id,attempt_number,outcome,error,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,attempt,outcome,error,now())); return self.db.one("SELECT * FROM task_attempts WHERE task_id=? AND attempt_number=?",(task_id,attempt))
+        if not str(outcome or "").strip():
+            raise ValueError("attempt outcome is required")
+        attempt=None
+        with self.db.transaction() as con:
+            task=con.execute("SELECT id FROM tasks WHERE id=?",(task_id,)).fetchone()
+            if not task:
+                raise ValueError("task not found")
+            # The no-op UPDATE takes a write lock on the task row in PostgreSQL and
+            # serializes writers under SQLite's transaction lock before MAX()+1.
+            con.execute("UPDATE tasks SET updated_at=updated_at WHERE id=?",(task_id,))
+            row=con.execute("SELECT COALESCE(MAX(attempt_number),0)+1 AS n FROM task_attempts WHERE task_id=?",(task_id,)).fetchone()
+            attempt=int(row["n"])
+            con.execute(
+                "INSERT INTO task_attempts(id,task_id,attempt_number,outcome,error,created_at) VALUES (?,?,?,?,?,?)",
+                (str(uuid4()),task_id,attempt,outcome,error,now()))
+        return self.db.one("SELECT * FROM task_attempts WHERE task_id=? AND attempt_number=?",(task_id,attempt))
