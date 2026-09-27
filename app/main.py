@@ -1604,6 +1604,22 @@ def register_hds_participant(competition_id: str, req: HDSParticipantRequest, pr
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
+@app.post("/api/hds/competitions/{competition_id}/participants/{participant_id}/consent")
+def consent_hds_participant(competition_id: str, participant_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    competition = db.one("SELECT project_id FROM hds_competitions WHERE id=?", (competition_id,))
+    if not competition:
+        raise HTTPException(404, "competition not found")
+    require_project(principal, competition["project_id"], "WRITE")
+    participant = db.one("SELECT competition_id FROM hds_competition_participants WHERE id=?", (participant_id,))
+    if not participant or participant["competition_id"] != competition_id:
+        raise HTTPException(404, "competition participant not found")
+    from app.human_development import HumanDevelopmentService
+    try:
+        return HumanDevelopmentService(db).record_consent(participant_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
 @app.post("/api/hds/competitions/{competition_id}/events/{event_id}/scores")
 def record_hds_score(competition_id: str, event_id: str, req: HDSScoreRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
