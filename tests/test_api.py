@@ -443,3 +443,18 @@ def test_concurrent_improvement_start_has_single_transition(tmp_path):
     assert sum(result[0]=="ok" for result in results)==1
     assert sum(result[0]=="error" for result in results)==1
     assert db.one("SELECT status FROM improvement_proposals WHERE id=?",(proposal["id"],))["status"]=="EXPERIMENT"
+
+
+def test_approval_requires_separation_of_duties(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.approvals import ApprovalService, ApprovalRequired
+    db=Database(str(tmp_path/"approval-sod.db")); ResearchCycle(db)
+    svc=ApprovalService(db)
+    approval=svc.request("SENSITIVE_ACTION","founder","separation test","HIGH",correlation_id="sod-1")
+    try:
+        svc.resolve(approval["id"],"APPROVED","founder")
+        assert False, "requester must not approve their own approval"
+    except ApprovalRequired:
+        pass
+    assert db.one("SELECT status FROM approvals WHERE id=?",(approval["id"],))["status"]=="PENDING"
