@@ -1885,3 +1885,51 @@ def update_hds_participant_safety(competition_id: str, participant_id: str, req:
     from app.human_development import HumanDevelopmentService
     try: return HumanDevelopmentService(db).update_participant_safety(participant_id,req.eligibility_status,req.supervision_status,req.medical_review_status)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/assessments/constructs")
+def create_hds_construct(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal); require_project(principal,body["project_id"],"WRITE")
+    from app.assessment import AssessmentService
+    try: return AssessmentService(db).create_construct(body["project_id"],body["domain_id"],body["name"],body["operational_definition"],principal.user_id)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/assessments/measures")
+def create_hds_assessment_measure(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal); require_project(principal,body["project_id"],"WRITE")
+    from app.assessment import AssessmentService
+    try: return AssessmentService(db).create_measure(body["project_id"],body["construct_id"],body["name"],body["unit"],body.get("min_value"),body.get("max_value"),body.get("higher_is_better",True),principal.user_id)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/assessments/sessions")
+def start_hds_assessment(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal); require_project(principal,body["project_id"],"WRITE")
+    from app.assessment import AssessmentService
+    try: return AssessmentService(db).start(body["project_id"],body["participant_ref"],body["timepoint"])
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/assessments/sessions/{session_id}/observations")
+def record_hds_assessment_observation(session_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    session=db.one("SELECT project_id FROM hds_assessment_sessions WHERE id=?",(session_id,))
+    if not session: raise HTTPException(404,"assessment session not found")
+    require_project(principal,session["project_id"],"WRITE")
+    from app.assessment import AssessmentService
+    try: return AssessmentService(db).observe(session_id,body["measure_id"],body["value"],body.get("note"))
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/assessments/sessions/{session_id}/complete")
+def complete_hds_assessment(session_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    session=db.one("SELECT project_id FROM hds_assessment_sessions WHERE id=?",(session_id,))
+    if not session: raise HTTPException(404,"assessment session not found")
+    require_project(principal,session["project_id"],"WRITE")
+    from app.assessment import AssessmentService
+    try: return AssessmentService(db).complete(session_id)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.get("/api/hds/assessments/{project_id}/participants/{participant_ref}/measures/{measure_id}/progress")
+def hds_assessment_progress(project_id: str, participant_ref: str, measure_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal); require_project(principal,project_id,"READ")
+    from app.assessment import AssessmentService
+    try: return AssessmentService(db).progress(project_id,participant_ref,measure_id)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
