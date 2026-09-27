@@ -40,10 +40,15 @@ class CodeChangeService:
         if not mapping:
             raise ValueError("maintenance work is not project-scoped")
         table, key = mapping
-        resource = self.db.one(f"SELECT project_id FROM {table} WHERE {key}=?", (work["entity_id"],))
-        if not resource or not resource.get("project_id"):
+        if work["entity_type"] == "project":
+            resource = self.db.one(f"SELECT id FROM {table} WHERE {key}=?", (work["entity_id"],))
+            resource_project_id = resource["id"] if resource else None
+        else:
+            resource = self.db.one(f"SELECT project_id FROM {table} WHERE {key}=?", (work["entity_id"],))
+            resource_project_id = resource.get("project_id") if resource else None
+        if not resource_project_id:
             raise ValueError("maintenance resource not found")
-        if str(resource["project_id"]) != str(project_id):
+        if str(resource_project_id) != str(project_id):
             raise ValueError("maintenance work belongs to another project")
         i=str(uuid4())
         self.db.execute("""INSERT INTO code_change_proposals
