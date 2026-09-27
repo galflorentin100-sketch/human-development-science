@@ -75,8 +75,7 @@ CREATE TABLE IF NOT EXISTS failures (id TEXT PRIMARY KEY, project_id TEXT REFERE
 """
 
 
-_HDS_LEGACY_COLUMNS = {"studies": {"project_id": "TEXT"
-    "hds_competition_participants": {"eligibility_status": "TEXT NOT NULL DEFAULT 'ELIGIBILITY_PENDING'"},}}
+_HDS_LEGACY_COLUMNS = {"studies": {"project_id": "TEXT"}, "hds_competition_participants": {"eligibility_status": "TEXT NOT NULL DEFAULT 'ELIGIBILITY_PENDING'"}}
 
 PROJECT_INDEX_SCHEMA = """CREATE INDEX IF NOT EXISTS idx_claims_project_created ON claims(project_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_studies_project_created ON studies(project_id,created_at);
@@ -285,7 +284,7 @@ def _ensure_hds_schema(con):
     )""")
     con.execute("""CREATE TABLE IF NOT EXISTS hds_competition_participants (
         id TEXT PRIMARY KEY, competition_id TEXT NOT NULL REFERENCES hds_competitions(id),
-        participant_ref TEXT NOT NULL, consent_status TEXT NOT NULL, created_at TEXT NOT NULL,
+        participant_ref TEXT NOT NULL, consent_status TEXT NOT NULL, eligibility_status TEXT NOT NULL DEFAULT "ELIGIBILITY_PENDING", created_at TEXT NOT NULL,
         UNIQUE(competition_id,participant_ref)
     )""")
     con.execute("""CREATE TABLE IF NOT EXISTS hds_competition_scores (
