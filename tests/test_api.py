@@ -342,7 +342,7 @@ def test_agent_output_needs_evidence_can_be_reopened(tmp_path):
     EvidencePipeline(db).ingest_text(source["id"],"supporting excerpt")
     claim=db.one("SELECT id FROM claims WHERE project_id=? LIMIT 1",(project["id"],))
     evidence=EvidencePipeline(db).attach(claim["id"],source["id"],"supporting excerpt",actor="auditor")
-    EvidencePipeline(db).review(evidence["id"],"auditor","VERIFIED","verified")
+    EvidencePipeline(db).review(evidence["id"],"independent-auditor","VERIFIED","verified")
     reopened=AgentOutputGate(db).provide_evidence(review["id"],[evidence["id"]])
     assert reopened["status"]=="READY_FOR_REVIEW"
 
