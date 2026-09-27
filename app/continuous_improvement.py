@@ -99,6 +99,16 @@ class ContinuousImprovementService:
             raise ValueError("evidence reference must be verified")
         return ref
 
+    def _validate_science_evidence(self, evidence_ref):
+        row=self.db.one("""SELECT e.id,e.claim_id,e.verified,c.project_id,c.status AS claim_status
+                           FROM evidence e JOIN claims c ON c.id=e.claim_id
+                           WHERE e.id=?""",(str(evidence_ref),))
+        if not row:
+            raise ValueError("SCIENCE evidence reference does not exist")
+        if not row["verified"]:
+            raise ValueError("SCIENCE evidence reference must be verified")
+        return row
+
     def start_experiment(self, proposal_id, experiment_design, baseline_note, owner):
         if not str(experiment_design or "").strip() or not str(baseline_note or "").strip():
             raise ValueError("experiment design and baseline are required")
@@ -135,6 +145,10 @@ class ContinuousImprovementService:
             if p["status"] != "EXPERIMENT":
                 raise ValueError("only active experiments can record results")
             retained_evidence_ref = evidence_ref if evidence_ref is not None else p["evidence_ref"]
+            if p["area"] == "SCIENCE":
+                if not retained_evidence_ref:
+                    raise ValueError("SCIENCE results require an evidence reference")
+                self._validate_science_evidence(retained_evidence_ref)
             if p["area"] == "SCIENCE":
                 retained_evidence_ref = self._require_verified_evidence(con, retained_evidence_ref)
             updated=con.execute(
