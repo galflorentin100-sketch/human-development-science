@@ -21,12 +21,13 @@ class KnowledgeDependencyGraph:
 
     def add_edge(self,project_id,from_type,from_id,relation,to_type,to_id,provenance_refs=(),created_by="system"):
         if not self.db.one("SELECT 1 FROM projects WHERE id=?",(project_id,)): raise ValueError("project not found")
-        allowed={"CLAIM","INTERVENTION","TRAINING_PROTOCOL","FINDING","QUESTION","EXPERIMENT","EVIDENCE","SOURCE","TRAINING_SESSION","EXPERIMENT_RESULT","PROJECT","HYPOTHESIS"}
+        allowed={"CLAIM","INTERVENTION","TRAINING_PROTOCOL","FINDING","KNOWLEDGE_VERSION","QUESTION","EXPERIMENT","EVIDENCE","SOURCE","TRAINING_SESSION","EXPERIMENT_RESULT","PROJECT","HYPOTHESIS"}
         ownership_queries={
             "CLAIM":"SELECT project_id FROM claims WHERE id=?",
             "INTERVENTION":"SELECT project_id FROM interventions WHERE id=?",
             "TRAINING_PROTOCOL":"SELECT project_id FROM training_protocols WHERE id=?",
             "FINDING":"SELECT project_id FROM research_findings WHERE id=?",
+            "KNOWLEDGE_VERSION":"SELECT c.project_id FROM scientific_knowledge_versions v JOIN claims c ON c.id=v.claim_id WHERE v.id=?",
             "QUESTION":"SELECT project_id FROM research_questions WHERE id=?",
             "EXPERIMENT":"SELECT project_id FROM hds_experiments WHERE id=? UNION ALL SELECT project_id FROM experiments WHERE id=?",
             "EVIDENCE":"SELECT c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",
@@ -96,6 +97,37 @@ class KnowledgeDependencyGraph:
         for r in self.db.all("SELECT e.id evidence_id,e.claim_id,e.source_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE c.project_id=?",(project_id,)):
             edge("SOURCE",r["source_id"],"HAS_EVIDENCE","EVIDENCE",r["evidence_id"])
             edge("EVIDENCE",r["evidence_id"],"SUPPORTS_OR_CONTRADICTS","CLAIM",r["claim_id"])
+        # Accepted findings may become claims through an explicit claim-revision provenance link.
+        for r in self.db.all("""SELECT cr.source_finding_id,cr.claim_id
+                                FROM claim_revisions cr
+                                JOIN claims c ON c.id=cr.claim_id
+                                WHERE c.project_id=? AND cr.source_finding_id IS NOT NULL""",(project_id,)):
+            if self.db.one("SELECT id FROM research_findings WHERE id=? AND project_id=?",(r["source_finding_id"],project_id)):
+                edge("FINDING",r["source_finding_id"],"PROPOSES_REVISION","CLAIM",r["claim_id"])
+
+        # Every persisted knowledge version is an explicit immutable snapshot of a claim.
+        for r in self.db.all("""SELECT v.id,v.claim_id
+                                FROM scientific_knowledge_versions v
+                                JOIN claims c ON c.id=v.claim_id
+                                WHERE c.project_id=?""",(project_id,)):
+            edge("CLAIM",r["claim_id"],"HAS_KNOWLEDGE_VERSION","KNOWLEDGE_VERSION",r["id"])
+
+        # Intervention evidence is an explicit scientific basis for the intervention.
+        for r in self.db.all("""SELECT ie.intervention_id,ie.evidence_ref
+                                FROM intervention_evidence ie
+                                JOIN interventions i ON i.id=ie.intervention_id
+                                WHERE i.project_id=?""",(project_id,)):
+            if self.db.one("SELECT e.id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=? AND c.project_id=?",(str(r["evidence_ref"]),project_id)):
+                edge("EVIDENCE",str(r["evidence_ref"]),"INFORMS_INTERVENTION","INTERVENTION",r["intervention_id"],[str(r["evidence_ref"])])
+
+        # Training-protocol evidence is an explicit scientific basis for the protocol.
+        for r in self.db.all("""SELECT tpe.protocol_id,tpe.evidence_ref
+                                FROM training_protocol_evidence tpe
+                                JOIN training_protocols tp ON tp.id=tpe.protocol_id
+                                WHERE tp.project_id=?""",(project_id,)):
+            if self.db.one("SELECT e.id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=? AND c.project_id=?",(str(r["evidence_ref"]),project_id)):
+                edge("EVIDENCE",str(r["evidence_ref"]),"INFORMS_TRAINING_PROTOCOL","TRAINING_PROTOCOL",r["protocol_id"],[str(r["evidence_ref"])])
+
         # Claims / interventions -> training protocols are explicit foreign-key relationships.
         for r in self.db.all("SELECT id,source_claim_id,intervention_id FROM training_protocols WHERE project_id=?",(project_id,)):
             edge("CLAIM",r.get("source_claim_id"),"GROUNDS","TRAINING_PROTOCOL",r["id"])
