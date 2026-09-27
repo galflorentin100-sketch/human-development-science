@@ -52,8 +52,10 @@ class AuthService:
             "WHERE m.company_id='hds' AND m.user_id=? AND m.status='ACTIVE'",(user["id"],))
         if not company: raise PermissionError("inactive membership")
         membership=self.db.one(
-            "SELECT r.name,r.permissions FROM project_memberships pm JOIN roles r ON r.id=pm.role_id "
-            "WHERE pm.project_id=? AND pm.user_id=? AND pm.status='ACTIVE'",
+            "SELECT r.name,r.permissions FROM project_memberships pm "
+            "JOIN roles r ON r.id=pm.role_id "
+            "JOIN projects p ON p.id=pm.project_id "
+            "WHERE pm.project_id=? AND pm.user_id=? AND pm.status='ACTIVE' AND p.company_id='hds'",
             (project_id,user["id"]))
         if not membership:
             raise PermissionError("project access denied")
