@@ -43,7 +43,15 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hds_ci
           PYTHONPATH: .
-
+      - name: Backup and restore verification
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hds_ci
+        run: |
+          mkdir -p .ci-backups
+          python scripts/backup_postgres.py --output-dir .ci-backups
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE hds_restore"
+          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/hds_restore
+          python scripts/verify_postgres_backup.py .ci-backups/*.dump
 
   container-build:
     runs-on: ubuntu-latest
