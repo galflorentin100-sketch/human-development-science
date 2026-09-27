@@ -22,9 +22,9 @@ def test_measured_outcome_feeds_candidate_research_without_claim_promotion(tmp_p
                   (id,study_id,measure_id,observation_type,timepoint,required)
                   VALUES (?,?,?,?,?,?)""",(binding,study,measure,"TRAINING","POST",1))
     db.execute("""INSERT INTO study_outcomes
-                  (id,study_id,participant_id,outcome_name,value,unit,observation_type,timepoint,session_id)
+                  (id,study_id,participant_id,outcome_name,value,unit,observation_type,timepoint,session_id,recorded_at)
                   VALUES (?,?,?,?,?,?,?,?,?)""",
-               ("outcome-e2e",study,participant,"resilience_score",82.0,"points","TRAINING","POST",None))
+               ("outcome-e2e",study,participant,"resilience_score",82.0,"points","TRAINING","POST",None,now()))
 
     result=OutcomeFeedbackService(db).propose_research_from_study(
         study,"resilience_score","TRAINING","researcher")
