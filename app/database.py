@@ -404,6 +404,20 @@ def _ensure_hds_schema(con):
         stop_criteria TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
         UNIQUE(challenge_id)
     )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS hds_challenge_executions (
+        id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+        challenge_id TEXT NOT NULL REFERENCES hds_challenges(id),
+        participant_id TEXT NOT NULL REFERENCES hds_competition_participants(id),
+        status TEXT NOT NULL, started_at TEXT NOT NULL, stopped_at TEXT,
+        stop_reason TEXT, created_at TEXT NOT NULL
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS hds_training_adjustments (
+        id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+        protocol_id TEXT NOT NULL REFERENCES training_protocols(id),
+        participant_ref TEXT NOT NULL, previous_difficulty REAL,
+        new_difficulty REAL NOT NULL, rationale TEXT NOT NULL,
+        evidence_basis TEXT NOT NULL, created_at TEXT NOT NULL
+    )""")
     con.execute("""CREATE TABLE IF NOT EXISTS hds_safety_reviews (
         id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
         challenge_id TEXT NOT NULL REFERENCES hds_challenges(id), reviewer TEXT NOT NULL,
