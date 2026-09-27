@@ -635,9 +635,17 @@ def science_measure(body: MeasureRequest, principal: Principal = Depends(princip
 @app.post("/api/science/interventions")
 def science_intervention(body: InterventionRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    project_id = body.project_id
     if body.target_construct_id:
-        require_resource_project(principal, "construct", body.target_construct_id, "WRITE")
-    return ScientificRegistry(db).intervention(body.name, body.rationale, body.mechanism, body.evidence_level, body.dosage, body.population, body.target_construct_id)
+        construct_project_id = require_resource_project(principal, "construct", body.target_construct_id, "WRITE")
+        if project_id is not None and str(project_id) != str(construct_project_id):
+            raise HTTPException(status_code=400, detail="project_id does not match target construct project")
+        project_id = construct_project_id
+    elif project_id is not None:
+        require_project(principal, project_id, "WRITE")
+    return ScientificRegistry(db).intervention(
+        body.name, body.rationale, body.mechanism, body.evidence_level, body.dosage,
+        body.population, body.target_construct_id, project_id=project_id)
 
 @app.post("/api/science/training-protocols")
 def create_training_protocol(body: dict, principal: Principal = Depends(principal_from_header)):
