@@ -146,6 +146,59 @@ class HumanDevelopmentService:
         )
         return self.db.one("SELECT * FROM hds_competition_scores WHERE id=?", (i,))
 
+    def bind_participant_to_study(self, competition_id, participant_id, study_participant_id):
+        participant=self.db.one("SELECT competition_id FROM hds_competition_participants WHERE id=?", (participant_id,))
+        study_participant=self.db.one("SELECT study_id FROM study_participants WHERE id=?", (study_participant_id,))
+        if not participant or participant["competition_id"] != competition_id:
+            raise ValueError("competition participant not found")
+        if not study_participant:
+            raise ValueError("study participant not found")
+        existing=self.db.one("SELECT 1 FROM hds_competition_study_bindings WHERE competition_id=? AND participant_id=?", (competition_id,participant_id))
+        if existing: raise ValueError("participant is already bound to a study")
+        i=str(uuid4())
+        self.db.execute("""INSERT INTO hds_competition_study_bindings
+            (id,competition_id,participant_id,study_participant_id) VALUES (?,?,?,?)""",
+            (i,competition_id,participant_id,study_participant_id))
+        return self.db.one("SELECT * FROM hds_competition_study_bindings WHERE id=?", (i,))
+
+    def bind_event_measure(self, event_id, study_id, measure_id, observation_type, timepoint):
+        event=self.db.one("""SELECT ce.competition_id,c.project_id FROM hds_competition_events ce
+            JOIN hds_competitions c ON c.id=ce.competition_id WHERE ce.id=?""",(event_id,))
+        measure=self.db.one("SELECT study_id,status FROM study_measure_definitions WHERE id=?",(measure_id,))
+        study=self.db.one("SELECT project_id FROM studies WHERE id=?",(study_id,))
+        binding=self.db.one("""SELECT 1 FROM study_measure_bindings
+            WHERE study_id=? AND measure_id=? AND observation_type=? AND timepoint=?""",
+            (study_id,measure_id,observation_type,timepoint))
+        if not event or not measure or not study: raise ValueError("event, study, and measure are required")
+        if event["project_id"] != study["project_id"] or measure["study_id"] != study_id:
+            raise ValueError("competition and study must belong to the same project")
+        if measure["status"] != "PREREGISTERED" or not binding:
+            raise ValueError("competition outcome requires a preregistered study measure binding")
+        i=str(uuid4())
+        self.db.execute("""INSERT INTO hds_competition_measure_bindings
+            (id,event_id,study_id,measure_id,observation_type,timepoint) VALUES (?,?,?,?,?,?)""",
+            (i,event_id,study_id,measure_id,observation_type,timepoint))
+        return self.db.one("SELECT * FROM hds_competition_measure_bindings WHERE id=?", (i,))
+
+    def record_score_as_outcome(self, event_id, participant_id, metric, score):
+        score_row=self.record_score(event_id,participant_id,metric,score)
+        binding=self.db.one("""SELECT cmb.study_id,cmb.observation_type,cmb.timepoint,sp.id AS study_participant_id,
+                md.name,md.unit
+            FROM hds_competition_measure_bindings cmb
+            JOIN hds_competition_study_bindings csb ON csb.competition_id=(SELECT competition_id FROM hds_competition_events WHERE id=cmb.event_id)
+                AND csb.participant_id=?
+            JOIN study_participants sp ON sp.id=csb.study_participant_id
+            JOIN study_measure_definitions md ON md.id=cmb.measure_id
+            WHERE cmb.event_id=? AND md.name=?""",
+            (participant_id,event_id,metric))
+        if not binding:
+            raise ValueError("score has no preregistered scientific outcome binding")
+        from app.hds_outcomes import HDSOutcomeService
+        outcome=HDSOutcomeService(self.db).record(
+            binding["study_id"],binding["study_participant_id"],binding["name"],
+            float(score),binding["unit"],binding["observation_type"],binding["timepoint"])
+        return {"score":score_row,"outcome":outcome}
+
     def competition_snapshot(self, competition_id):
         competition = self.db.one("SELECT * FROM hds_competitions WHERE id=?", (competition_id,))
         if not competition:
