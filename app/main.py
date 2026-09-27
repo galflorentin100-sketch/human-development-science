@@ -115,6 +115,7 @@ def require_resource_project(principal: Principal, resource_type: str, resource_
         "contradiction": ("scientific_contradictions", "id"),
         "claim_revision": ("claim_revisions", "id"),
         "agent_output_review": ("agent_output_reviews", "id"),
+        "agent_run": ("agent_runs", "id"),
         "finding": ("research_findings", "id"),
         "knowledge_impact_review": ("knowledge_impact_reviews", "id"),
     }
@@ -962,6 +963,7 @@ def experiment_design_task(payload: dict, principal: Principal = Depends(princip
 @app.post("/api/science/experiments")
 def science_create_experiment(body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_project(principal, body["project_id"], "WRITE")
     from app.experiment_engine import ExperimentEngine
     return ExperimentEngine(db).create(
         body["project_id"], body["research_question"], body["hypothesis"],
@@ -1001,6 +1003,7 @@ def experiment_candidate_finding(experiment_id: str, principal: Principal = Depe
 @app.post("/api/science/experiments/{experiment_id}/safety-review")
 def experiment_safety_review(experiment_id: str, payload: dict, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
+    require_resource_project(principal, "experiment", experiment_id, "READ")
     from app.experiment_safety import ExperimentSafetyReviewer
     try:
         return ExperimentSafetyReviewer(db).review(experiment_id,payload.get("decision",""),payload.get("rationale",""),principal.user_id)
@@ -1353,7 +1356,10 @@ def delegate_scientific_work(project_id: str, limit: int = 5, principal: Princip
 @app.post("/api/science/agent-runs/{agent_run_id}/submit-output")
 def submit_agent_output(agent_run_id: str, project_id: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
-    require_project(principal, project_id, "READ")
+    run = db.one("SELECT t.project_id FROM agent_runs ar JOIN tasks t ON t.id=ar.task_id WHERE ar.id=?", (agent_run_id,))
+    if not run: raise HTTPException(404, "agent run not found")
+    if project_id is not None and project_id != run["project_id"]: raise HTTPException(400, "project_id does not match agent run")
+    require_project(principal, run["project_id"], "EXECUTE")
     from app.agent_output_gate import AgentOutputGate
     return AgentOutputGate(db).submit(agent_run_id, project_id)
 
