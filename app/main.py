@@ -141,6 +141,7 @@ def create_research_agent_task(workspace_id: str, principal: Principal = Depends
 @app.post("/api/science/research-workspaces")
 def create_research_workspace(req: ResearchWorkspaceRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_project(principal, req.project_id, "WRITE")
     from app.research_engine import ResearchEngine
     if not db.one("SELECT 1 FROM projects WHERE id=?", (req.project_id,)):
         raise HTTPException(404, "project not found")
@@ -463,6 +464,7 @@ def knowledge_history(claim_id: str, principal: Principal = Depends(principal_fr
 @app.post("/api/science/findings")
 def create_research_finding(payload: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_project(principal, payload["project_id"], "WRITE")
     from app.research import ResearchFindingService
     return ResearchFindingService(db).create(
         payload["project_id"],payload["statement"],payload.get("classification","HYPOTHESIS"),
@@ -884,6 +886,7 @@ def science_integrity(project_id: str, principal: Principal = Depends(principal_
 @app.post("/api/science/experiments/design-task")
 def experiment_design_task(payload: dict, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_project(principal, payload["project_id"], "EXECUTE")
     from app.experiment_designer import ExperimentDesigner
     try:
         return ExperimentDesigner(db).create_task(payload["project_id"],payload["research_question"],payload.get("hypothesis",""))
