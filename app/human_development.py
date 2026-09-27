@@ -169,11 +169,16 @@ class HumanDevelopmentService:
                 WHERE id=?""",(participant_id,))
             if not participant or participant["consent_status"]!="CONSENTED":
                 raise ValueError("participant consent required")
-        if control["eligibility_required"]:
-            participant=self.db.one("""SELECT eligibility_status FROM hds_competition_participants
-                WHERE id=?""",(participant_id,))
-            if not participant or participant["eligibility_status"] not in {"ELIGIBLE","APPROVED"}:
-                raise ValueError("participant eligibility required")
+        participant=self.db.one("""SELECT eligibility_status,supervision_status,medical_review_status
+            FROM hds_competition_participants WHERE id=?""",(participant_id,))
+        if not participant:
+            raise ValueError("participant not found")
+        if control["eligibility_required"] and participant["eligibility_status"] not in {"ELIGIBLE","APPROVED"}:
+            raise ValueError("participant eligibility required")
+        if control["supervision_required"] and participant["supervision_status"] != "ASSIGNED":
+            raise ValueError("qualified supervision required")
+        if control["medical_review_required"] and participant["medical_review_status"] != "APPROVED":
+            raise ValueError("medical safety review required")
         return control
 
     def record_score(self, event_id, participant_id, metric, score):
