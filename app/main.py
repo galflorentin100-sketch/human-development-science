@@ -1657,6 +1657,21 @@ def record_hds_outcome(study_id: str, req: HDSOutcomeRequest, principal: Princip
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
+@app.post("/api/hds/studies/{study_id}/outcome-feedback/research")
+def propose_research_from_hds_outcome(study_id: str, outcome_name: str, observation_type: str = "TRAINING", principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    study = db.one("SELECT id, project_id FROM studies WHERE id=?", (study_id,))
+    if not study:
+        raise HTTPException(404, "study not found")
+    require_project(principal, study["project_id"], "WRITE")
+    from app.outcome_feedback import OutcomeFeedbackService
+    try:
+        return OutcomeFeedbackService(db).propose_research_from_study(
+            study_id, outcome_name, observation_type, principal.user_id
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
 @app.get("/api/hds/studies/{study_id}/outcomes")
 def list_hds_outcomes(study_id: str, observation_type: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
