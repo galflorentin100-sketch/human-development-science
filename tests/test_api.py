@@ -527,3 +527,25 @@ def test_founder_projects_returns_project_list():
     response=client.get("/api/founder/projects")
     assert response.status_code==200
     assert isinstance(response.json()["items"], list)
+
+
+def test_model_provider_defaults_to_safe_local(monkeypatch):
+    from app.providers import configured_provider, LocalProvider
+    monkeypatch.delenv("HDS_MODEL_PROVIDER", raising=False)
+    assert isinstance(configured_provider(), LocalProvider)
+
+def test_anthropic_provider_requires_explicit_key_and_spend_rates(monkeypatch):
+    from app.providers import configured_provider, AnthropicMessagesProvider
+    monkeypatch.setenv("HDS_MODEL_PROVIDER","anthropic")
+    monkeypatch.delenv("ANTHROPIC_API_KEY",raising=False)
+    try:
+        configured_provider()
+        assert False, "external provider must require an API key"
+    except RuntimeError as exc:
+        assert "ANTHROPIC_API_KEY" in str(exc)
+    monkeypatch.setenv("ANTHROPIC_API_KEY","test-key")
+    monkeypatch.setenv("HDS_INPUT_COST_PER_MILLION_TOKENS","1")
+    monkeypatch.setenv("HDS_OUTPUT_COST_PER_MILLION_TOKENS","2")
+    provider=configured_provider()
+    assert isinstance(provider, AnthropicMessagesProvider)
+    assert provider.estimate_cost(__import__("app.providers",fromlist=["ModelRequest"]).ModelRequest("test","hello"))>0
