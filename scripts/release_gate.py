@@ -1,6 +1,8 @@
 """Deterministic release gate for HDS application invariants."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.database import Database
 
 REQUIRED_TABLES={
