@@ -1,6 +1,7 @@
 from app.database import Database
 from app.workflow import ResearchCycle
 from app.hds_company import HDSCompanyService
+from app.models import now
 
 
 def test_hds_company_customer_product_enrollment_and_subscription_are_project_scoped(tmp_path):
@@ -10,8 +11,9 @@ def test_hds_company_customer_product_enrollment_and_subscription_are_project_sc
     svc=HDSCompanyService(db)
 
     customer=svc.create_customer(first["id"],"customer-1")
+    db.execute("INSERT INTO hds_programs(id,project_id,name,objective,domain_id,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)",("program-company",first["id"],"Program","Objective","CHARACTER","ACTIVE",now(),now()))
     product=svc.create_product(first["id"],"Resilience Program","PROGRAM","Structured human-development program")
-    program_id=db.one("SELECT id FROM hds_programs WHERE project_id=?",(first["id"],))["id"]
+    program_id="program-company"
     enrollment=svc.enroll_customer(program_id,customer["id"])
     subscription=svc.subscribe(first["id"],customer["id"],product["id"])
 
