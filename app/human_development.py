@@ -160,6 +160,21 @@ class HumanDevelopmentService:
                         (status,now(),challenge_id))
         return self.db.one("SELECT * FROM hds_safety_controls WHERE challenge_id=?",(challenge_id,))
 
+    def update_participant_safety(self, participant_id, eligibility_status=None, supervision_status=None, medical_review_status=None):
+        participant=self.db.one("SELECT id FROM hds_competition_participants WHERE id=?",(participant_id,))
+        if not participant: raise ValueError("participant not found")
+        allowed_elig={"ELIGIBILITY_PENDING","ELIGIBLE","INELIGIBLE","APPROVED"}
+        allowed_supervision={"UNASSIGNED","ASSIGNED"}
+        allowed_medical={"NOT_REQUIRED","PENDING","APPROVED","REJECTED"}
+        if eligibility_status is not None and eligibility_status not in allowed_elig: raise ValueError("invalid eligibility status")
+        if supervision_status is not None and supervision_status not in allowed_supervision: raise ValueError("invalid supervision status")
+        if medical_review_status is not None and medical_review_status not in allowed_medical: raise ValueError("invalid medical review status")
+        current=self.db.one("SELECT eligibility_status,supervision_status,medical_review_status FROM hds_competition_participants WHERE id=?",(participant_id,))
+        self.db.execute("""UPDATE hds_competition_participants SET eligibility_status=?,supervision_status=?,medical_review_status=? WHERE id=?""",
+            (eligibility_status or current["eligibility_status"], supervision_status or current["supervision_status"],
+             medical_review_status or current["medical_review_status"],participant_id))
+        return self.db.one("SELECT * FROM hds_competition_participants WHERE id=?",(participant_id,))
+
     def assert_challenge_safe_to_execute(self, challenge_id, participant_id):
         control=self.db.one("SELECT * FROM hds_safety_controls WHERE challenge_id=?",(challenge_id,))
         if not control or control["status"]!="APPROVED":
