@@ -58,6 +58,9 @@ services:
     restart: "no"
     network_mode: "none"
     read_only: true
+    cpus: "1.0"
+    mem_limit: 512m
+    pids_limit: 64
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
     tmpfs:
