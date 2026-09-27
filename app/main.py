@@ -1189,8 +1189,8 @@ def science_approve_claim_revision(revision_id: str, principal: Principal = Depe
 
 @app.post("/api/science/research-cycle/{project_id}")
 def science_research_cycle(project_id: str, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
-    require_project(principal, project_id, "READ")
+    require_execute(principal)
+    require_project(principal, project_id, "EXECUTE")
     from app.autonomous_research_cycle import AutonomousResearchCycle
     return AutonomousResearchCycle(db).run(project_id)
 
@@ -1212,8 +1212,8 @@ def agent_registry(principal: Principal = Depends(principal_from_header)):
 
 @app.post("/api/science/orchestrate/{project_id}")
 def science_orchestrate(project_id: str, body: dict = None, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
-    require_project(principal, project_id, "READ")
+    require_execute(principal)
+    require_project(principal, project_id, "EXECUTE")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
     from app.scientific_orchestrator import ScientificOrchestrator
@@ -1223,7 +1223,7 @@ def science_orchestrate(project_id: str, body: dict = None, principal: Principal
 @app.post("/api/science/impact/{project_id}/{source_type}/{source_id}")
 def scientific_impact(project_id: str, source_type: str, source_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
-    require_project(principal, project_id, "READ")
+    require_project(principal, project_id, "WRITE")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
     from app.knowledge_impact_engine import KnowledgeImpactEngine
@@ -1240,7 +1240,7 @@ def scientific_impact_reviews(project_id: str, status: str = None, principal: Pr
 @app.post("/api/science/knowledge-graph/{project_id}/sync")
 def science_sync_knowledge_graph(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
-    require_project(principal, project_id, "READ")
+    require_project(principal, project_id, "WRITE")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
     from app.knowledge_graph import KnowledgeDependencyGraph
@@ -1259,7 +1259,6 @@ def science_knowledge_graph(project_id: str, principal: Principal = Depends(prin
 def science_knowledge_trace(project_id: str, node_type: str, node_id: str, depth: int = 4, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     require_project(principal, project_id, "READ")
-    require_project(principal, project_id, "READ")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
     if depth < 0 or depth > 10:
@@ -1271,7 +1270,6 @@ def science_knowledge_trace(project_id: str, node_type: str, node_id: str, depth
 def science_add_knowledge_edge(project_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
     require_project(principal, project_id, "WRITE")
-    require_project(principal, project_id, "READ")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
     from app.knowledge_graph import KnowledgeDependencyGraph
@@ -1282,7 +1280,7 @@ def science_add_knowledge_edge(project_id: str, body: dict, principal: Principal
 @app.post("/api/science/knowledge-graph/{project_id}/impact/{node_type}/{node_id}")
 def science_knowledge_impact(project_id: str, node_type: str, node_id: str, depth: int = 4, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
-    require_project(principal, project_id, "READ")
+    require_project(principal, project_id, "WRITE")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
     if depth < 0 or depth > 10:
@@ -1368,7 +1366,7 @@ def founder_workflow(project_id: str, principal: Principal = Depends(principal_f
 @app.post("/api/founder/{project_id}/decisions/{decision_type}/{decision_id}/execute-next")
 def execute_next_decision(project_id: str, decision_type: str, decision_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
-    require_project(principal, project_id, "READ")
+    require_project(principal, project_id, "EXECUTE")
     from app.decision_center import DecisionCenter
     from app.agent_delegation import AgentDelegation
     items=[x for x in DecisionCenter(db).list(project_id) if x["type"]==decision_type.upper() and x["id"]==decision_id]
@@ -1388,7 +1386,7 @@ def execute_next_decision(project_id: str, decision_type: str, decision_id: str,
 @app.post("/api/science/delegate/{project_id}")
 def delegate_scientific_work(project_id: str, limit: int = 5, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
-    require_project(principal, project_id, "READ")
+    require_project(principal, project_id, "EXECUTE")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
     from app.agent_delegation import AgentDelegation
