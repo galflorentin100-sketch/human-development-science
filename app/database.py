@@ -225,7 +225,7 @@ CREATE TABLE IF NOT EXISTS lessons (id TEXT PRIMARY KEY, company_id TEXT NOT NUL
 CREATE TABLE IF NOT EXISTS approvals (id TEXT PRIMARY KEY, company_id TEXT NOT NULL REFERENCES companies(id), action TEXT NOT NULL, risk_level TEXT NOT NULL, status TEXT NOT NULL, requested_by TEXT NOT NULL, context TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS agent_permissions (agent_id TEXT NOT NULL REFERENCES agents(id), permission TEXT NOT NULL, PRIMARY KEY(agent_id, permission));
 CREATE TABLE IF NOT EXISTS agent_performance (id TEXT PRIMARY KEY, agent_id TEXT NOT NULL REFERENCES agents(id), metric TEXT NOT NULL, value REAL NOT NULL, recorded_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS studies (id TEXT PRIMARY KEY, source_id TEXT REFERENCES sources(id), title TEXT NOT NULL, design TEXT NOT NULL, population TEXT, findings TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS studies (id TEXT PRIMARY KEY, source_id TEXT REFERENCES sources(id), project_id TEXT REFERENCES projects(id), title TEXT NOT NULL, design TEXT NOT NULL, population TEXT, findings TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS hypotheses (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), statement TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS experiment_results (id TEXT PRIMARY KEY, experiment_id TEXT NOT NULL REFERENCES experiments(id), outcome TEXT NOT NULL, interpretation TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS study_participants (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), external_ref TEXT NOT NULL, consent_status TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(study_id,external_ref));
