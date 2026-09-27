@@ -48,6 +48,8 @@ class ApprovalService:
         if not row or dict(row)["status"]!="PENDING":
             raise ApprovalRequired(i)
         row=dict(row)
+        if str(row.get("requested_by")) == str(actor):
+            raise ApprovalRequired(i)
         if row["expires_at"] and datetime.fromisoformat(row["expires_at"])<=datetime.now(timezone.utc):
             resolved_at=now()
             updated=con.execute(
