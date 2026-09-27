@@ -109,6 +109,14 @@ def require_resource_project(principal: Principal, resource_type: str, resource_
         "experiment": ("experiments", "id"),
         "finding": ("research_findings", "id"),
         "research_workspace": ("research_workspaces", "id"),
+        "research_synthesis": ("research_syntheses", "id"),
+        "research_queue": ("hds_research_queue", "id"),
+        "intervention": ("interventions", "id"),
+        "contradiction": ("scientific_contradictions", "id"),
+        "claim_revision": ("claim_revisions", "id"),
+        "agent_output_review": ("agent_output_reviews", "id"),
+        "finding": ("research_findings", "id"),
+        "knowledge_impact_review": ("knowledge_impact_reviews", "id"),
     }
     if resource_type not in tables:
         raise HTTPException(status_code=500, detail="unsupported resource type")
@@ -656,6 +664,7 @@ def training_protocol_scientific_readiness(protocol_id: str, principal: Principa
 def training_protocol_readiness(protocol_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     require_resource_project(principal, "training_protocol", protocol_id, "READ")
+    require_resource_project(principal, "training_protocol", protocol_id, "READ")
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).readiness(protocol_id)
 
@@ -962,6 +971,7 @@ def science_create_experiment(body: dict, principal: Principal = Depends(princip
 @app.post("/api/science/experiments/{experiment_id}/preregister")
 def science_preregister_experiment(experiment_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "experiment", experiment_id, "WRITE")
     from app.experiment_engine import ExperimentEngine
     try:
         return ExperimentEngine(db).preregister(experiment_id)
@@ -1065,6 +1075,7 @@ def science_propose_research(body: dict, principal: Principal = Depends(principa
 @app.post("/api/science/research-queue/{item_id}/approve")
 def science_approve_research(item_id: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
+    require_resource_project(principal, "research_queue", item_id, "READ")
     from app.research_queue import ResearchQueue
     try:
         return ResearchQueue(db).approve(item_id, principal.user_id)
@@ -1092,6 +1103,7 @@ def science_scan_contradictions(claim_id: str, principal: Principal = Depends(pr
 @app.post("/api/science/contradictions/{contradiction_id}/resolve")
 def science_resolve_contradiction(contradiction_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
+    require_resource_project(principal, "contradiction", contradiction_id, "READ")
     require_resource_project(principal, "contradiction", contradiction_id, "READ")
     from app.contradiction_engine import ContradictionEngine
     try:
@@ -1174,6 +1186,7 @@ def scientific_impact(project_id: str, source_type: str, source_id: str, princip
 def scientific_impact_reviews(project_id: str, status: str = None, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     require_project(principal, project_id, "READ")
+    require_project(principal, project_id, "READ")
     from app.knowledge_impact_engine import KnowledgeImpactEngine
     return KnowledgeImpactEngine(db).list(project_id, status)
 
@@ -1191,6 +1204,7 @@ def science_sync_knowledge_graph(project_id: str, principal: Principal = Depends
 def science_knowledge_graph(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     require_project(principal, project_id, "READ")
+    require_project(principal, project_id, "READ")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
     from app.knowledge_graph import KnowledgeDependencyGraph
@@ -1199,6 +1213,7 @@ def science_knowledge_graph(project_id: str, principal: Principal = Depends(prin
 @app.get("/api/science/knowledge-graph/{project_id}/trace/{node_type}/{node_id}")
 def science_knowledge_trace(project_id: str, node_type: str, node_id: str, depth: int = 4, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_project(principal, project_id, "READ")
     require_project(principal, project_id, "READ")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
@@ -1210,6 +1225,7 @@ def science_knowledge_trace(project_id: str, node_type: str, node_id: str, depth
 @app.post("/api/science/knowledge-graph/{project_id}/edges")
 def science_add_knowledge_edge(project_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_project(principal, project_id, "WRITE")
     require_project(principal, project_id, "READ")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
@@ -1250,6 +1266,7 @@ def science_knowledge_impact(project_id: str, node_type: str, node_id: str, dept
 @app.post("/api/science/impact-review/{review_id}")
 def review_knowledge_impact(review_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
+    require_resource_project(principal, "knowledge_impact_review", review_id, "READ")
     from app.knowledge_impact_engine import KnowledgeImpactEngine
     try:
         return KnowledgeImpactEngine(db).review(review_id,principal.user_id,decision,rationale)
