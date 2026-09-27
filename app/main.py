@@ -518,32 +518,38 @@ def claim_evidence_resolution(claim_id: str, principal: Principal = Depends(prin
 
 def study_analysis_audit(study_id: str, analysis_plan_id: str, outcome_name: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "study", study_id, "READ")
     return ScientificAnalysisEngine(db).analysis_audit(study_id, analysis_plan_id, outcome_name)
 
 @app.get("/api/studies/{study_id}/analysis/{analysis_plan_id}/missingness")
 def study_missingness(study_id: str, analysis_plan_id: str, outcome_name: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "study", study_id, "READ")
     ScientificAnalysisEngine(db)._plan(study_id, analysis_plan_id)
     return ScientificAnalysisEngine(db).missingness_report(study_id, outcome_name)
 
 @app.post("/api/studies/{study_id}/analysis/{analysis_plan_id}/retention")
 def study_retention_analysis(study_id: str, analysis_plan_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "study", study_id, "READ")
     return ScientificAnalysisEngine(db).longitudinal_retention_analysis(study_id, analysis_plan_id, body["outcome_name"])
 
 @app.post("/api/studies/{study_id}/analysis/{analysis_plan_id}/inferential")
 def inferential_study_analysis(study_id: str, analysis_plan_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "study", study_id, "READ")
     return ScientificAnalysisEngine(db).inferential_randomized_arm_analysis(study_id, analysis_plan_id, body["outcome_name"])
 
 @app.post("/api/studies/{study_id}/analysis/{analysis_plan_id}/randomized")
 def analyze_randomized_study(study_id: str, analysis_plan_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "study", study_id, "READ")
     return ScientificAnalysisEngine(db).randomized_arm_analysis(study_id, analysis_plan_id, body["outcome_name"])
 
 @app.post("/api/studies/{study_id}/analysis/{analysis_plan_id}")
 def analyze_study(study_id: str, analysis_plan_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "study", study_id, "READ")
     return ScientificAnalysisEngine(db).analyze(study_id, analysis_plan_id, body["outcome_name"])
 
 @app.post("/api/science/claims/{claim_id}/transition")
@@ -858,11 +864,13 @@ def study_measure_binding(body: dict, principal: Principal = Depends(principal_f
 @app.post("/api/studies/{study_id}/start")
 def study_start(study_id: str, principal: Principal = Depends(principal_from_header)):
     require_permission(principal, "EXECUTE")
+    require_resource_project(principal, "study", study_id, "READ")
     return StudyExecution(db).start(study_id)
 
 @app.post("/api/studies/{study_id}/complete")
 def study_complete(study_id: str, principal: Principal = Depends(principal_from_header)):
     require_permission(principal, "EXECUTE")
+    require_resource_project(principal, "study", study_id, "READ")
     return StudyExecution(db).complete(study_id)
 
 @app.post("/api/experiments")
@@ -1052,6 +1060,7 @@ def science_contradictions(project_id: str, principal: Principal = Depends(princ
 @app.post("/api/science/claims/{claim_id}/scan-contradictions")
 def science_scan_contradictions(claim_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "claim", claim_id, "WRITE")
     from app.contradiction_engine import ContradictionEngine
     try:
         return ContradictionEngine(db).scan_claim(claim_id)
@@ -1070,6 +1079,7 @@ def science_resolve_contradiction(contradiction_id: str, body: dict, principal: 
 @app.post("/api/science/claims/{claim_id}/revisions")
 def science_propose_claim_revision(claim_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "claim", claim_id, "WRITE")
     from app.claim_revision import ClaimRevisionService
     try:
         return ClaimRevisionService(db).propose(
@@ -1081,6 +1091,7 @@ def science_propose_claim_revision(claim_id: str, body: dict, principal: Princip
 @app.get("/api/science/claims/{claim_id}/revisions")
 def science_claim_revision_history(claim_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "claim", claim_id, "READ")
     from app.claim_revision import ClaimRevisionService
     return ClaimRevisionService(db).history(claim_id)
 
