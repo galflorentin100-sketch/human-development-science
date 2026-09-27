@@ -5,14 +5,14 @@ from uuid import uuid4
 from app.database import Database
 from app.models import CompanyMessage,now
 from app.permissions import Permission,PermissionService
-from app.providers import ModelProvider,LocalProvider,ModelRequest,ObservableProvider
+from app.providers import ModelProvider,LocalProvider,ModelRequest,ObservableProvider,configured_provider
 from app.cost_controls import CostControl
 @dataclass(frozen=True)
 class ExecutionResult:
     message:CompanyMessage; verified:bool; cost_metadata:dict; error:str|None=None
 class AgentExecutor:
     def __init__(self,db:Database,provider:ModelProvider|None=None,permissions:PermissionService|None=None):
-        self.db=db; self.permissions=permissions or PermissionService(db); self.provider=ObservableProvider(provider or LocalProvider(),db); self.costs=CostControl(db)
+        self.db=db; self.permissions=permissions or PermissionService(db); self.provider=ObservableProvider(provider or configured_provider(),db); self.costs=CostControl(db)
     def execute(self,agent_id,task_id,task_input,context,required_permission=Permission.EXECUTE,claimed=False):
         self.permissions.check(agent_id,required_permission,"task:"+task_id)
         task=self.db.one("SELECT * FROM tasks WHERE id=?",(task_id,))
