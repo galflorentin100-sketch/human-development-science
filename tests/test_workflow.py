@@ -32,6 +32,7 @@ def test_science_improvement_persists_evidence_reference(tmp_path):
     result=cycle.run("Create verified evidence for improvement test")
     evidence_id=db.one("SELECT id FROM evidence WHERE claim_id=?",(result["claims"][0]["id"],))["id"]
     db.execute("UPDATE evidence SET verified=1 WHERE id=?",(evidence_id,))
+    db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES (?,?,?,?,?,?)",(str(__import__("uuid").uuid4()),evidence_id,"reviewer","VERIFIED","verified in test",__import__("app.models",fromlist=["now"]).now()))
     proposal=service.propose("Evidence-backed process change","SCIENCE","Test whether the process improves evidence quality.","Evidence audit pass rate","researcher",evidence_id)
     assert proposal["evidence_ref"]==evidence_id
     started=service.start_experiment(proposal["id"],"Compare before and after","Baseline recorded before intervention","researcher")
