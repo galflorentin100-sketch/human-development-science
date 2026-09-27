@@ -14,9 +14,10 @@ def test_challenge_execution_always_requires_safety_gate(tmp_path):
     else: assert False
     h.create_safety_control(project["id"],ch["id"],"LOW","stop"); h.approve_safety(ch["id"],"reviewer","APPROVED","reviewed")
     h.update_participant_safety(participant["id"],"ELIGIBLE","ASSIGNED","NOT_REQUIRED")
-    execution=ChallengeExecutionService(db).start(project["id"],ch["id"],participant["id"])
+    execution=ChallengeExecutionService(db).start(project["id"],ch["id"],participant["id"],"actor-1")
     assert execution["status"]=="RUNNING"
-    stopped=ChallengeExecutionService(db).stop(execution["id"],"participant requested stop")
+    stopped=ChallengeExecutionService(db).stop(execution["id"],"participant requested stop","actor-1")
+    assert db.one("SELECT actor FROM audit_logs WHERE entity_id=? AND event_type='hds.challenge.stopped'",(execution["id"],))["actor"]=="actor-1"
     assert stopped["status"]=="STOPPED"
 
 def test_adaptive_training_requires_sufficient_signal(tmp_path):
