@@ -78,3 +78,22 @@ def test_add_edge_rejects_cross_project_node(tmp_path):
     import pytest
     with pytest.raises(ValueError, match="belongs to another project"):
         g.add_edge(p1,"CLAIM",claim,"INFORMS","HYPOTHESIS","h")
+
+
+def test_add_edge_rejects_unknown_node_type(tmp_path):
+    db=Database(str(tmp_path/"unknown-node.db")); ResearchCycle(db); pid=_setup(db)
+    import pytest
+    with pytest.raises(ValueError, match="unsupported graph node type"):
+        KnowledgeDependencyGraph(db).add_edge(pid,"UNKNOWN","x","RELATION","PROJECT",pid)
+
+def test_source_edge_requires_source_in_project(tmp_path):
+    db=Database(str(tmp_path/"source-isolation.db")); ResearchCycle(db); p1=_setup(db); p2=_setup(db)
+    from app.models import now
+    source,claim=[str(uuid.uuid4()) for _ in range(2)]
+    db.execute("INSERT INTO sources(id,title,url,authors,publication_year,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?,?,?)",(source,"s","https://example.org/source-isolation","","2026","PAPER","",""))
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,p2,"c","FACT","PRELIMINARY",0.5,"PROPOSED",now()))
+    evidence=str(uuid.uuid4())
+    db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(evidence,claim,source,"SUPPORTS","x",0,"system","source-isolation",now()))
+    import pytest
+    with pytest.raises(ValueError, match="belongs to another project"):
+        KnowledgeDependencyGraph(db).add_edge(p1,"SOURCE",source,"HAS_EVIDENCE","EVIDENCE",evidence)
