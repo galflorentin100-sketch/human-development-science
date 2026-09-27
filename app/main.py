@@ -121,6 +121,12 @@ def require_resource_project(principal: Principal, resource_type: str, resource_
         "construct": ("scientific_constructs", "id"),
         "knowledge_impact_review": ("knowledge_impact_reviews", "id"),
     }
+    if resource_type == "research_review_task":
+        task = db.one("SELECT rw.project_id FROM research_review_tasks rrt JOIN research_workspaces rw ON rw.id=rrt.workspace_id WHERE rrt.task_id=?", (resource_id,))
+        if not task:
+            raise HTTPException(status_code=404, detail="research review task not found")
+        require_project(principal, task["project_id"], permission)
+        return task["project_id"]
     if resource_type == "maintenance_work":
         work = db.one("SELECT * FROM maintenance_work WHERE id=?", (resource_id,))
         if not work:
@@ -272,6 +278,7 @@ def research_synthesis_readiness(synthesis_id: str, principal: Principal = Depen
 @app.get("/api/science/research-syntheses/{synthesis_id}/review-tasks")
 def research_synthesis_review_tasks(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "research_synthesis", synthesis_id, "READ")
     from app.research_review_pipeline import ResearchReviewPipeline
     return ResearchReviewPipeline(db).status(synthesis_id)
 
@@ -1406,6 +1413,7 @@ def submit_agent_output(agent_run_id: str, project_id: str | None = None, princi
 @app.post("/api/science/agent-output/{review_id}/candidate-finding")
 def create_candidate_finding_from_output(review_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "agent_output_review", review_id, "EXECUTE")
     from app.knowledge_update_proposer import KnowledgeUpdateProposer
     try:
         return KnowledgeUpdateProposer(db).propose_from_output(review_id)
@@ -1422,6 +1430,7 @@ def list_agent_outputs(project_id: str, status: str | None = None, principal: Pr
 @app.post("/api/science/research-review/{review_id}/finalize")
 def finalize_research_review_agent(review_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "research_review_task", review_id, "EXECUTE")
     from app.research_review_agent import ResearchReviewAgentAdapter
     try:
         return ResearchReviewAgentAdapter(db).finalize(review_id,principal.user_id)
