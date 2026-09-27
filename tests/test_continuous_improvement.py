@@ -22,12 +22,11 @@ def test_science_improvement_requires_existing_verified_evidence(tmp_path):
     db=Database(str(tmp_path/"improvement.db"))
     _, evidence=_setup(db, verified=0)
     svc=ContinuousImprovementService(db)
-    proposal=svc.propose("Test","SCIENCE","hypothesis","metric","owner",evidence)
     try:
-        svc.start_experiment(proposal["id"],"design","baseline","owner")
-        assert False
+        svc.propose("Test","SCIENCE","hypothesis","metric","owner",evidence)
+        assert False, "unverified scientific evidence must be rejected at proposal time"
     except ValueError as exc:
-        assert "must be verified" in str(exc)
+        assert "independently verified" in str(exc)
 
 
 def test_science_improvement_accepts_verified_evidence(tmp_path):
