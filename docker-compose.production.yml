@@ -42,6 +42,8 @@ services:
       COMPANY_OS_LOG_LEVEL: INFO
     ports:
       - "8000:8000"
+    volumes:
+      - code_worker_jobs:/var/lib/hds-code-worker
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
       interval: 15s
@@ -62,6 +64,10 @@ services:
       - /tmp:rw,noexec,nosuid,size=64m
     environment:
       HDS_WORKER_NETWORK: none
+      HDS_WORKER_SHARED_DIR: /var/lib/hds-code-worker
+    volumes:
+      - code_worker_jobs:/var/lib/hds-code-worker
 
 volumes:
   postgres_data:
+  code_worker_jobs:
