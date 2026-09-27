@@ -25,8 +25,8 @@ def main():
     assert db.one("SELECT COUNT(*) AS n FROM companies WHERE id=?", (company_id,))["n"] == 1
 
     with db.transaction() as con:
-        con.execute("UPDATE companies SET mission=? WHERE id=?", ("verified", company_id))
-        assert con.execute("SELECT mission FROM companies WHERE id=?", (company_id,)).fetchone()["mission"] == "verified"
+        con.execute("UPDATE companies SET mission=%s WHERE id=%s", ("verified", company_id))
+        assert con.execute("SELECT mission FROM companies WHERE id=%s", (company_id,)).fetchone()["mission"] == "verified"
 
     print("PostgreSQL smoke test passed")
 
