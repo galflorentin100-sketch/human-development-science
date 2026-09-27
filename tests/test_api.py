@@ -549,3 +549,15 @@ def test_anthropic_provider_requires_explicit_key_and_spend_rates(monkeypatch):
     provider=configured_provider()
     assert isinstance(provider, AnthropicMessagesProvider)
     assert provider.estimate_cost(__import__("app.providers",fromlist=["ModelRequest"]).ModelRequest("test","hello"))>0
+
+
+def test_founder_chat_is_governed_and_unverified(tmp_path, monkeypatch):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.founder_chat import FounderChatService
+    monkeypatch.delenv("HDS_MODEL_PROVIDER", raising=False)
+    db=Database(str(tmp_path/"chat.db")); project=ResearchCycle(db).run("chat")["project"]
+    result=FounderChatService(db).ask(project["id"],"What requires attention?","founder")
+    assert result["verified"] is False
+    assert result["provider"]=="local"
+    assert "unverified" in result["uncertainty"].lower()
