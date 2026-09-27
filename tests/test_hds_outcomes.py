@@ -4,12 +4,12 @@ from app.hds_outcomes import HDSOutcomeService
 
 def test_hds_outcome_requires_preregistered_measure_and_consent(tmp_path):
     db=Database(str(tmp_path/"outcomes.db"))
-    db.migrate()
+    from app.workflow import ResearchCycle
+    ResearchCycle(db)
     from uuid import uuid4
     from app.models import now
 
     project=str(uuid4()); study=str(uuid4()); participant=str(uuid4()); measure=str(uuid4()); binding=str(uuid4())
-    db.execute("INSERT INTO companies(id,name,mission,vision,core_principle,created_at) VALUES ('hds','HDS','m','v','truth',?)",(now(),))
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(project,"hds","outcome test","RUNNING","chief-scientist",now()))
     db.execute("INSERT INTO studies(id,title,design,findings,created_at) VALUES (?,?,?,?,?)",(study,"Outcome Study","pilot","",now()))
     # studies are legacy rows without project_id in the base schema; add it for project-scoped behavior.
