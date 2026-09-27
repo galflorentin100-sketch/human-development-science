@@ -74,15 +74,27 @@ class ClaimStateService:
         return self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
 
     def knowledge_version(self,claim_id,actor,rationale):
-        claim=self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
-        if not claim: raise ValueError("claim not found")
         if not rationale or not rationale.strip(): raise ValueError("knowledge version rationale is required")
         from app.evidence_pipeline import EvidencePipeline
-        state=EvidencePipeline(self.db).claim_evidence_state(claim_id)
-        snapshot=__import__("hashlib").sha256(__import__("json").dumps(state,sort_keys=True,separators=(",",":")).encode()).hexdigest()
         ts=now(); version_id=str(uuid4())
-        evidence_state=state["conflicted"] and "CONFLICTED" or state["verified_support"] and "SUPPORTED" or state["verified_contradict"] and "CONTRADICTED" or "UNVERIFIED"
         with self.db.transaction() as con:
+            claim=con.execute("SELECT * FROM claims WHERE id=?",(claim_id,)).fetchone()
+            if not claim: raise ValueError("claim not found")
+            rows=con.execute(
+                "SELECT e.id,e.stance,er.verdict FROM evidence e LEFT JOIN evidence_reviews er ON er.evidence_id=e.id WHERE e.claim_id=?",
+                (claim_id,)).fetchall()
+            evidence_by_id={}
+            for row in rows:
+                r=dict(row)
+                evidence_by_id.setdefault(r["id"],{"stance":r["stance"],"verdicts":[]})
+                if r["verdict"] is not None:
+                    evidence_by_id[r["id"]]["verdicts"].append(str(r["verdict"]).upper())
+            verified_support=sum(1 for x in evidence_by_id.values() if "VERIFIED" in x["verdicts"] and x["stance"]=="SUPPORTS")
+            verified_contradict=sum(1 for x in evidence_by_id.values() if "VERIFIED" in x["verdicts"] and x["stance"]=="CONTRADICTS")
+            conflicted=any(("CONFLICTED" in x["verdicts"]) or ("VERIFIED" in x["verdicts"] and "REJECTED" in x["verdicts"]) for x in evidence_by_id.values())
+            state={"verified_support":verified_support,"verified_contradict":verified_contradict,"conflicted":conflicted}
+            snapshot=__import__("hashlib").sha256(__import__("json").dumps(state,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+            evidence_state=conflicted and "CONFLICTED" or verified_support and "SUPPORTED" or verified_contradict and "CONTRADICTED" or "UNVERIFIED"
             latest=con.execute("SELECT MAX(version) AS v FROM scientific_knowledge_versions WHERE claim_id=?",(claim_id,)).fetchone()
             version=int(latest["v"] or 0)+1
             con.execute("INSERT INTO scientific_knowledge_versions(id,claim_id,version,statement,classification,status,confidence,evidence_state,evidence_snapshot_hash,change_reason,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
