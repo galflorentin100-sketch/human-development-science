@@ -176,6 +176,19 @@ CREATE INDEX IF NOT EXISTS idx_hds_product_project ON hds_products(project_id,st
 CREATE INDEX IF NOT EXISTS idx_hds_enrollment_program ON hds_program_enrollments(program_id,status);
 CREATE INDEX IF NOT EXISTS idx_hds_coach_project ON hds_coaches(project_id,status);
 CREATE INDEX IF NOT EXISTS idx_hds_subscription_customer ON hds_subscriptions(customer_id,status);
+CREATE TABLE IF NOT EXISTS hds_competition_study_bindings (
+ id TEXT PRIMARY KEY, competition_id TEXT NOT NULL REFERENCES hds_competitions(id),
+ participant_id TEXT NOT NULL REFERENCES hds_competition_participants(id),
+ study_participant_id TEXT NOT NULL REFERENCES study_participants(id),
+ UNIQUE(competition_id,participant_id), UNIQUE(study_participant_id)
+);
+CREATE TABLE IF NOT EXISTS hds_competition_measure_bindings (
+ id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES hds_competition_events(id),
+ study_id TEXT NOT NULL REFERENCES studies(id),
+ measure_id TEXT NOT NULL REFERENCES study_measure_definitions(id),
+ observation_type TEXT NOT NULL, timepoint TEXT NOT NULL,
+ UNIQUE(event_id,study_id,measure_id,observation_type,timepoint)
+);
 """
 OPTIONAL_SCIENCE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS hds_experiments (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, research_question TEXT NOT NULL, hypothesis TEXT NOT NULL, design TEXT NOT NULL, population TEXT NOT NULL, intervention TEXT NOT NULL, comparison TEXT NOT NULL, outcomes TEXT NOT NULL, analysis_plan TEXT NOT NULL, status TEXT NOT NULL, preregistered INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -233,6 +246,19 @@ def _ensure_hds_schema(con):
         id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES hds_competition_events(id),
         participant_id TEXT NOT NULL REFERENCES hds_competition_participants(id),
         metric TEXT NOT NULL, score REAL NOT NULL, observed_at TEXT NOT NULL
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS hds_competition_study_bindings (
+        id TEXT PRIMARY KEY, competition_id TEXT NOT NULL REFERENCES hds_competitions(id),
+        participant_id TEXT NOT NULL REFERENCES hds_competition_participants(id),
+        study_participant_id TEXT NOT NULL REFERENCES study_participants(id),
+        UNIQUE(competition_id,participant_id), UNIQUE(study_participant_id)
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS hds_competition_measure_bindings (
+        id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES hds_competition_events(id),
+        study_id TEXT NOT NULL REFERENCES studies(id),
+        measure_id TEXT NOT NULL REFERENCES study_measure_definitions(id),
+        observation_type TEXT NOT NULL, timepoint TEXT NOT NULL,
+        UNIQUE(event_id,study_id,measure_id,observation_type,timepoint)
     )""")
 
 class Database:
