@@ -90,6 +90,15 @@ def require_read(principal: Principal) -> None:
 def require_write(principal: Principal) -> None:
     require_permission(principal, "WRITE")
 
+def require_project(principal: Principal, project_id: str, permission: str = "READ") -> None:
+    """Enforce tenant/project isolation at the HTTP boundary."""
+    if principal.user_id == "local-development" and settings.environment != "production":
+        return
+    try:
+        auth.project_authorize(principal.user_id, project_id, permission)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
 
 def require_execute(principal: Principal) -> None:
     require_permission(principal, "EXECUTE")
@@ -375,16 +384,16 @@ def founder_goal(body: Goal, principal: Principal = Depends(principal_from_heade
 
 @app.post("/api/projects/{project_id}/autonomous-run")
 def autonomous_run(project_id: str, principal: Principal = Depends(principal_from_header)):
-    require_permission(principal, "EXECUTE"); return AutonomousLoop(db).run(project_id)
+    require_project(principal, project_id, "EXECUTE"); return AutonomousLoop(db).run(project_id)
 @app.post("/api/projects/{project_id}/decide-next")
 def decide_next(project_id: str, principal: Principal = Depends(principal_from_header)):
-    require_permission(principal, "EXECUTE"); return CompanyOrchestrator(db).decide_next(project_id)
+    require_project(principal, project_id, "EXECUTE"); return CompanyOrchestrator(db).decide_next(project_id)
 @app.post("/api/projects/{project_id}/execute-next")
 def execute_next(project_id: str, principal: Principal = Depends(principal_from_header)):
-    require_permission(principal, "EXECUTE"); return CompanyOrchestrator(db).execute_next(project_id)
+    require_project(principal, project_id, "EXECUTE"); return CompanyOrchestrator(db).execute_next(project_id)
 @app.post("/api/projects/{project_id}/advance")
 def advance_project(project_id: str, principal: Principal = Depends(principal_from_header)):
-    require_permission(principal, "EXECUTE"); return CompanyOrchestrator(db).advance(project_id)
+    require_project(principal, project_id, "EXECUTE"); return CompanyOrchestrator(db).advance(project_id)
 @app.post("/api/approvals/{approval_id}/resolve")
 def resolve_approval(approval_id: str, status: str, principal: Principal = Depends(principal_from_header)):
     if principal.role != "founder" or not principal.can("APPROVE"):
@@ -413,6 +422,7 @@ def resolve_approval(approval_id: str, status: str, principal: Principal = Depen
 @app.post("/api/sc001/register/{project_id}")
 def sc001_register(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_project(principal, project_id, "WRITE")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)): raise HTTPException(404, "project not found")
     return SC001Protocol().register(db, project_id)
 class InterpretationRequest(BaseModel):
@@ -458,6 +468,7 @@ def create_research_finding(payload: dict, principal: Principal = Depends(princi
 @app.get("/api/science/projects/{project_id}/findings")
 def list_research_findings(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_project(principal, project_id, "READ")
     from app.research import ResearchFindingService
     return ResearchFindingService(db).list(project_id,status)
 
@@ -565,6 +576,7 @@ def record_training_session(protocol_id: str, body: dict, principal: Principal =
 @app.get("/api/science/projects/{project_id}/training-protocols")
 def list_training_protocols(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_project(principal, project_id, "READ")
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).list(project_id,status)
 
@@ -826,6 +838,7 @@ def create_experiment(body: ExperimentRequest, principal: Principal = Depends(pr
 @app.post("/api/projects/{project_id}/next-tasks")
 def next_tasks(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_project(principal, project_id, "EXECUTE")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)): raise HTTPException(404, "project not found")
     return AutonomousPlanner(db).create_next_tasks(project_id, [{"title":"Collect evidence","agent_id":"researcher","priority":1.0},{"title":"Challenge evidence","agent_id":"skeptic","priority":0.9},{"title":"Audit evidence","agent_id":"evidence-auditor","priority":0.9}])
 @app.get("/")
@@ -835,6 +848,7 @@ def dashboard(): return HTMLResponse((Path(__file__).parent / "dashboard.html").
 @app.get("/api/science/closed-loop/{project_id}")
 def science_closed_loop(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_project(principal, project_id, "READ")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
     from app.closed_loop_engine import ClosedLoopEngine
@@ -852,6 +866,7 @@ def science_protocol_loop(protocol_id: str, principal: Principal = Depends(princ
 @app.get("/api/science/integrity/{project_id}")
 def science_integrity(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_project(principal, project_id, "READ")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
     from app.scientific_integrity import ScientificIntegrityChecker
