@@ -73,7 +73,8 @@ def test_knowledge_versions_increment_without_collision(tmp_path):
         return svc.knowledge_version(cid,actor,"concurrent version")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-        versions=sorted(pool.map(create_version,("reviewer-a","reviewer-b")))
+        versions=list(pool.map(create_version,("reviewer-a","reviewer-b")))
+        versions.sort(key=lambda row: row["version"])
 
     assert [row["version"] for row in versions] == [1,2]
     assert len(db.all("SELECT id FROM scientific_knowledge_versions WHERE claim_id=?",(cid,))) == 2
