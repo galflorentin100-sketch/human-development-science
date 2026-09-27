@@ -62,7 +62,7 @@ class ConstructRequest(BaseModel):
 class MeasureRequest(BaseModel):
     construct_id: str; name: str = Field(min_length=1); operational_definition: str = Field(min_length=1); method: str = Field(min_length=1); unit: str | None = None; reliability_note: str = ""; validity_note: str = ""
 class InterventionRequest(BaseModel):
-    name: str = Field(min_length=1); rationale: str = Field(min_length=1); mechanism: str = Field(min_length=1); evidence_level: str; dosage: str = Field(min_length=1); population: str = Field(min_length=1); target_construct_id: str | None = None
+    name: str = Field(min_length=1); rationale: str = Field(min_length=1); mechanism: str = Field(min_length=1); evidence_level: str; dosage: str = Field(min_length=1); population: str = Field(min_length=1); target_construct_id: str | None = None; project_id: str | None = None
 class StudyParticipantRequest(BaseModel):
     study_id: str; external_ref: str = Field(min_length=1, max_length=200); consent_status: str = "CONSENTED"
 class StudyOutcomeRequest(BaseModel):
@@ -117,7 +117,6 @@ def require_resource_project(principal: Principal, resource_type: str, resource_
         "claim_revision": ("claim_revisions", "id"),
         "agent_output_review": ("agent_output_reviews", "id"),
         "agent_run": ("agent_runs", "id"),
-        "finding": ("research_findings", "id"),
         "construct": ("scientific_constructs", "id"),
         "knowledge_impact_review": ("knowledge_impact_reviews", "id"),
     }
