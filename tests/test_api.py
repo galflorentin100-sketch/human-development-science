@@ -364,17 +364,12 @@ def test_sc001_registration_rolls_back_on_mid_pipeline_failure(tmp_path, monkeyp
     from app.database import Database
     from app.workflow import ResearchCycle
     from app.sc001 import SC001Protocol
-    from app.measurement import MeasurementRegistry
+    from app.approvals import ApprovalService
     db=Database(str(tmp_path/"sc001_atomic.db")); ResearchCycle(db)
     p=ResearchCycle(db).run("SC001 atomic")["project"]
-    original_bind=MeasurementRegistry.bind
-    calls={"n":0}
-    def failing_bind(self,*args,**kwargs):
-        calls["n"]+=1
-        if calls["n"]==2:
-            raise RuntimeError("simulated registration failure")
-        return original_bind(self,*args,**kwargs)
-    monkeypatch.setattr(MeasurementRegistry,"bind",failing_bind)
+    def fail_approval(*args,**kwargs):
+        raise RuntimeError("simulated registration failure")
+    monkeypatch.setattr(ApprovalService,"_request_in_transaction",fail_approval)
     try:
         SC001Protocol().register(db,p["id"])
         assert False, "registration should fail"
