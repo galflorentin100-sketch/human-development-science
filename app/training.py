@@ -86,6 +86,13 @@ class TrainingProtocolService:
         )
         return self.db.one("SELECT * FROM training_protocol_evidence WHERE id=?",(i,))
 
+    def progression(self,protocol_id,participant_ref):
+        protocol=self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
+        if not protocol: raise ValueError("training protocol not found")
+        rows=self.db.all("SELECT session_number,adherence,task_success,transfer_score,retention_score,decision_accuracy,initiation_latency,recovery_score,fatigue_note FROM training_sessions WHERE protocol_id=? AND participant_ref=? ORDER BY session_number",(protocol_id,str(participant_ref)))
+        completed=sum(int(r["adherence"]) for r in rows)
+        return {"protocol_id":protocol_id,"participant_ref":str(participant_ref),"sessions":rows,"completed_sessions":completed,"total_sessions":len(rows),"progression_rule":protocol["progression_rule"],"evidence_level":protocol["evidence_level"]}
+
     def session(self,protocol_id,participant_ref,session_number,load_note,adherence,
                 task_success=None,transfer_score=None,retention_score=None,
                 decision_accuracy=None,initiation_latency=None,recovery_score=None,
