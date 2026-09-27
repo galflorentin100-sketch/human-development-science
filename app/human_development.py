@@ -134,6 +134,9 @@ class HumanDevelopmentService:
         )
         if not row:
             raise ValueError("event and participant do not belong to the same competition")
+        consent = self.db.one("SELECT consent_status FROM hds_competition_participants WHERE id=?", (participant_id,))
+        if not consent or consent["consent_status"] != "CONSENTED":
+            raise ValueError("participant consent is required before scoring")
         if not str(metric or "").strip():
             raise ValueError("score metric is required")
         i = str(uuid4())
