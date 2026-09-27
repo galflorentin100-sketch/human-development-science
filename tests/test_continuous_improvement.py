@@ -13,6 +13,8 @@ def _setup(db, verified=0):
     db.execute("INSERT INTO sources(id,title,url,authors,publication_year,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?,?,?)",(source,"Paper","https://example.org/"+source,"Author",2025,"PAPER",now(),"test"))
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,project,"test","INFERENCE","VERIFIED",0.8,"SUPPORTED",now()))
     db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)",(evidence,claim,source,"SUPPORTS","excerpt",verified,"test",now()))
+    if verified:
+        db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES (?,?,?,?,?,?)",(str(uuid.uuid4()),evidence,"reviewer","VERIFIED","verified in test",now()))
     return project, evidence
 
 
