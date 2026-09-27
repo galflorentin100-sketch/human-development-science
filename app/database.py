@@ -273,6 +273,17 @@ def _migrate_phase4(self):
         existing={row[1] for row in con.execute("PRAGMA table_info(study_outcomes)")}
         if "observation_type" not in existing:
             con.execute("ALTER TABLE study_outcomes ADD COLUMN observation_type TEXT NOT NULL DEFAULT 'TRAINING'")
+        if "timepoint" not in existing:
+            con.execute("ALTER TABLE study_outcomes ADD COLUMN timepoint TEXT")
+        duplicate_outcomes=con.execute("""
+            SELECT study_id,participant_id,outcome_name,observation_type,COALESCE(session_id,''),COALESCE(timepoint,''),COUNT(*) AS n
+            FROM study_outcomes
+            GROUP BY study_id,participant_id,outcome_name,observation_type,COALESCE(session_id,''),COALESCE(timepoint,'')
+            HAVING COUNT(*) > 1
+        """).fetchall()
+        if duplicate_outcomes:
+            raise RuntimeError("cannot enforce unique study outcome observations: existing duplicate observations found")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation_identity ON study_outcomes(study_id,participant_id,outcome_name,observation_type,COALESCE(session_id,''),COALESCE(timepoint,''))")
         con.executescript(PHASE_AGENT_OUTPUT_SCHEMA); con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA); con.executescript(PHASE6_SCHEMA); con.executescript(PHASE7_SCHEMA); con.executescript(OPTIONAL_SCIENCE_SCHEMA)
         existing_decisions={row[1] for row in con.execute("PRAGMA table_info(organizational_decisions)")}
         if "evidence" not in existing_decisions: con.execute("ALTER TABLE organizational_decisions ADD COLUMN evidence TEXT NOT NULL DEFAULT '[]'")
