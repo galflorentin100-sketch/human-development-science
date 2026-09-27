@@ -10,12 +10,16 @@ class ScientificAdmissionGate:
         claim=self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
         if not claim: raise ValueError("claim not found")
         from app.evidence_pipeline import EvidencePipeline
-        rows=self.db.all("SELECT id FROM evidence WHERE claim_id=?",(claim_id,))
-        states=[EvidencePipeline(self.db).resolve(r["id"])["state"] for r in rows]
-        verified=sum(s=="VERIFIED" for s in states)
-        conflicts=sum(s=="CONFLICTED" for s in states)
-        return {"claim":claim,"evidence_count":len(states),"verified_evidence":verified,"conflicts":conflicts,
-                "supported":claim["status"]=="SUPPORTED" and verified>0 and conflicts==0}
+        state=EvidencePipeline(self.db).claim_evidence_state(claim_id)
+        return {"claim":claim,"evidence_count":len(state["evidence"]),
+                "verified_evidence":state["verified_support"],
+                "verified_support":state["verified_support"],
+                "verified_contradict":state["verified_contradict"],
+                "conflicts":state["conflicted"],
+                "supported":claim["status"]=="SUPPORTED"
+                           and state["verified_support"]>0
+                           and state["verified_contradict"]==0
+                           and state["conflicted"]==0}
 
     def intervention(self,intervention_id):
         intervention=self.db.one("SELECT * FROM interventions WHERE id=?",(intervention_id,))
