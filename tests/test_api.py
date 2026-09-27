@@ -344,3 +344,16 @@ def test_agent_output_needs_evidence_can_be_reopened(tmp_path):
     EvidencePipeline(db).review(evidence["id"],"auditor","VERIFIED","verified")
     reopened=AgentOutputGate(db).provide_evidence(review["id"],[evidence["id"]])
     assert reopened["status"]=="READY_FOR_REVIEW"
+
+
+def test_record_attempt_numbers_are_atomic(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.tasks import TaskEngine
+    db=Database(str(tmp_path/"attempts.db")); ResearchCycle(db)
+    project=ResearchCycle(db).run("attempts")["project"]
+    task=TaskEngine(db).create_task("attempts","record",project["id"],"researcher")
+    first=TaskEngine(db).record_attempt(task["id"],"STARTED")
+    second=TaskEngine(db).record_attempt(task["id"],"RETRY")
+    assert first["attempt_number"]==1
+    assert second["attempt_number"]==2
