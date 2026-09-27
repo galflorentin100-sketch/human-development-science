@@ -1,3 +1,4 @@
+import json
 """End-to-end scientific-to-training provenance graph.
 
 Links the chain without upgrading evidence:
@@ -81,12 +82,22 @@ class ScientificTrainingPipeline:
                             "resolution": pipe.resolve(e["id"]),
                         }
                     )
-                result["finding_links"] = self.db.all(
+                claim_evidence_ids = {str(e["id"]) for e in rows}
+                findings = self.db.all(
                     "SELECT * FROM research_findings "
                     "WHERE project_id=(SELECT project_id FROM claims WHERE id=?) "
                     "ORDER BY created_at DESC",
                     (p["source_claim_id"],),
                 )
+                linked = []
+                for finding in findings:
+                    try:
+                        finding_refs = json.loads(finding["evidence_refs"] or "[]")
+                    except (TypeError, ValueError):
+                        finding_refs = []
+                    if claim_evidence_ids.intersection(str(ref) for ref in finding_refs):
+                        linked.append(finding)
+                result["finding_links"] = linked
 
         # Sessions are downstream observations of protocol execution.
         result["sessions"] = self.db.all(
