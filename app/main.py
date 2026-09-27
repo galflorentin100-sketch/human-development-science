@@ -4,7 +4,9 @@ import hmac
 from pathlib import Path
 from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import HTMLResponse\nfrom fastapi import Request\nfrom starlette.middleware.base import BaseHTTPMiddleware\nfrom app.rate_limit import RateLimiter
+from fastapi.responses import HTMLResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from app.rate_limit import RateLimiter
 from pydantic import BaseModel, Field
 from app.auth import AuthService, Principal
 from app.config import Settings
