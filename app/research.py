@@ -233,7 +233,7 @@ class StudyExecution:
         if session_id and not self.db.one("SELECT 1 FROM study_sessions WHERE id=? AND study_id=? AND participant_id=?",(session_id,study_id,participant_id)): raise ValueError("session does not belong to participant")
         i=str(uuid4()); ts=now()
         with self.db.transaction() as con:
-            if session_id:
+            if session_id or measure_id is not None:
                 duplicate=con.execute("SELECT 1 FROM study_outcomes WHERE study_id=? AND participant_id=? AND outcome_name=? AND observation_type=? AND session_id=? AND COALESCE(timepoint,'')=COALESCE(?,'')",(study_id,participant_id,outcome_name,observation_type,session_id,timepoint)).fetchone()
                 if duplicate:
                     raise ValueError("duplicate observation")
