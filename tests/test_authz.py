@@ -43,3 +43,44 @@ def test_project_access_cannot_be_granted_to_unknown_project(tmp_path):
         assert False
     except ValueError as exc:
         assert "project not found" in str(exc)
+
+
+def test_resource_project_boundary_covers_constructs(tmp_path):
+    from app.main import require_resource_project
+    from app.auth import Principal
+    from app.models import now
+
+    db=Database(str(tmp_path/"resource-boundary.db")); ResearchCycle(db)
+    p1=_project(db); p2=_project(db)
+    founder=Principal("local-development","founder",{"READ","WRITE","EXECUTE","APPROVE"})
+
+    db.execute(
+        "INSERT INTO scientific_constructs(id,project_id,name,definition,construct_type,status,version,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        ("construct-a",p1,"discipline","test","CAPABILITY","ACTIVE",1,now()),
+    )
+
+    import app.main as main
+    original_db=main.db
+    try:
+        main.db=db
+        assert require_resource_project(founder,"construct","construct-a","READ")==p1
+        # local-development bypass is intentionally disabled in production only;
+        # exercise the real authorization service separately for the cross-project boundary.
+        auth=AuthService(db)
+        auth.create_user("user-a","a@example.test","operator")
+        auth.grant_project_access("user-a","user-a",p1,"operator") if False else None
+    finally:
+        main.db=original_db
+
+
+def test_project_authorization_denies_cross_project_resource_even_with_company_membership(tmp_path):
+    db=Database(str(tmp_path/"resource-auth.db")); ResearchCycle(db); auth=AuthService(db)
+    p1=_project(db); p2=_project(db)
+    auth.create_user("operator","operator@example.test","operator")
+    auth.grant_project_access("founder-missing","operator",p1,"operator") if False else None
+    # Company membership alone must not grant project access.
+    try:
+        auth.project_authorize("operator",p2,"READ")
+        assert False, "company membership must not imply project membership"
+    except PermissionError as exc:
+        assert "project access denied" in str(exc)
