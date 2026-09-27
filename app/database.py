@@ -74,6 +74,68 @@ CREATE INDEX IF NOT EXISTS idx_agent_output_reviews_project_created ON agent_out
 CREATE INDEX IF NOT EXISTS idx_interventions_project_created ON interventions(project_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_training_protocols_project_created ON training_protocols(project_id,created_at);"""
 
+HUMAN_DEVELOPMENT_SCHEMA = """
+CREATE TABLE IF NOT EXISTS hds_programs (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ name TEXT NOT NULL,
+ objective TEXT NOT NULL,
+ domain_id TEXT NOT NULL,
+ status TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hds_programs_project ON hds_programs(project_id,status);
+CREATE TABLE IF NOT EXISTS hds_challenges (
+ id TEXT PRIMARY KEY,
+ program_id TEXT NOT NULL REFERENCES hds_programs(id),
+ name TEXT NOT NULL,
+ description TEXT NOT NULL,
+ challenge_type TEXT NOT NULL,
+ difficulty INTEGER NOT NULL CHECK(difficulty BETWEEN 1 AND 10),
+ safety_constraints TEXT NOT NULL,
+ status TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hds_challenges_program ON hds_challenges(program_id,status);
+CREATE TABLE IF NOT EXISTS hds_competitions (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ name TEXT NOT NULL,
+ format TEXT NOT NULL,
+ status TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hds_competitions_project ON hds_competitions(project_id,status);
+CREATE TABLE IF NOT EXISTS hds_competition_events (
+ id TEXT PRIMARY KEY,
+ competition_id TEXT NOT NULL REFERENCES hds_competitions(id),
+ challenge_id TEXT NOT NULL REFERENCES hds_challenges(id),
+ sequence INTEGER NOT NULL,
+ scoring_rule TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(competition_id,sequence)
+);
+CREATE TABLE IF NOT EXISTS hds_competition_participants (
+ id TEXT PRIMARY KEY,
+ competition_id TEXT NOT NULL REFERENCES hds_competitions(id),
+ participant_ref TEXT NOT NULL,
+ consent_status TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(competition_id,participant_ref)
+);
+CREATE TABLE IF NOT EXISTS hds_competition_scores (
+ id TEXT PRIMARY KEY,
+ event_id TEXT NOT NULL REFERENCES hds_competition_events(id),
+ participant_id TEXT NOT NULL REFERENCES hds_competition_participants(id),
+ metric TEXT NOT NULL,
+ score REAL NOT NULL,
+ observed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hds_scores_event_participant ON hds_competition_scores(event_id,participant_id);
+"""
 OPTIONAL_SCIENCE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS hds_experiments (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, research_question TEXT NOT NULL, hypothesis TEXT NOT NULL, design TEXT NOT NULL, population TEXT NOT NULL, intervention TEXT NOT NULL, comparison TEXT NOT NULL, outcomes TEXT NOT NULL, analysis_plan TEXT NOT NULL, status TEXT NOT NULL, preregistered INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS hds_experiment_results (id TEXT PRIMARY KEY, experiment_id TEXT NOT NULL, outcome TEXT NOT NULL, interpretation TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL);
