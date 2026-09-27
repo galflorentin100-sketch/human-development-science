@@ -183,6 +183,7 @@ class Database:
             con.executescript(PHASE6_SCHEMA)
             con.executescript(PHASE7_SCHEMA)
             con.executescript(OPTIONAL_SCIENCE_SCHEMA)
+            con.executescript(HUMAN_DEVELOPMENT_SCHEMA)
             _add_phase2_columns(con)
             existing_impact={row[1] for row in con.execute("PRAGMA table_info(knowledge_impact_reviews)")}
             if "impact_type" not in existing_impact:
