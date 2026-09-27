@@ -146,6 +146,19 @@ class HDSCompetitionMeasureBindingRequest(BaseModel):
     measure_id: str
     observation_type: str
     timepoint: str
+class HDSSafetyControlRequest(BaseModel):
+    project_id: str
+    challenge_id: str
+    risk_class: str
+    stop_criteria: str = Field(min_length=1, max_length=5000)
+    eligibility_required: bool = True
+    consent_required: bool = True
+    supervision_required: bool = True
+    medical_review_required: bool = False
+class HDSSafetyReviewRequest(BaseModel):
+    reviewer: str = Field(min_length=1, max_length=300)
+    decision: str
+    rationale: str = Field(min_length=1, max_length=5000)
 
 
 
@@ -1810,4 +1823,20 @@ def record_hds_scientific_score(competition_id: str, event_id: str, req: HDSScor
     if not event or event["competition_id"] != competition_id: raise HTTPException(404, "competition event not found")
     from app.human_development import HumanDevelopmentService
     try: return HumanDevelopmentService(db).record_score_as_outcome(event_id,req.participant_id,req.metric,req.score)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+@app.post("/api/hds/safety/controls")
+def create_hds_safety_control(req: HDSSafetyControlRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal); require_project(principal,req.project_id,"WRITE")
+    from app.human_development import HumanDevelopmentService
+    try: return HumanDevelopmentService(db).create_safety_control(req.project_id,req.challenge_id,req.risk_class,req.stop_criteria,req.eligibility_required,req.consent_required,req.supervision_required,req.medical_review_required)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/safety/challenges/{challenge_id}/review")
+def review_hds_safety(challenge_id: str, req: HDSSafetyReviewRequest, principal: Principal = Depends(principal_from_header)):
+    require_approve(principal)
+    challenge=db.one("""SELECT p.project_id FROM hds_challenges c JOIN hds_programs p ON p.id=c.program_id WHERE c.id=?""",(challenge_id,))
+    if not challenge: raise HTTPException(404,"challenge not found")
+    require_project(principal,challenge["project_id"],"APPROVE")
+    from app.human_development import HumanDevelopmentService
+    try: return HumanDevelopmentService(db).approve_safety(challenge_id,req.reviewer,req.decision,req.rationale)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
