@@ -44,8 +44,8 @@ class ResearchWorkspaceRequest(BaseModel):
     project_id: str
     question: str = Field(min_length=1, max_length=4000)
     scope: str = ""
-    inclusion_rules: list[str] = []
-    exclusion_rules: list[str] = []
+    inclusion_rules: list[str] = Field(default_factory=list)
+    exclusion_rules: list[str] = Field(default_factory=list)
 class ResearchSourceRequest(BaseModel):
     source_id: str
     relevance: str = "UNASSESSED"
