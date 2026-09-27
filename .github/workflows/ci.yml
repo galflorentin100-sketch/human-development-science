@@ -55,3 +55,4 @@ jobs:
           context: .
           push: false
           tags: hds-ci:latest
+      - run: docker compose -f docker-compose.production.yml config
