@@ -16,8 +16,8 @@ Open `http://127.0.0.1:8000` for the unified Founder OS dashboard.
 ## Scientific rule
 Do not fabricate evidence or data. Separate established findings, preliminary evidence, hypotheses, assumptions and unknowns. Experimental functionality must be validated before being treated as established.
 
-## Not production-ready
-Production PostgreSQL, authentication hardening, live source ingestion, external model providers, background workers, sandboxed tool execution and deployment hardening remain future work.
+## Production status
+The repository now includes PostgreSQL support, production identity-signing enforcement, governed code-change proposals with approval/verification/rollback, HDS safety governance, production Docker/Compose definitions, and CI container/Compose validation. A real deployment still requires an operator-managed IdP/proxy, secrets, observability, backups, and an isolated code-execution runner for autonomous patch application.
 
 
 ## Operating loop
