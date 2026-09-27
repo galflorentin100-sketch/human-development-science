@@ -115,6 +115,29 @@ class HDSScoreRequest(BaseModel):
     metric: str = Field(min_length=1, max_length=200)
     score: float
 
+class HDSCustomerRequest(BaseModel):
+    project_id: str
+    external_ref: str = Field(min_length=1, max_length=300)
+    customer_type: str = "INDIVIDUAL"
+class HDSOrganizationRequest(BaseModel):
+    project_id: str
+    name: str = Field(min_length=1, max_length=300)
+    organization_type: str = "ORGANIZATION"
+class HDSProductRequest(BaseModel):
+    project_id: str
+    name: str = Field(min_length=1, max_length=300)
+    product_type: str = Field(min_length=1, max_length=100)
+    description: str = Field(min_length=1, max_length=5000)
+class HDSCoachRequest(BaseModel):
+    project_id: str
+    external_ref: str = Field(min_length=1, max_length=300)
+    role: str = "COACH"
+class HDSEnrollmentRequest(BaseModel):
+    customer_id: str
+class HDSSubscriptionRequest(BaseModel):
+    customer_id: str
+    product_id: str
+
 
 
 def principal_from_header(x_external_subject: str | None = Header(default=None)) -> Principal:
@@ -1683,3 +1706,53 @@ def hds_competition_snapshot(competition_id: str, principal: Principal = Depends
     require_project(principal, competition["project_id"], "READ")
     from app.human_development import HumanDevelopmentService
     return HumanDevelopmentService(db).competition_snapshot(competition_id)
+@app.post("/api/hds/company/customers")
+def create_hds_customer(req: HDSCustomerRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal); require_project(principal, req.project_id, "WRITE")
+    from app.hds_company import HDSCompanyService
+    try: return HDSCompanyService(db).create_customer(req.project_id, req.external_ref, req.customer_type)
+    except ValueError as exc: raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/hds/company/organizations")
+def create_hds_organization(req: HDSOrganizationRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal); require_project(principal, req.project_id, "WRITE")
+    from app.hds_company import HDSCompanyService
+    try: return HDSCompanyService(db).create_organization(req.project_id, req.name, req.organization_type)
+    except ValueError as exc: raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/hds/company/products")
+def create_hds_product(req: HDSProductRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal); require_project(principal, req.project_id, "WRITE")
+    from app.hds_company import HDSCompanyService
+    try: return HDSCompanyService(db).create_product(req.project_id, req.name, req.product_type, req.description)
+    except ValueError as exc: raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/hds/company/coaches")
+def create_hds_coach(req: HDSCoachRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal); require_project(principal, req.project_id, "WRITE")
+    from app.hds_company import HDSCompanyService
+    try: return HDSCompanyService(db).create_coach(req.project_id, req.external_ref, req.role)
+    except ValueError as exc: raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/hds/programs/{program_id}/enrollments")
+def enroll_hds_customer(program_id: str, req: HDSEnrollmentRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    program=db.one("SELECT project_id FROM hds_programs WHERE id=?", (program_id,))
+    if not program: raise HTTPException(404, "program not found")
+    require_project(principal, program["project_id"], "WRITE")
+    from app.hds_company import HDSCompanyService
+    try: return HDSCompanyService(db).enroll_customer(program_id, req.customer_id)
+    except ValueError as exc: raise HTTPException(400, str(exc)) from exc
+
+@app.post("/api/hds/company/subscriptions")
+def subscribe_hds_customer(req: HDSSubscriptionRequest, project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal); require_project(principal, project_id, "WRITE")
+    from app.hds_company import HDSCompanyService
+    try: return HDSCompanyService(db).subscribe(project_id, req.customer_id, req.product_id)
+    except ValueError as exc: raise HTTPException(400, str(exc)) from exc
+
+@app.get("/api/hds/company/{project_id}")
+def hds_company_snapshot(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal); require_project(principal, project_id, "READ")
+    from app.hds_company import HDSCompanyService
+    return HDSCompanyService(db).snapshot(project_id)
