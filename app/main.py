@@ -22,6 +22,7 @@ from app.scientific_ai import ScientificAIGuard
 from app.measurement import MeasurementRegistry
 from app.claim_state import ClaimStateService
 from app.scientific_analysis import ScientificAnalysisEngine
+from app.approvals import ApprovalRequired
 
 settings = Settings.load()
 db = database_from_settings(settings)
@@ -1350,6 +1351,8 @@ def resolve_founder_approval(approval_id: str, status: str, principal: Principal
     from app.approvals import ApprovalService
     try:
         return ApprovalService(db).resolve(approval_id, status.upper(), principal.user_id)
+    except ApprovalRequired as exc:
+        raise HTTPException(status_code=409, detail="approval is no longer resolvable") from exc
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
