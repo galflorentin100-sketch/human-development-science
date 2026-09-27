@@ -274,10 +274,13 @@ class StudyExecution:
     def complete(self,study_id):
         study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
         if not study or study["status"]!="RUNNING": raise ValueError("study must be running")
-        required={"TRAINING","NEAR_TRANSFER","FAR_TRANSFER","REAL_WORLD","RETENTION"}
+        required={r["observation_type"] for r in self.db.all(
+            "SELECT DISTINCT observation_type FROM study_measure_bindings WHERE study_id=? AND required=1",
+            (study_id,),
+        )}
         present={r["observation_type"] for r in self.db.all("SELECT DISTINCT observation_type FROM study_outcomes WHERE study_id=?",(study_id,))}
         missing=required-present
-        if missing: raise ValueError("study cannot complete; missing observation types: "+",".join(sorted(missing)))
+        if missing: raise ValueError("study cannot complete; missing preregistered observation types: "+",".join(sorted(missing)))
         if not self.db.one("SELECT 1 FROM study_analysis_plans WHERE study_id=? AND frozen=1",(study_id,)): raise ValueError("study cannot complete without a frozen analysis plan")
         with self.db.transaction() as con:
             updated=con.execute("UPDATE studies SET status='COMPLETED' WHERE id=? AND status='RUNNING'",(study_id,))
