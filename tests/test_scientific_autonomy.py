@@ -82,9 +82,8 @@ def test_science_improvement_requires_existing_verified_evidence(tmp_path):
     from app.continuous_improvement import ContinuousImprovementService
     db=Database(str(tmp_path/"improvement-evidence.db")); ResearchCycle(db)
     service=ContinuousImprovementService(db)
-    proposal=service.propose("Science change","SCIENCE","test hypothesis","metric","owner","missing")
     try:
-        service.start_experiment(proposal["id"],"design","baseline","owner")
+        service.propose("Science change","SCIENCE","test hypothesis","metric","owner","missing")
         assert False, "missing evidence must be rejected"
     except ValueError as exc:
-        assert "does not exist" in str(exc)
+        assert "independently verified" in str(exc)
