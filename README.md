@@ -17,8 +17,9 @@ Open `http://127.0.0.1:8000` for the unified Founder OS dashboard.
 Do not fabricate evidence or data. Separate established findings, preliminary evidence, hypotheses, assumptions and unknowns. Experimental functionality must be validated before being treated as established.
 
 ## Production status
-The repository now includes PostgreSQL support, production identity-signing enforcement, governed code-change proposals with approval/verification/rollback, HDS safety governance, production Docker/Compose definitions, and CI container/Compose validation. A real deployment still requires an operator-managed IdP/proxy, secrets, observability, backups, and an isolated code-execution runner for autonomous patch application.
+The repository includes PostgreSQL support, production identity-signing enforcement, governed code-change proposals with approval/verification/rollback, HDS safety governance, production Docker/Compose definitions, API readiness healthchecks, structured observability, rate limiting, and CI container/Compose validation. PostgreSQL backup and disposable restore-verification tooling is available under `scripts/` with the operational runbook in `docs/BACKUP_AND_DR.md`.
 
+A real deployment still requires an operator-managed IdP/proxy, secret manager, external encrypted backup storage/retention policy, distributed infrastructure for horizontally scaled rate limiting and observability, and a separately isolated worker/VM for autonomous code execution.
 
 ## Operating loop
 Founder goals are orchestrated into projects and tasks. Tasks execute through permission checks, model-call audit logging, evaluation, failure capture, lessons, replanning, and decision gates. High-risk or low-confidence decisions can create pending human approvals.
