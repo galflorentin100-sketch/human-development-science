@@ -278,6 +278,8 @@ class StudyExecution:
             "SELECT DISTINCT observation_type FROM study_measure_bindings WHERE study_id=? AND required=1",
             (study_id,),
         )}
+        if not required:
+            raise ValueError("study cannot complete without required preregistered observations")
         present={r["observation_type"] for r in self.db.all("SELECT DISTINCT observation_type FROM study_outcomes WHERE study_id=?",(study_id,))}
         missing=required-present
         if missing: raise ValueError("study cannot complete; missing preregistered observation types: "+",".join(sorted(missing)))
