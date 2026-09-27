@@ -70,17 +70,6 @@ class ContinuousImprovementService:
             raise ValueError("SCIENCE improvement evidence must be independently verified and non-conflicted")
         return True
 
-
-    def _validate_scientific_evidence(self, evidence_ref):
-        if not str(evidence_ref or "").strip():
-            raise ValueError("SCIENCE improvements require an evidence reference")
-        evidence=self.db.one("SELECT id,verified FROM evidence WHERE id=?",(str(evidence_ref),))
-        if not evidence:
-            raise ValueError("scientific improvement evidence reference does not exist")
-        if not evidence["verified"]:
-            raise ValueError("scientific improvement evidence must be verified")
-        return evidence
-
     def propose(self, title, area, hypothesis, success_metric, owner, evidence_ref=None):
         if area not in AREAS:
             raise ValueError("invalid improvement area")
@@ -88,8 +77,6 @@ class ContinuousImprovementService:
             self._require_verified_evidence(evidence_ref)
         if not all(str(x).strip() for x in (title, hypothesis, success_metric, owner)):
             raise ValueError("title, hypothesis, success_metric and owner are required")
-        if area == "SCIENCE" and evidence_ref:
-            self._validate_scientific_evidence(evidence_ref)
         ident = str(uuid.uuid4())
         self.db.execute(
             """INSERT INTO improvement_proposals
@@ -112,7 +99,7 @@ class ContinuousImprovementService:
             if p["status"] != "PROPOSED":
                 raise ValueError("only PROPOSED improvements can start an experiment")
             if p["area"] == "SCIENCE":
-                self._require_verified_evidence(con, p["evidence_ref"])
+                self._require_verified_evidence(p["evidence_ref"], con)
             updated=con.execute(
                 """UPDATE improvement_proposals
                 SET status='EXPERIMENT', experiment_design=?, baseline_note=?, updated_at=?
@@ -136,7 +123,7 @@ class ContinuousImprovementService:
                 raise ValueError("only active experiments can record results")
             retained_evidence_ref = evidence_ref if evidence_ref is not None else p["evidence_ref"]
             if p["area"] == "SCIENCE":
-                retained_evidence_ref = self._require_verified_evidence(con, retained_evidence_ref)
+                self._require_verified_evidence(retained_evidence_ref, con)
             updated=con.execute(
                 """UPDATE improvement_proposals
                 SET experiment_result=?, outcome_note=?, evidence_ref=?, updated_at=?
