@@ -2017,3 +2017,10 @@ def get_hds_research_loop(run_id: str, principal: Principal = Depends(principal_
     try:
         run=AutonomousResearchLoop(db).get(run_id); require_project(principal,run["project_id"],"READ"); return run
     except ValueError as exc: raise HTTPException(404,str(exc)) from exc
+
+@app.get("/api/hds/company/{project_id}/analytics")
+def hds_company_analytics(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal); require_project(principal,project_id,"READ")
+    from app.hds_company import HDSCompanyService
+    try: return HDSCompanyService(db).analytics(project_id)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
