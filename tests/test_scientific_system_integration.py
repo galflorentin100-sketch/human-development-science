@@ -218,7 +218,7 @@ def test_sc001_registration_compensates_partial_failure(tmp_path, monkeypatch):
     def fail_request(*args, **kwargs):
         raise RuntimeError("simulated approval outage")
 
-    monkeypatch.setattr(ApprovalService, "request", fail_request)
+    monkeypatch.setattr(ApprovalService, "_request_in_transaction", fail_request)
     try:
         SC001Protocol().register(db, pid)
         assert False, "registration should fail"
