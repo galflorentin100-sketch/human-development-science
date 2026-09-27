@@ -283,7 +283,8 @@ def _migrate_phase4(self):
         """).fetchall()
         if duplicate_outcomes:
             raise RuntimeError("cannot enforce unique study outcome observations: existing duplicate observations found")
-        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation_identity ON study_outcomes(study_id,participant_id,outcome_name,observation_type,COALESCE(session_id,''),COALESCE(timepoint,''))")
+        con.execute("DROP INDEX IF EXISTS idx_study_outcome_observation_identity")
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation_identity ON study_outcomes(study_id,participant_id,outcome_name,observation_type,COALESCE(session_id,''),timepoint) WHERE timepoint IS NOT NULL")
         con.executescript(PHASE_AGENT_OUTPUT_SCHEMA); con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA); con.executescript(PHASE6_SCHEMA); con.executescript(PHASE7_SCHEMA); con.executescript(OPTIONAL_SCIENCE_SCHEMA)
         existing_decisions={row[1] for row in con.execute("PRAGMA table_info(organizational_decisions)")}
         if "evidence" not in existing_decisions: con.execute("ALTER TABLE organizational_decisions ADD COLUMN evidence TEXT NOT NULL DEFAULT '[]'")
