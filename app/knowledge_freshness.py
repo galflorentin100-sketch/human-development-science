@@ -43,9 +43,13 @@ class KnowledgeFreshness:
         from datetime import timedelta
         t=datetime.now(timezone.utc)
         nxt=(t+timedelta(days=int(row["review_interval_days"]))).isoformat()
-        self.db.execute("UPDATE knowledge_freshness SET last_validated_at=?,next_review_at=?,status='REVALIDATED',updated_at=? WHERE id=?",(t.isoformat(),nxt,t.isoformat(),row["id"]))
-        self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
-            (str(uuid4()),"knowledge.revalidated",entity_type.lower(),entity_id,actor,'{"rationale":'+__import__("json").dumps(rationale)+ '}',now()))
+        ts=now()
+        with self.db.transaction() as con:
+            updated=con.execute("UPDATE knowledge_freshness SET last_validated_at=?,next_review_at=?,status='REVALIDATED',updated_at=? WHERE id=?",(t.isoformat(),nxt,ts,row["id"]))
+            if getattr(updated,"rowcount",1) != 1:
+                raise ValueError("freshness record changed concurrently")
+            con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                (str(uuid4()),"knowledge.revalidated",entity_type.lower(),entity_id,actor,'{"rationale":'+__import__("json").dumps(rationale)+ '}',ts))
         return self.db.one("SELECT * FROM knowledge_freshness WHERE id=?",(row["id"],))
 
     def scan(self):
