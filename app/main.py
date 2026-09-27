@@ -143,6 +143,7 @@ def ready():
 @app.post("/api/science/research-queue/{item_id}/begin")
 def begin_research_queue_item(item_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "research_queue", item_id, "EXECUTE")
     from app.research_queue import ResearchQueue
     try:
         return ResearchQueue(db).begin(item_id,principal.user_id)
@@ -152,6 +153,7 @@ def begin_research_queue_item(item_id: str, principal: Principal = Depends(princ
 @app.post("/api/science/research-workspaces/{workspace_id}/research-task")
 def create_research_agent_task(workspace_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "research_workspace", workspace_id, "EXECUTE")
     from app.research_agent import ResearchAgentService
     try:
         return ResearchAgentService(db).create_task(workspace_id)
@@ -190,6 +192,7 @@ def get_research_workspace(project_id: str, workspace_id: str, principal: Princi
 @app.post("/api/science/research-workspaces/{workspace_id}/activate")
 def activate_research_workspace(workspace_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "research_workspace", workspace_id, "EXECUTE")
     from app.research_engine import ResearchEngine
     try:
         return ResearchEngine(db).activate(workspace_id,principal.user_id)
@@ -199,6 +202,7 @@ def activate_research_workspace(workspace_id: str, principal: Principal = Depend
 @app.post("/api/science/research-workspaces/{workspace_id}/sources")
 def add_research_source(workspace_id: str, req: ResearchSourceRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "research_workspace", workspace_id, "WRITE")
     from app.research_engine import ResearchEngine
     try:
         return ResearchEngine(db).add_source(workspace_id,req.source_id,req.relevance,req.notes,req.content)
@@ -208,6 +212,7 @@ def add_research_source(workspace_id: str, req: ResearchSourceRequest, principal
 @app.post("/api/science/research-workspaces/{workspace_id}/synthesize")
 def synthesize_research_workspace(workspace_id: str, req: ResearchSynthesisRequest, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "research_workspace", workspace_id, "EXECUTE")
     from app.research_engine import ResearchEngine
     try:
         return ResearchEngine(db).synthesize(workspace_id,req.synthesis,req.limitations,req.uncertainty,principal.user_id)
@@ -217,11 +222,13 @@ def synthesize_research_workspace(workspace_id: str, req: ResearchSynthesisReque
 @app.get("/api/science/research-syntheses/{synthesis_id}/evidence-audits")
 def research_evidence_audit_history(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "research_synthesis", synthesis_id, "READ")
     return {"items":db.all("SELECT * FROM research_evidence_audits WHERE synthesis_id=? ORDER BY created_at DESC",(synthesis_id,))}
 
 @app.get("/api/science/research-syntheses/{synthesis_id}/readiness")
 def research_synthesis_readiness(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "research_synthesis", synthesis_id, "READ")
     from app.research_engine import ResearchEngine
     try:
         return ResearchEngine(db).readiness(synthesis_id)
@@ -237,6 +244,7 @@ def research_synthesis_review_tasks(synthesis_id: str, principal: Principal = De
 @app.post("/api/science/research-syntheses/{synthesis_id}/review-tasks")
 def create_research_review_tasks(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "research_synthesis", synthesis_id, "EXECUTE")
     from app.research_review_pipeline import ResearchReviewPipeline
     try:
         return ResearchReviewPipeline(db).create_for_synthesis(synthesis_id)
@@ -273,6 +281,7 @@ def review_skeptic(review_id: str, decision: str, rationale: str, principal: Pri
 @app.post("/api/science/research-syntheses/{synthesis_id}/evidence-audit")
 def audit_research_synthesis(synthesis_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "research_synthesis", synthesis_id, "EXECUTE")
     from app.research_evidence_auditor import ResearchEvidenceAuditor
     try:
         return ResearchEvidenceAuditor(db).audit_synthesis(synthesis_id,principal.user_id)
@@ -300,6 +309,7 @@ def promote_research_synthesis_to_finding(synthesis_id: str, principal: Principa
 @app.post("/api/science/research-syntheses/{synthesis_id}/review")
 def review_research_synthesis(synthesis_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
+    require_resource_project(principal, "research_synthesis", synthesis_id, "READ")
     from app.research_engine import ResearchEngine
     try:
         return ResearchEngine(db).review(synthesis_id,principal.user_id,decision.upper(),rationale)
@@ -592,18 +602,21 @@ def create_training_protocol(body: dict, principal: Principal = Depends(principa
 @app.post("/api/science/training-protocols/{protocol_id}/basis")
 def link_training_protocol_basis(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "training_protocol", protocol_id, "WRITE")
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).link_basis(protocol_id,body.get("source_claim_id"),body.get("intervention_id"))
 
 @app.post("/api/science/training-protocols/{protocol_id}/evidence")
 def attach_training_protocol_evidence(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "training_protocol", protocol_id, "WRITE")
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).attach_evidence(protocol_id,body["evidence_kind"],body["evidence_ref"],body.get("notes",""))
 
 @app.post("/api/science/training-protocols/{protocol_id}/sessions")
 def record_training_session(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "training_protocol", protocol_id, "WRITE")
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).session(
         protocol_id,body["participant_ref"],body["session_number"],body["load_note"],body["adherence"],
@@ -642,6 +655,7 @@ def training_protocol_scientific_readiness(protocol_id: str, principal: Principa
 @app.get("/api/science/training-protocols/{protocol_id}/readiness")
 def training_protocol_readiness(protocol_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "training_protocol", protocol_id, "READ")
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).readiness(protocol_id)
 
@@ -761,12 +775,14 @@ def scientific_system_status(principal: Principal = Depends(principal_from_heade
 @app.post("/api/science/training/{protocol_id}/safety")
 def training_safety(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "training_protocol", protocol_id, "WRITE")
     from app.safety import SafetyGate
     return SafetyGate(db).assess(protocol_id,body["participant_ref"],body["checks"])
 
 @app.get("/api/science/training/{protocol_id}/next-session")
 def training_next_session(protocol_id: str, participant_ref: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "training_protocol", protocol_id, "READ")
     from app.protocol_engine import ProtocolEngine
     return ProtocolEngine(db).next_session(protocol_id,participant_ref)
 
@@ -779,6 +795,7 @@ def knowledge_review_queue(principal: Principal = Depends(principal_from_header)
 @app.get("/api/science/knowledge-impact/claim/{claim_id}")
 def knowledge_claim_impact(claim_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "claim", claim_id, "READ")
     from app.knowledge_impact import KnowledgeImpactAnalyzer
     return KnowledgeImpactAnalyzer(db).claim_impact(claim_id)
 
@@ -791,30 +808,35 @@ def knowledge_contradictions(principal: Principal = Depends(principal_from_heade
 @app.get("/api/science/admission/claim/{claim_id}")
 def scientific_claim_admission(claim_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "claim", claim_id, "READ")
     from app.scientific_admission import ScientificAdmissionGate
     return ScientificAdmissionGate(db).claim(claim_id)
 
 @app.get("/api/science/admission/intervention/{intervention_id}")
 def scientific_intervention_admission(intervention_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "intervention", intervention_id, "READ")
     from app.scientific_admission import ScientificAdmissionGate
     return ScientificAdmissionGate(db).intervention(intervention_id)
 
 @app.post("/api/science/interventions/{intervention_id}/promote")
 def promote_intervention(intervention_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "intervention", intervention_id, "WRITE")
     from app.intervention_lifecycle import InterventionLifecycle
     return InterventionLifecycle(db).promote(intervention_id,body["status"],principal.user_id,body["rationale"])
 
 @app.post("/api/science/feedback/study/{study_id}")
 def outcome_feedback_study(study_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "study", study_id, "WRITE")
     from app.outcome_feedback import OutcomeFeedbackService
     return OutcomeFeedbackService(db).propose_from_study(study_id,body["outcome_name"],body.get("observation_type","TRAINING"),principal.user_id)
 
 @app.post("/api/science/feedback/training/{protocol_id}")
 def outcome_feedback_training(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "training_protocol", protocol_id, "WRITE")
     from app.outcome_feedback import OutcomeFeedbackService
     return OutcomeFeedbackService(db).propose_from_training(protocol_id,body.get("participant_ref"),principal.user_id)
 
@@ -1070,6 +1092,7 @@ def science_scan_contradictions(claim_id: str, principal: Principal = Depends(pr
 @app.post("/api/science/contradictions/{contradiction_id}/resolve")
 def science_resolve_contradiction(contradiction_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
+    require_resource_project(principal, "contradiction", contradiction_id, "READ")
     from app.contradiction_engine import ContradictionEngine
     try:
         return ContradictionEngine(db).resolve(contradiction_id, principal.user_id, body["resolution"])
@@ -1098,6 +1121,7 @@ def science_claim_revision_history(claim_id: str, principal: Principal = Depends
 @app.post("/api/science/revisions/{revision_id}/approve")
 def science_approve_claim_revision(revision_id: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
+    require_resource_project(principal, "claim_revision", revision_id, "READ")
     from app.claim_revision import ClaimRevisionService
     try:
         return ClaimRevisionService(db).approve(revision_id, principal.user_id)
@@ -1344,6 +1368,7 @@ def finalize_research_review_agent(review_id: str, principal: Principal = Depend
 @app.post("/api/science/agent-output/{review_id}/review")
 def review_agent_output(review_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
+    require_resource_project(principal, "agent_output_review", review_id, "READ")
     from app.agent_output_gate import AgentOutputGate
     return AgentOutputGate(db).review(review_id,principal.user_id,decision,rationale)
 
@@ -1351,6 +1376,7 @@ def review_agent_output(review_id: str, decision: str, rationale: str, principal
 @app.post("/api/science/findings/{finding_id}/review")
 def review_scientific_finding(finding_id: str, decision: str, rationale: str, principal: Principal = Depends(principal_from_header)):
     require_approve(principal)
+    require_resource_project(principal, "finding", finding_id, "READ")
     from app.research import ResearchFindingService
     try:
         return ResearchFindingService(db).review(finding_id,principal.user_id,decision.upper(),rationale)
@@ -1360,5 +1386,7 @@ def review_scientific_finding(finding_id: str, decision: str, rationale: str, pr
 @app.post("/api/science/findings/{finding_id}/claim-revision")
 def propose_claim_revision_from_finding(finding_id: str, claim_id: str, new_statement: str, new_status: str, rationale: str, evidence_refs: list[str] | None = None, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "finding", finding_id, "WRITE")
+    require_resource_project(principal, "claim", claim_id, "WRITE")
     from app.knowledge_update_proposer import KnowledgeUpdateProposer
     return KnowledgeUpdateProposer(db).propose_claim_revision(finding_id,claim_id,new_statement,new_status,rationale,evidence_refs or [])
