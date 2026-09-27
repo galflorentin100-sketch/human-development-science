@@ -99,6 +99,26 @@ def require_project(principal: Principal, project_id: str, permission: str = "RE
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
+def require_resource_project(principal: Principal, resource_type: str, resource_id: str, permission: str = "READ") -> str:
+    """Resolve a project-owned scientific resource, then enforce project membership."""
+    tables = {
+        "claim": ("claims", "id"),
+        "evidence": ("evidence", "id"),
+        "study": ("studies", "id"),
+        "training_protocol": ("training_protocols", "id"),
+        "experiment": ("experiments", "id"),
+        "finding": ("research_findings", "id"),
+        "research_workspace": ("research_workspaces", "id"),
+    }
+    if resource_type not in tables:
+        raise HTTPException(status_code=500, detail="unsupported resource type")
+    table, key = tables[resource_type]
+    row = db.one(f"SELECT project_id FROM {table} WHERE {key}=?", (resource_id,))
+    if not row:
+        raise HTTPException(status_code=404, detail=f"{resource_type} not found")
+    require_project(principal, row["project_id"], permission)
+    return row["project_id"]
+
 
 def require_execute(principal: Principal) -> None:
     require_permission(principal, "EXECUTE")
@@ -452,12 +472,14 @@ def validate_scientific_interpretation(req: InterpretationRequest, principal: Pr
 @app.post("/api/science/claims/{claim_id}/knowledge-version")
 def create_knowledge_version(claim_id: str, rationale: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "claim", claim_id, "WRITE")
     from app.claim_state import ClaimStateService
     return ClaimStateService(db).knowledge_version(claim_id, principal.user_id, rationale)
 
 @app.get("/api/science/claims/{claim_id}/knowledge-history")
 def knowledge_history(claim_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "claim", claim_id, "READ")
     from app.claim_state import ClaimStateService
     return ClaimStateService(db).knowledge_history(claim_id)
 
@@ -475,19 +497,20 @@ def create_research_finding(payload: dict, principal: Principal = Depends(princi
 def list_research_findings(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     require_project(principal, project_id, "READ")
-    require_project(principal, project_id, "READ")
     from app.research import ResearchFindingService
     return ResearchFindingService(db).list(project_id,status)
 
 @app.get("/api/science/evidence/{evidence_id}/resolution")
 def evidence_resolution(evidence_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "evidence", evidence_id, "READ")
     from app.evidence_pipeline import EvidencePipeline
     return EvidencePipeline(db).resolve(evidence_id)
 
 @app.get("/api/science/claims/{claim_id}/evidence-resolution")
 def claim_evidence_resolution(claim_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "claim", claim_id, "READ")
     from app.evidence_pipeline import EvidencePipeline
     return EvidencePipeline(db).claim_evidence_state(claim_id)
 
@@ -526,11 +549,13 @@ def analyze_study(study_id: str, analysis_plan_id: str, body: dict, principal: P
 @app.post("/api/science/claims/{claim_id}/transition")
 def transition_claim(claim_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "claim", claim_id, "WRITE")
     return ClaimStateService(db).transition(claim_id, body["status"], principal.user_id, body["rationale"], body.get("evidence_id"))
 
 @app.get("/api/science/claims/{claim_id}/evidence-state")
 def claim_evidence_state(claim_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "claim", claim_id, "READ")
     return ClaimStateService(db).evidence_state(claim_id)
 
 @app.post("/api/science/constructs")
@@ -584,25 +609,27 @@ def record_training_session(protocol_id: str, body: dict, principal: Principal =
 def list_training_protocols(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     require_project(principal, project_id, "READ")
-    require_project(principal, project_id, "READ")
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).list(project_id,status)
 
 @app.post("/api/science/training-protocols/{protocol_id}/promote")
 def promote_training_protocol(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "training_protocol", protocol_id, "WRITE")
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).promote(protocol_id,body["status"],principal.user_id,body["rationale"])
 
 @app.get("/api/science/training-protocols/{protocol_id}/provenance")
 def training_protocol_provenance(protocol_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "training_protocol", protocol_id, "READ")
     from app.scientific_training_pipeline import ScientificTrainingPipeline
     return ScientificTrainingPipeline(db).trace(protocol_id)
 
 @app.get("/api/science/training-protocols/{protocol_id}/scientific-readiness")
 def training_protocol_scientific_readiness(protocol_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "training_protocol", protocol_id, "READ")
     from app.scientific_training_pipeline import ScientificTrainingPipeline
     return ScientificTrainingPipeline(db).readiness(protocol_id)
 
@@ -841,6 +868,7 @@ def study_complete(study_id: str, principal: Principal = Depends(principal_from_
 @app.post("/api/experiments")
 def create_experiment(body: ExperimentRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_project(principal, body.project_id, "WRITE")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (body.project_id,)): raise HTTPException(404, "project not found")
     return ResearchRepository(db).experiment(body.project_id, body.hypothesis, body.design)
 @app.post("/api/projects/{project_id}/next-tasks")
@@ -858,7 +886,6 @@ def dashboard(): return HTMLResponse((Path(__file__).parent / "dashboard.html").
 def science_closed_loop(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
     require_project(principal, project_id, "READ")
-    require_project(principal, project_id, "READ")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
     from app.closed_loop_engine import ClosedLoopEngine
@@ -867,6 +894,7 @@ def science_closed_loop(project_id: str, principal: Principal = Depends(principa
 @app.get("/api/science/protocols/{protocol_id}/loop")
 def science_protocol_loop(protocol_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "training_protocol", protocol_id, "READ")
     from app.closed_loop_engine import ClosedLoopEngine
     try:
         return ClosedLoopEngine(db).protocol(protocol_id)
@@ -876,7 +904,6 @@ def science_protocol_loop(protocol_id: str, principal: Principal = Depends(princ
 @app.get("/api/science/integrity/{project_id}")
 def science_integrity(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
-    require_project(principal, project_id, "READ")
     require_project(principal, project_id, "READ")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)):
         raise HTTPException(404, "project not found")
@@ -914,6 +941,7 @@ def science_preregister_experiment(experiment_id: str, principal: Principal = De
 @app.get("/api/science/experiments/{experiment_id}/analysis")
 def experiment_analysis(experiment_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "experiment", experiment_id, "READ")
     from app.experiment_analyzer import ExperimentAnalyzer
     try:
         return ExperimentAnalyzer(db).analyze(experiment_id)
@@ -923,6 +951,7 @@ def experiment_analysis(experiment_id: str, principal: Principal = Depends(princ
 @app.post("/api/science/experiments/{experiment_id}/candidate-finding")
 def experiment_candidate_finding(experiment_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "experiment", experiment_id, "WRITE")
     from app.experiment_analyzer import ExperimentAnalyzer
     try:
         return ExperimentAnalyzer(db).candidate_finding(experiment_id,principal.user_id)
@@ -941,6 +970,7 @@ def experiment_safety_review(experiment_id: str, payload: dict, principal: Princ
 @app.post("/api/science/experiments/{experiment_id}/start")
 def science_start_experiment(experiment_id: str, principal: Principal = Depends(principal_from_header)):
     require_permission(principal, "EXECUTE")
+    require_resource_project(principal, "experiment", experiment_id, "READ")
     from app.experiment_engine import ExperimentEngine
     try:
         return ExperimentEngine(db).start(experiment_id)
@@ -950,6 +980,7 @@ def science_start_experiment(experiment_id: str, principal: Principal = Depends(
 @app.post("/api/science/experiments/{experiment_id}/complete")
 def science_complete_experiment(experiment_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_resource_project(principal, "experiment", experiment_id, "READ")
     from app.experiment_engine import ExperimentEngine
     try:
         return ExperimentEngine(db).complete(experiment_id)
@@ -959,6 +990,7 @@ def science_complete_experiment(experiment_id: str, principal: Principal = Depen
 @app.post("/api/science/experiments/{experiment_id}/result")
 def science_record_experiment_result(experiment_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_resource_project(principal, "experiment", experiment_id, "WRITE")
     from app.experiment_engine import ExperimentEngine
     try:
         return ExperimentEngine(db).record_result(
@@ -973,6 +1005,7 @@ def science_record_experiment_result(experiment_id: str, body: dict, principal: 
 @app.get("/api/science/experiments/{experiment_id}/result")
 def science_get_experiment_result(experiment_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_resource_project(principal, "experiment", experiment_id, "READ")
     from app.experiment_engine import ExperimentEngine
     return ExperimentEngine(db).result(experiment_id)
 
