@@ -1933,3 +1933,13 @@ def hds_assessment_progress(project_id: str, participant_ref: str, measure_id: s
     from app.assessment import AssessmentService
     try: return AssessmentService(db).progress(project_id,participant_ref,measure_id)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.get("/api/hds/training/{protocol_id}/participants/{participant_ref}/progression")
+def hds_training_progression(protocol_id: str, participant_ref: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    protocol=db.one("SELECT project_id FROM training_protocols WHERE id=?",(protocol_id,))
+    if not protocol: raise HTTPException(404,"training protocol not found")
+    require_project(principal,protocol["project_id"],"READ")
+    from app.training import TrainingProtocolService
+    try: return TrainingProtocolService(db).progression(protocol_id,participant_ref)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
