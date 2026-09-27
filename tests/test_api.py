@@ -498,7 +498,9 @@ def test_task_retry_escalates_after_retry_limit(tmp_path):
     from app.workflow import ResearchCycle
     from app.tasks import TaskEngine
     db=Database(str(tmp_path/"task-retry.db")); ResearchCycle(db)
-    task=TaskEngine(db).create_task("retry test","failure recovery","project-1",retry_limit=1)
+    from app.workflow import ResearchCycle
+    project=ResearchCycle(db).run("retry-test")["project"]
+    task=TaskEngine(db).create_task("retry test","failure recovery",project["id"],retry_limit=1)
     engine=TaskEngine(db)
     engine.transition(task["id"],"ASSIGNED")
     engine.transition(task["id"],"RUNNING")
