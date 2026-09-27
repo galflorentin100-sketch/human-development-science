@@ -483,7 +483,15 @@ class PostgreSQLDatabase:
             if duplicate_sessions:
                 raise RuntimeError("cannot enforce unique study sessions: existing duplicate sessions found")
             con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_session_identity ON study_sessions(study_id,participant_id,phase,session_number)")
-            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation ON study_outcomes(study_id,participant_id,outcome_name,observation_type,session_id)")
+            duplicate_outcomes=con.execute("""
+                SELECT study_id,participant_id,outcome_name,observation_type,COALESCE(session_id,''),COALESCE(timepoint,''),COUNT(*) AS n
+                FROM study_outcomes
+                GROUP BY study_id,participant_id,outcome_name,observation_type,COALESCE(session_id,''),COALESCE(timepoint,'')
+                HAVING COUNT(*) > 1
+            """).fetchall()
+            if duplicate_outcomes:
+                raise RuntimeError("cannot enforce unique study outcome observations: existing duplicate observations found")
+            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation_identity ON study_outcomes(study_id,participant_id,outcome_name,observation_type,COALESCE(session_id,''),COALESCE(timepoint,''))")
 
 def database_from_settings(settings):
     if settings.database_url:
