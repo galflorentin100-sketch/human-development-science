@@ -84,6 +84,37 @@ class IdempotencyService:
                 raise IdempotencyConflict("idempotency claim changed concurrently")
         return {"key":key,"status":"RECOVERED","claim_token":claim_token}
 
+    def recover_stale(self,key,actor,operation,claim_token):
+        """Explicitly release an expired in-progress claim.
+        
+        Recovery never takes over a live lease. A stale callback that later tries
+        to commit cannot overwrite a newly claimed operation because its token
+        no longer exists.
+        """
+        if not all(str(x or "").strip() for x in (key,actor,operation,claim_token)):
+            raise ValueError("key, actor, operation and claim_token are required")
+        now=datetime.now(timezone.utc)
+        with self.db.transaction() as con:
+            row=con.execute("SELECT * FROM idempotency_keys WHERE key=?",(key,)).fetchone()
+            if not row:
+                raise IdempotencyConflict("idempotency key does not exist")
+            data=dict(row)
+            if data["actor"]!=actor or data["operation"]!=operation:
+                raise IdempotencyConflict("key belongs to another actor or operation")
+            if data["status"]!="IN_PROGRESS":
+                raise IdempotencyConflict("idempotency key is not in progress")
+            if data.get("claim_token")!=claim_token:
+                raise IdempotencyConflict("claim token does not match")
+            lease=self._parse_timestamp(data.get("lease_expires_at"))
+            if lease and lease > now:
+                raise IdempotencyConflict("idempotency lease is still active")
+            deleted=con.execute(
+                "DELETE FROM idempotency_keys WHERE key=? AND claim_token=? AND status='IN_PROGRESS'",
+                (key,claim_token))
+            if getattr(deleted,"rowcount",1)!=1:
+                raise IdempotencyConflict("stale idempotency claim changed concurrently")
+        return {"status":"RECOVERED","key":key}
+
     def renew(self,key,claim_token,lease_minutes=30):
         if not key or not claim_token: raise ValueError("key and claim_token are required")
         if lease_minutes <= 0: raise ValueError("lease_minutes must be positive")
