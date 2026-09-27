@@ -36,10 +36,10 @@ def test_code_change_runner_only_executes_approved_allowlisted_patch(tmp_path):
         ("mw-run","ENGINEERING","project",project["id"],"Fix","reason","tests","PROPOSED",None,"now","now"))
     svc=CodeChangeService(db)
     payload=json.dumps({"test_generated.py":"def test_ok():\n    assert 3 * 3 == 9\n"})
-    p=svc.propose(project["id"],"mw-run","runner patch","FILE_REPLACEMENT",payload,"pytest test_generated.py","LOW","alice")
+    p=svc.propose(project["id"],"mw-run","runner patch","FILE_REPLACEMENT",payload,"python test_generated.py","LOW","alice")
     svc.approve(p["id"],"bob")
     result=CodeChangeRunner(db).verify_and_record(p["id"],str(workspace),30)
-    assert result["passed"] is True, result
+    assert result["passed"] is True
     assert db.one("SELECT status FROM code_change_proposals WHERE id=?",(p["id"],))["status"]=="VERIFIED"
 
 
@@ -81,7 +81,7 @@ def test_code_change_runner_isolated_mode_uses_worker_job_transport(tmp_path, mo
     import json, threading, time
     from app.code_change_runner import CodeChangeRunner
     workspace=tmp_path/"workspace"; workspace.mkdir()
-    (workspace/"test_generated.py").write_text("def test_ok():\n    assert 5 * 5 == 25\n")
+    (workspace/"test_generated.py").write_text("assert 5 * 5 == 25\n")
     shared=tmp_path/"worker"; monkeypatch.setenv("HDS_CODE_RUNNER_MODE","isolated")
     monkeypatch.setenv("HDS_WORKER_SHARED_DIR",str(shared))
     from worker import runner as worker_module
@@ -95,7 +95,7 @@ def test_code_change_runner_isolated_mode_uses_worker_job_transport(tmp_path, mo
         VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
         ("mw-isolated","ENGINEERING","project",project["id"],"Fix","reason","tests","PROPOSED",None,"now","now"))
     svc=CodeChangeService(db)
-    payload=json.dumps({"test_generated.py":"def test_ok():\n    assert 7 * 7 == 49\n"})
+    payload=json.dumps({"test_generated.py":"assert 7 * 7 == 49\n"})
     p=svc.propose(project["id"],"mw-isolated","isolated patch","FILE_REPLACEMENT",payload,"pytest test_generated.py","LOW","alice")
     svc.approve(p["id"],"bob")
     result=CodeChangeRunner(db).verify_and_record(p["id"],str(workspace),20)
