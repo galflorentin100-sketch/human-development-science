@@ -58,4 +58,4 @@ def test_code_change_runner_rejects_unapproved_and_dynamic_commands(tmp_path):
     except ValueError as exc: assert "approved" in str(exc)
     svc.approve(p["id"],"bob")
     try: runner.verify(p["id"],str(tmp_path),30); assert False
-    except ValueError as exc: assert "allowlisted" in str(exc)
+    except ValueError as exc: assert "dynamic code execution" in str(exc)
