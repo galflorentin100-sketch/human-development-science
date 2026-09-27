@@ -1993,3 +1993,27 @@ def apply_adaptive_hds_training(protocol_id: str, participant_ref: str, body: di
     from app.adaptive_training import AdaptiveTrainingService
     try: return AdaptiveTrainingService(db).apply(protocol["project_id"],protocol_id,participant_ref,body["new_difficulty"],body["rationale"])
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/research-loops")
+def create_hds_research_loop(body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal); require_project(principal,body["project_id"],"WRITE")
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try: return AutonomousResearchLoop(db).create_gap(body["project_id"],body["gap"],principal.user_id)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/research-loops/{run_id}/start")
+def start_hds_research_loop(run_id: str, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id); require_project(principal,run["project_id"],"WRITE")
+        return AutonomousResearchLoop(db).start_research(run_id,principal.user_id)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.get("/api/hds/research-loops/{run_id}")
+def get_hds_research_loop(run_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id); require_project(principal,run["project_id"],"READ"); return run
+    except ValueError as exc: raise HTTPException(404,str(exc)) from exc
