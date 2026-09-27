@@ -14,6 +14,20 @@ services:
       timeout: 5s
       retries: 10
 
+  migrate:
+    build: .
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      COMPANY_OS_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      HDS_AUTH_HMAC_SECRET: ${HDS_AUTH_HMAC_SECRET:?set HDS_AUTH_HMAC_SECRET}
+    command: ["python", "scripts/migrate.py"]
+
   api:
     build: .
     restart: unless-stopped
