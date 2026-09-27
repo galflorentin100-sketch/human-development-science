@@ -244,8 +244,8 @@ def test_claim_admission_requires_supporting_evidence(tmp_path):
     from app.scientific_admission import ScientificAdmissionGate
     from app.models import now
     import uuid
-    db=Database(str(tmp_path/"admission.db")); ResearchCycle(db)
-    project=db.one("SELECT id FROM projects LIMIT 1")
+    db=Database(str(tmp_path/"admission.db")); cycle=ResearchCycle(db)
+    project=cycle.run("claim admission")["project"]
     claim_id=str(uuid.uuid4()); source_id=str(uuid.uuid4())
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
                (claim_id,project["id"],"claim","INFERENCE","VERIFIED",0.8,"SUPPORTED",now()))
