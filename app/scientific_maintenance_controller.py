@@ -15,19 +15,19 @@ class ScientificMaintenanceController:
         proposals=AutonomousScientificMaintenance(self.db).propose()["proposals"]
         created=[]
         for p in proposals:
-            existing=self.db.one("SELECT * FROM maintenance_work WHERE kind=? AND entity_type=? AND entity_id=? AND status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS')",
-                                 (p["kind"],p["entity_type"],p["entity_id"]))
-            if existing:
-                created.append(existing); continue
-            i=str(uuid4())
-            self.db.execute("""INSERT INTO maintenance_work
-                (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(kind,entity_type,entity_id) DO NOTHING""",
-                (i,p["kind"],p["entity_type"],p["entity_id"],p["title"],p["reason"],p["success_criteria"],"PROPOSED",None,now(),now()))
-            existing_after=self.db.one("SELECT * FROM maintenance_work WHERE kind=? AND entity_type=? AND entity_id=? AND status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS') ORDER BY created_at LIMIT 1",
-                                       (p["kind"],p["entity_type"],p["entity_id"]))
-            if not existing_after: raise RuntimeError("maintenance work could not be created")
-            created.append(existing_after)
+            with self.db.transaction() as con:
+                existing=con.execute(
+                    "SELECT * FROM maintenance_work WHERE kind=? AND entity_type=? AND entity_id=? AND status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS') ORDER BY created_at LIMIT 1",
+                    (p["kind"],p["entity_type"],p["entity_id"])).fetchone()
+                if existing:
+                    created.append(dict(existing))
+                    continue
+                i=str(uuid4())
+                con.execute("""INSERT INTO maintenance_work
+                    (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                    (i,p["kind"],p["entity_type"],p["entity_id"],p["title"],p["reason"],p["success_criteria"],"PROPOSED",None,now(),now()))
+                created.append(dict(con.execute("SELECT * FROM maintenance_work WHERE id=?",(i,)).fetchone()))
         return {"created_or_existing":created,"count":len(created)}
 
     def request_approval(self,work_id,actor):
