@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+import hashlib
+import hmac
 from pathlib import Path
 from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -140,11 +142,24 @@ class HDSSubscriptionRequest(BaseModel):
 
 
 
-def principal_from_header(x_external_subject: str | None = Header(default=None)) -> Principal:
+def principal_from_header(
+    x_external_subject: str | None = Header(default=None),
+    x_external_subject_signature: str | None = Header(default=None),
+) -> Principal:
     if not x_external_subject:
         if settings.environment != "production":
             return Principal("local-development", "founder", {"READ","WRITE","EXECUTE","PUBLISH","SPEND","DELETE","DEPLOY","CONTACT_EXTERNAL_PARTY","APPROVE"})
         raise HTTPException(status_code=401, detail="authentication required")
+    if settings.environment == "production":
+        if not x_external_subject_signature:
+            raise HTTPException(status_code=401, detail="signed identity required")
+        expected=hmac.new(
+            settings.auth_hmac_secret.encode("utf-8"),
+            x_external_subject.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(expected, x_external_subject_signature):
+            raise HTTPException(status_code=401, detail="invalid identity signature")
     try:
         return auth.authorize(x_external_subject)
     except PermissionError as exc:
