@@ -3,7 +3,7 @@
 An auditable foundation for an AI-native Human Development Science company.
 
 ## Current state
-Reconstructed core Company OS: persistent company state, 17-agent registry, permissions, bounded research workflow, evidence/claim records, founder intelligence and a dashboard.
+HDS is an auditable Company OS foundation with persistent company state, a 17-agent registry, project-scoped permissions, bounded autonomous research, evidence/claim/knowledge workflows, founder intelligence, a unified Founder OS dashboard, approvals, failure/recovery controls, and scientific provenance.
 
 ## Run
 ```bash
@@ -11,7 +11,7 @@ python -m pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000`.
+Open `http://127.0.0.1:8000` for the unified Founder OS dashboard.
 
 ## Scientific rule
 Do not fabricate evidence or data. Separate established findings, preliminary evidence, hypotheses, assumptions and unknowns. Experimental functionality must be validated before being treated as established.
