@@ -139,6 +139,13 @@ class HDSEnrollmentRequest(BaseModel):
 class HDSSubscriptionRequest(BaseModel):
     customer_id: str
     product_id: str
+class HDSStudyParticipantBindingRequest(BaseModel):
+    study_participant_id: str
+class HDSCompetitionMeasureBindingRequest(BaseModel):
+    study_id: str
+    measure_id: str
+    observation_type: str
+    timepoint: str
 
 
 
@@ -1771,3 +1778,36 @@ def hds_company_snapshot(project_id: str, principal: Principal = Depends(princip
     require_read(principal); require_project(principal, project_id, "READ")
     from app.hds_company import HDSCompanyService
     return HDSCompanyService(db).snapshot(project_id)
+@app.post("/api/hds/competitions/{competition_id}/participants/{participant_id}/study-binding")
+def bind_hds_participant_to_study(competition_id: str, participant_id: str, req: HDSStudyParticipantBindingRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    competition=db.one("SELECT project_id FROM hds_competitions WHERE id=?", (competition_id,))
+    if not competition: raise HTTPException(404, "competition not found")
+    require_project(principal, competition["project_id"], "WRITE")
+    from app.human_development import HumanDevelopmentService
+    try: return HumanDevelopmentService(db).bind_participant_to_study(competition_id,participant_id,req.study_participant_id)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/competitions/{competition_id}/events/{event_id}/measure-binding")
+def bind_hds_event_to_measure(competition_id: str, event_id: str, req: HDSCompetitionMeasureBindingRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    competition=db.one("SELECT project_id FROM hds_competitions WHERE id=?", (competition_id,))
+    if not competition: raise HTTPException(404, "competition not found")
+    require_project(principal, competition["project_id"], "WRITE")
+    event=db.one("SELECT competition_id FROM hds_competition_events WHERE id=?", (event_id,))
+    if not event or event["competition_id"] != competition_id: raise HTTPException(404, "competition event not found")
+    from app.human_development import HumanDevelopmentService
+    try: return HumanDevelopmentService(db).bind_event_measure(event_id,req.study_id,req.measure_id,req.observation_type,req.timepoint)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/competitions/{competition_id}/events/{event_id}/scientific-score")
+def record_hds_scientific_score(competition_id: str, event_id: str, req: HDSScoreRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    competition=db.one("SELECT project_id FROM hds_competitions WHERE id=?", (competition_id,))
+    if not competition: raise HTTPException(404, "competition not found")
+    require_project(principal, competition["project_id"], "WRITE")
+    event=db.one("SELECT competition_id FROM hds_competition_events WHERE id=?", (event_id,))
+    if not event or event["competition_id"] != competition_id: raise HTTPException(404, "competition event not found")
+    from app.human_development import HumanDevelopmentService
+    try: return HumanDevelopmentService(db).record_score_as_outcome(event_id,req.participant_id,req.metric,req.score)
+    except ValueError as exc: raise HTTPException(400,str(exc)) from exc
