@@ -59,3 +59,19 @@ def test_code_change_runner_rejects_unapproved_and_dynamic_commands(tmp_path):
     svc.approve(p["id"],"bob")
     try: runner.verify(p["id"],str(tmp_path),30); assert False
     except ValueError as exc: assert "dynamic code execution" in str(exc)
+
+
+def test_code_change_cannot_cross_project_maintenance_work(tmp_path):
+    db=Database(str(tmp_path/"cross-project.db"))
+    first=ResearchCycle(db).run("first project")["project"]
+    second=ResearchCycle(db).run("second project")["project"]
+    db.execute("""INSERT INTO maintenance_work
+        (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        ("mw-cross","ENGINEERING","project",first["id"],"Fix","reason","tests","PROPOSED",None,"now","now"))
+    svc=CodeChangeService(db)
+    try:
+        svc.propose(second["id"],"mw-cross","cross project","FILE_REPLACEMENT",'{"x.py":"x=1"}',"pytest test_x.py","LOW","alice")
+        assert False
+    except ValueError as exc:
+        assert "another project" in str(exc)
