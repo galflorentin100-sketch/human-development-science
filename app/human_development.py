@@ -124,6 +124,58 @@ class HumanDevelopmentService:
         self.db.execute("UPDATE hds_competition_participants SET consent_status='CONSENTED' WHERE id=?", (participant_id,))
         return self.db.one("SELECT * FROM hds_competition_participants WHERE id=?", (participant_id,))
 
+    def create_safety_control(self, project_id, challenge_id, risk_class, stop_criteria,
+                              eligibility_required=True, consent_required=True,
+                              supervision_required=True, medical_review_required=False):
+        challenge=self.db.one("""SELECT c.id,p.project_id FROM hds_challenges c
+            JOIN hds_programs p ON p.id=c.program_id WHERE c.id=?""",(challenge_id,))
+        if not challenge or challenge["project_id"] != project_id:
+            raise ValueError("challenge does not belong to project")
+        if risk_class not in {"LOW","MODERATE","HIGH","CRITICAL"}:
+            raise ValueError("invalid risk class")
+        if not str(stop_criteria or "").strip():
+            raise ValueError("stop criteria are required")
+        i=str(uuid4())
+        self.db.execute("""INSERT INTO hds_safety_controls
+            (id,project_id,challenge_id,risk_class,eligibility_required,consent_required,
+             supervision_required,medical_review_required,stop_criteria,status,created_at,updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (i,project_id,challenge_id,risk_class,int(eligibility_required),int(consent_required),
+             int(supervision_required),int(medical_review_required),stop_criteria.strip(),"DRAFT",now(),now()))
+        return self.db.one("SELECT * FROM hds_safety_controls WHERE id=?",(i,))
+
+    def approve_safety(self, challenge_id, reviewer, decision, rationale):
+        if decision not in {"APPROVED","REJECTED"}: raise ValueError("invalid safety decision")
+        control=self.db.one("SELECT * FROM hds_safety_controls WHERE challenge_id=?",(challenge_id,))
+        if not control: raise ValueError("safety control not found")
+        if not str(reviewer or "").strip() or not str(rationale or "").strip():
+            raise ValueError("reviewer and rationale are required")
+        i=str(uuid4())
+        self.db.execute("""INSERT INTO hds_safety_reviews
+            (id,project_id,challenge_id,reviewer,decision,rationale,created_at)
+            VALUES (?,?,?,?,?,?,?)""",
+            (i,control["project_id"],challenge_id,reviewer,decision,rationale,now()))
+        status="APPROVED" if decision=="APPROVED" else "REJECTED"
+        self.db.execute("UPDATE hds_safety_controls SET status=?,updated_at=? WHERE challenge_id=?",
+                        (status,now(),challenge_id))
+        return self.db.one("SELECT * FROM hds_safety_controls WHERE challenge_id=?",(challenge_id,))
+
+    def assert_challenge_safe_to_execute(self, challenge_id, participant_id):
+        control=self.db.one("SELECT * FROM hds_safety_controls WHERE challenge_id=?",(challenge_id,))
+        if not control or control["status"]!="APPROVED":
+            raise ValueError("challenge safety approval required")
+        if control["consent_required"]:
+            participant=self.db.one("""SELECT consent_status FROM hds_competition_participants
+                WHERE id=?""",(participant_id,))
+            if not participant or participant["consent_status"]!="CONSENTED":
+                raise ValueError("participant consent required")
+        if control["eligibility_required"]:
+            participant=self.db.one("""SELECT eligibility_status FROM hds_competition_participants
+                WHERE id=?""",(participant_id,))
+            if not participant or participant["eligibility_status"] not in {"ELIGIBLE","APPROVED"}:
+                raise ValueError("participant eligibility required")
+        return control
+
     def record_score(self, event_id, participant_id, metric, score):
         row = self.db.one(
             """SELECT ce.id, ce.competition_id, cp.id AS participant_id
