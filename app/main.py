@@ -4,7 +4,7 @@ import hmac
 from pathlib import Path
 from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse\nfrom fastapi import Request\nfrom starlette.middleware.base import BaseHTTPMiddleware\nfrom app.rate_limit import RateLimiter
 from pydantic import BaseModel, Field
 from app.auth import AuthService, Principal
 from app.config import Settings
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
     db.migrate()
     yield
 
-app = FastAPI(title="HDS Company OS", lifespan=lifespan)
+app = FastAPI(title="HDS Company OS", lifespan=lifespan)\n\n_rate_limiter = RateLimiter()\n\nclass SecurityMiddleware(BaseHTTPMiddleware):\n    async def dispatch(self, request, call_next):\n        path = request.url.path\n        if path.startswith("/api/"):\n            subject = request.headers.get("x-external-subject") or (request.client.host if request.client else "unknown")\n            limit = 20 if path.endswith("/chat") else (30 if "autonomous" in path or "research" in path else 120)\n            if not _rate_limiter.allow(f"{subject}:{path.split("/api/")[1].split("/")[0]}", limit):\n                from fastapi.responses import JSONResponse\n                return JSONResponse({"detail":"rate limit exceeded"}, status_code=429, headers={"Retry-After":"60"})\n        return await call_next(request)\n\napp.add_middleware(SecurityMiddleware)
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard():
