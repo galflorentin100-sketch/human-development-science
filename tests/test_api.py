@@ -296,3 +296,25 @@ def test_maintenance_materialize_is_idempotent(tmp_path):
     assert first["count"]==1
     assert second["count"]==0
     assert db.one("SELECT COUNT(*) AS n FROM maintenance_work WHERE entity_id='claim-maint'")["n"]==1
+
+
+def test_science_improvement_requires_verified_evidence(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.evidence_pipeline import EvidencePipeline
+    from app.continuous_improvement import ContinuousImprovementService
+    db=Database(str(tmp_path/"improvement-evidence.db")); ResearchCycle(db)
+    p=ResearchCycle(db).run("improvement evidence")["project"]
+    claim=db.one("SELECT id FROM claims WHERE project_id=? LIMIT 1",(p["id"],))
+    source=EvidencePipeline(db).register_source("Improvement paper","https://example.org/improvement-evidence")
+    EvidencePipeline(db).ingest_text(source["id"],"evidence excerpt")
+    ev=EvidencePipeline(db).attach(claim["id"],source["id"],"evidence excerpt",actor="researcher")
+    svc=ContinuousImprovementService(db)
+    try:
+        svc.propose("Scientific improvement","SCIENCE","test hypothesis","test metric","founder",ev["id"])
+        assert False, "unverified evidence must not support a SCIENCE improvement"
+    except ValueError as exc:
+        assert "verified" in str(exc)
+    EvidencePipeline(db).review(ev["id"],"independent-reviewer","VERIFIED","verified")
+    proposal=svc.propose("Scientific improvement","SCIENCE","test hypothesis","test metric","founder",ev["id"])
+    assert proposal["status"]=="PROPOSED"
