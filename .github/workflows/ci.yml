@@ -56,3 +56,9 @@ jobs:
           push: false
           tags: hds-ci:latest
       - run: docker compose -f docker-compose.production.yml config
+        env:
+          POSTGRES_DB: hds_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hds_ci
+          HDS_AUTH_HMAC_SECRET: ci-only-secret
