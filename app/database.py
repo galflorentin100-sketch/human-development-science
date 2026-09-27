@@ -35,7 +35,6 @@ CREATE TABLE IF NOT EXISTS maintenance_work (
 CREATE INDEX IF NOT EXISTS idx_maintenance_work_status ON maintenance_work(status);
 CREATE INDEX IF NOT EXISTS idx_maintenance_work_entity ON maintenance_work(entity_type,entity_id,status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_maintenance_work_active_unique ON maintenance_work(kind,entity_type,entity_id) WHERE status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS');
-CREATE UNIQUE INDEX IF NOT EXISTS idx_maintenance_work_active_unique ON maintenance_work(kind,entity_type,entity_id) WHERE status IN ('PROPOSED','APPROVAL_PENDING','APPROVED','IN_PROGRESS');
 CREATE TABLE IF NOT EXISTS maintenance_task_links (task_id TEXT PRIMARY KEY REFERENCES tasks(id), kind TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(kind,entity_type,entity_id));
 CREATE INDEX IF NOT EXISTS idx_maintenance_task_links_entity ON maintenance_task_links(entity_type,entity_id);
 CREATE TABLE IF NOT EXISTS knowledge_freshness (
@@ -68,7 +67,6 @@ CREATE TABLE IF NOT EXISTS organizational_decisions (id TEXT PRIMARY KEY, projec
 CREATE TABLE IF NOT EXISTS hds_research_queue (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, question TEXT NOT NULL, rationale TEXT NOT NULL, trigger_type TEXT NOT NULL, priority TEXT NOT NULL, status TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS experiment_safety_reviews (id TEXT PRIMARY KEY, experiment_id TEXT NOT NULL UNIQUE, reviewer TEXT NOT NULL, decision TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS knowledge_impact_reviews (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, impact_type TEXT NOT NULL DEFAULT 'DEPENDENCY', affected_type TEXT NOT NULL, affected_id TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_impact_proposed_unique ON knowledge_impact_reviews(project_id,source_type,source_id,impact_type,affected_type,affected_id) WHERE status='PROPOSED';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_impact_proposed_identity ON knowledge_impact_reviews(project_id,source_type,source_id,impact_type,affected_type,affected_id) WHERE status='PROPOSED';
 CREATE TABLE IF NOT EXISTS research_review_tasks (task_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, synthesis_id TEXT NOT NULL, role TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(workspace_id,synthesis_id,role));
 CREATE TABLE IF NOT EXISTS company_memory (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, memory_type TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT, created_by TEXT NOT NULL, created_at TEXT NOT NULL);
