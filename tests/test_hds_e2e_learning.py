@@ -26,10 +26,11 @@ def test_measured_outcome_feeds_candidate_research_without_claim_promotion(tmp_p
                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
                ("outcome-e2e",study,participant,"resilience_score",82.0,"points","TRAINING","POST",None,now()))
 
+    claims_before=db.one("SELECT COUNT(*) AS n FROM claims WHERE project_id=?",(project["id"],))["n"]
     result=OutcomeFeedbackService(db).propose_research_from_study(
         study,"resilience_score","TRAINING","researcher")
     assert result["scientific_status"]=="CANDIDATE_ONLY"
     assert result["finding"]["status"]=="CANDIDATE"
     assert result["research_proposal"]["trigger_type"]=="OUTCOME_FEEDBACK"
     assert result["research_proposal"]["status"]=="PROPOSED"
-    assert db.one("SELECT COUNT(*) AS n FROM claims WHERE project_id=?",(project["id"],))["n"]==0
+    assert db.one("SELECT COUNT(*) AS n FROM claims WHERE project_id=?",(project["id"],))["n"]==claims_before
