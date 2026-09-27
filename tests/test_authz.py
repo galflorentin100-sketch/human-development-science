@@ -63,6 +63,7 @@ def test_resource_project_boundary_covers_constructs(tmp_path, monkeypatch):
 
     import app.main as main
     monkeypatch.setattr(main,"db",db)
+    monkeypatch.setattr(main,"auth",auth)
     principal=auth.authorize("operator")
     assert require_resource_project(principal,"construct","construct-a","READ")==p1
     try:
