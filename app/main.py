@@ -72,20 +72,6 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityMiddleware)
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-@app.get("/ready")
-def readiness():
-    db.one("SELECT 1")
-    return {"status": "ready"}
-
-@app.get("/", response_class=HTMLResponse)
-def dashboard():
-    from app.dashboard import render_dashboard
-    return HTMLResponse(render_dashboard())
-
 class Goal(BaseModel):
     goal: str = Field(min_length=1, max_length=2000)
 class ResearchRequest(BaseModel):
@@ -1143,8 +1129,10 @@ def next_tasks(project_id: str, principal: Principal = Depends(principal_from_he
     require_project(principal, project_id, "EXECUTE")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)): raise HTTPException(404, "project not found")
     return AutonomousPlanner(db).create_next_tasks(project_id, [{"title":"Collect evidence","agent_id":"researcher","priority":1.0},{"title":"Challenge evidence","agent_id":"skeptic","priority":0.9},{"title":"Audit evidence","agent_id":"evidence-auditor","priority":0.9}])
-@app.get("/")
-def dashboard(): return HTMLResponse((Path(__file__).parent / "dashboard.html").read_text())
+@app.get("/", response_class=HTMLResponse)
+def dashboard():
+    from app.dashboard import render_dashboard
+    return HTMLResponse(render_dashboard())
 
 
 @app.get("/api/science/closed-loop/{project_id}")
@@ -1885,7 +1873,7 @@ def review_hds_safety(challenge_id: str, req: HDSSafetyReviewRequest, principal:
     if not challenge: raise HTTPException(404,"challenge not found")
     require_project(principal,challenge["project_id"],"APPROVE")
     from app.human_development import HumanDevelopmentService
-    try: return HumanDevelopmentService(db).approve_safety(challenge_id,req.reviewer,req.decision,req.rationale)
+    try: return HumanDevelopmentService(db).approve_safety(challenge_id,principal.user_id,req.decision,req.rationale)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
 @app.post("/api/hds/competitions/{competition_id}/participants/{participant_id}/safety-status")
 def update_hds_participant_safety(competition_id: str, participant_id: str, req: HDSSafetyStatusRequest, principal: Principal = Depends(principal_from_header)):
