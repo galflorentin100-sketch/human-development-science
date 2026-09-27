@@ -196,6 +196,44 @@ class HumanDevelopmentService:
             raise ValueError("medical safety review required")
         return control
 
+    def report_safety_incident(self, project_id, description, immediate_action, severity="MEDIUM",
+                              reported_by="system", challenge_id=None, execution_id=None, participant_id=None):
+        allowed={"LOW","MEDIUM","HIGH","CRITICAL"}
+        if severity not in allowed: raise ValueError("invalid incident severity")
+        if not str(description or "").strip() or not str(immediate_action or "").strip():
+            raise ValueError("incident description and immediate action are required")
+        if not str(reported_by or "").strip(): raise ValueError("reporter is required")
+        project=self.db.one("SELECT id FROM projects WHERE id=? AND company_id='hds'",(project_id,))
+        if not project: raise ValueError("project not found")
+        if challenge_id:
+            challenge=self.db.one("SELECT project_id FROM hds_challenges WHERE id=?",(challenge_id,))
+            if not challenge or challenge["project_id"]!=project_id: raise ValueError("challenge belongs to another project")
+        if execution_id:
+            execution=self.db.one("SELECT project_id,challenge_id,participant_id FROM hds_challenge_executions WHERE id=?",(execution_id,))
+            if not execution or execution["project_id"]!=project_id: raise ValueError("execution belongs to another project")
+            challenge_id=challenge_id or execution["challenge_id"]
+            participant_id=participant_id or execution["participant_id"]
+        i=str(uuid4()); ts=now()
+        self.db.execute("""INSERT INTO hds_safety_incidents
+            (id,project_id,challenge_id,execution_id,participant_id,severity,description,immediate_action,status,reported_by,created_at,updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (i,project_id,challenge_id,execution_id,participant_id,severity,description.strip(),immediate_action.strip(),"OPEN",reported_by,ts,ts))
+        return self.db.one("SELECT * FROM hds_safety_incidents WHERE id=?",(i,))
+
+    def review_safety_incident(self, incident_id, reviewer, status, review_note):
+        if status not in {"REVIEWED","CLOSED"}: raise ValueError("invalid incident status")
+        if not str(reviewer or "").strip() or not str(review_note or "").strip():
+            raise ValueError("reviewer and review note are required")
+        incident=self.db.one("SELECT * FROM hds_safety_incidents WHERE id=?",(incident_id,))
+        if not incident: raise ValueError("incident not found")
+        if incident["reported_by"]==reviewer: raise ValueError("incident reporter cannot review the same incident")
+        updated=self.db.execute("""UPDATE hds_safety_incidents
+            SET status=?,reviewed_by=?,review_note=?,updated_at=?
+            WHERE id=? AND status='OPEN'""",
+            (status,reviewer,review_note.strip(),now(),incident_id))
+        if getattr(updated,"rowcount",1)!=1: raise ValueError("incident changed concurrently")
+        return self.db.one("SELECT * FROM hds_safety_incidents WHERE id=?",(incident_id,))
+
     def record_score(self, event_id, participant_id, metric, score):
         row = self.db.one(
             """SELECT ce.id, ce.competition_id, cp.id AS participant_id
