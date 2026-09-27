@@ -303,12 +303,12 @@ def create_skeptic_review(workspace_id: str, synthesis_id: str | None = None, pr
         raise HTTPException(400,str(exc)) from exc
 
 @app.post("/api/science/skeptic/{review_id}/record")
-def record_skeptic_review(review_id: str, objections: list[str] = [], missing_evidence: list[str] = [], alternative_explanations: list[str] = [], principal: Principal = Depends(principal_from_header)):
+def record_skeptic_review(review_id: str, objections: list[str] | None = None, missing_evidence: list[str] | None = None, alternative_explanations: list[str] | None = None, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
     require_resource_project(principal, "skeptic_review", review_id, "WRITE")
     from app.skeptic import SkepticService
     try:
-        return SkepticService(db).record(review_id,objections,missing_evidence,alternative_explanations)
+        return SkepticService(db).record(review_id,objections or [],missing_evidence or [],alternative_explanations or [])
     except ValueError as exc:
         raise HTTPException(400,str(exc)) from exc
 
