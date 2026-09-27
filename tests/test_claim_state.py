@@ -62,3 +62,18 @@ def test_claim_changes_fact_blocks_contradictory_verified_evidence(tmp_path):
     db=Database(str(tmp_path/"fact.db")); ResearchCycle(db)
     # Regression placeholder: FACT gating must reject a claim with contradictory evidence.
     assert True
+
+
+def test_knowledge_versions_increment_without_collision(tmp_path):
+    import concurrent.futures
+    db,cid,sid=setup(tmp_path)
+    svc=ClaimStateService(db)
+
+    def create_version(actor):
+        return svc.knowledge_version(cid,actor,"concurrent version")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        versions=sorted(pool.map(create_version,("reviewer-a","reviewer-b")))
+
+    assert [row["version"] for row in versions] == [1,2]
+    assert len(db.all("SELECT id FROM scientific_knowledge_versions WHERE claim_id=?",(cid,))) == 2
