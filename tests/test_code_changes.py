@@ -39,7 +39,7 @@ def test_code_change_runner_only_executes_approved_allowlisted_patch(tmp_path):
     p=svc.propose(project["id"],"mw-run","runner patch","FILE_REPLACEMENT",payload,"pytest test_generated.py","LOW","alice")
     svc.approve(p["id"],"bob")
     result=CodeChangeRunner(db).verify_and_record(p["id"],str(workspace),30)
-    assert result["passed"] is True
+    assert result["passed"] is True, result
     assert db.one("SELECT status FROM code_change_proposals WHERE id=?",(p["id"],))["status"]=="VERIFIED"
 
 
