@@ -509,3 +509,21 @@ def test_task_retry_escalates_after_retry_limit(tmp_path):
     engine.transition(task["id"],"RUNNING")
     assert engine.retry_or_escalate(task["id"],"second failure")["action"]=="ESCALATE"
     assert db.one("SELECT status,escalation_required FROM tasks WHERE id=?",(task["id"],))["status"]=="FAILED"
+
+
+def test_unified_founder_dashboard_is_wired():
+    from app.main import app
+    paths={route.path for route in app.routes}
+    assert "/" in paths
+    assert "/api/founder/projects" in paths
+
+def test_unified_founder_dashboard_renders():
+    response=client.get("/")
+    assert response.status_code==200
+    assert "HDS Company OS" in response.text
+    assert "Run research cycle" in response.text
+
+def test_founder_projects_returns_project_list():
+    response=client.get("/api/founder/projects")
+    assert response.status_code==200
+    assert isinstance(response.json()["items"], list)
