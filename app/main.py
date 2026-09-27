@@ -502,7 +502,6 @@ def resolve_approval(approval_id: str, status: str, principal: Principal = Depen
 @app.post("/api/sc001/register/{project_id}")
 def sc001_register(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
-    require_project(principal, project_id, "READ")
     require_project(principal, project_id, "WRITE")
     if not db.one("SELECT 1 FROM projects WHERE id=?", (project_id,)): raise HTTPException(404, "project not found")
     return SC001Protocol().register(db, project_id)
