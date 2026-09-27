@@ -70,6 +70,15 @@ class ContinuousImprovementService:
             raise ValueError("SCIENCE improvement evidence must be independently verified and non-conflicted")
         return True
 
+    def _validate_science_evidence(self, evidence_ref):
+        if not str(evidence_ref or "").strip():
+            raise ValueError("SCIENCE improvements require an evidence reference")
+        evidence=self.db.one("SELECT verified FROM evidence WHERE id=?",(str(evidence_ref),))
+        if not evidence:
+            raise ValueError("SCIENCE improvement evidence reference does not exist")
+        if not evidence["verified"]:
+            raise ValueError("SCIENCE improvement evidence must be verified")
+
     def propose(self, title, area, hypothesis, success_metric, owner, evidence_ref=None):
         if area not in AREAS:
             raise ValueError("invalid improvement area")
@@ -77,6 +86,8 @@ class ContinuousImprovementService:
             self._require_verified_evidence(evidence_ref)
         if not all(str(x).strip() for x in (title, hypothesis, success_metric, owner)):
             raise ValueError("title, hypothesis, success_metric and owner are required")
+        if area == "SCIENCE" and evidence_ref is not None:
+            self._validate_science_evidence(evidence_ref)
         ident = str(uuid.uuid4())
         self.db.execute(
             """INSERT INTO improvement_proposals
