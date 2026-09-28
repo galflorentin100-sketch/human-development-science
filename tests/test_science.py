@@ -267,6 +267,7 @@ def test_completion_gate_uses_structured_scientific_validation(tmp_path):
     from app.scientific_completion import ScientificCompletionGate
     from app.experiment_engine import ExperimentEngine
     db=Database(str(tmp_path/"completion.db"))
+    ResearchCycle(db)
     ExperimentEngine(db)
     ts=now()
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",("p1","hds","objective","RUNNING","chief-scientist",ts))
