@@ -26,6 +26,11 @@ class CodeChangeRunner:
         parts=shlex.split(command)
         if not parts or parts[0] not in ALLOWED_TEST_PROGRAMS: raise ValueError("verification command is not allowlisted")
         if any(x in {"-c","--command","-m","--module"} for x in parts): raise ValueError("dynamic code execution is not allowed")
+        # The worker may execute only files addressed inside the disposable workspace.
+        for arg in parts[1:]:
+            if arg.startswith("-"): continue
+            if Path(arg).is_absolute() or ".." in Path(arg).parts:
+                raise ValueError("verification command cannot address paths outside the workspace")
         return parts
 
     def _apply_patch(self,proposal,target):
@@ -37,6 +42,7 @@ class CodeChangeRunner:
             for rel,payload in files.items():
                 path=(root/rel).resolve()
                 if root not in path.parents: raise ValueError("patch escapes workspace")
+                if (root / rel).is_symlink(): raise ValueError("patch cannot overwrite a symlink")
                 if not isinstance(payload,str): raise ValueError("replacement content must be text")
                 path.parent.mkdir(parents=True,exist_ok=True); path.write_text(payload,encoding="utf-8")
             return
@@ -64,7 +70,10 @@ class CodeChangeRunner:
             try:
                 while time.monotonic() < deadline:
                     if result_file.exists():
-                        result=json.loads(result_file.read_text(encoding='utf-8'))
+                        try:
+                            result=json.loads(result_file.read_text(encoding='utf-8'))
+                        except (OSError, ValueError):
+                            time.sleep(0.25); continue
                         return {'verification_run_id':run_id,'proposal_id':proposal_id,'passed':bool(result.get('passed')),'return_code':result.get('return_code'),'timed_out':bool(result.get('timed_out')),'output':str(result.get('output',''))[-MAX_OUTPUT_BYTES:]}
                     time.sleep(0.25)
                 return {'verification_run_id':run_id,'proposal_id':proposal_id,'passed':False,'return_code':None,'timed_out':True,'output':'isolated worker did not return a result before timeout'}
