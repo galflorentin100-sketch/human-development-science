@@ -78,3 +78,19 @@ def test_knowledge_versions_increment_without_collision(tmp_path):
 
     assert [row["version"] for row in versions] == [1,2]
     assert len(db.all("SELECT id FROM scientific_knowledge_versions WHERE claim_id=?",(cid,))) == 2
+
+
+def test_claim_transition_requires_selected_evidence_direction(tmp_path):
+    db,cid,sid=setup(tmp_path); ep=EvidencePipeline(db)
+    ep.ingest_text(sid,"supporting excerpt; contradicting excerpt")
+    support=ep.attach(cid,sid,"supporting excerpt","SUPPORTS")
+    contradict=ep.attach(cid,sid,"contradicting excerpt","CONTRADICTS")
+    ep.review(support["id"],"support-auditor","VERIFIED","checked")
+    ep.review(contradict["id"],"contradict-auditor","VERIFIED","checked")
+    # The claim is conflicted, so neither transition is allowed; this also ensures
+    # the selected evidence cannot be used as a misleading audit reference.
+    try:
+        ClaimStateService(db).transition(cid,"SUPPORTED","reviewer","selected evidence is contradictory",contradict["id"])
+        assert False
+    except ValueError as exc:
+        assert "UNCERTAIN" in str(exc)
