@@ -10,9 +10,10 @@ from app.models import now
 class ScientificMaintenanceController:
     def __init__(self,db): self.db=db
 
-    def discover(self):
+    def discover(self, project_id):
+        if not str(project_id or "").strip(): raise ValueError("project_id is required")
         from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
-        proposals=AutonomousScientificMaintenance(self.db).propose()["proposals"]
+        proposals=AutonomousScientificMaintenance(self.db).propose(project_id)["proposals"]
         created=[]
         for p in proposals:
             with self.db.transaction() as con:
