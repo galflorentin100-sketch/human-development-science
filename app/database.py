@@ -701,15 +701,6 @@ def _migrate_phase4(self):
             existing={row[1] for row in con.execute(f"PRAGMA table_info({table})")}
             for name,definition in columns.items():
                 if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
-        existing_code_change={row[1] for row in con.execute("PRAGMA table_info(code_change_proposals)")}
-        if "approval_id" not in existing_code_change:
-            con.execute("ALTER TABLE code_change_proposals ADD COLUMN approval_id TEXT REFERENCES approvals(id)")
-        existing_research_workspace={row[1] for row in con.execute("PRAGMA table_info(research_workspaces)")}
-        if "research_queue_id" not in existing_research_workspace:
-            con.execute("ALTER TABLE research_workspaces ADD COLUMN research_queue_id TEXT")
-        existing_research_queue={row[1] for row in con.execute("PRAGMA table_info(hds_research_queue)")}
-        if "research_queue_workspace_id" not in existing_research_queue:
-            con.execute("ALTER TABLE hds_research_queue ADD COLUMN research_queue_workspace_id TEXT")
         existing={row[1] for row in con.execute("PRAGMA table_info(study_outcomes)")}
         if "observation_type" not in existing:
             con.execute("ALTER TABLE study_outcomes ADD COLUMN observation_type TEXT NOT NULL DEFAULT 'TRAINING'")
@@ -727,6 +718,15 @@ def _migrate_phase4(self):
         con.execute("DROP INDEX IF EXISTS idx_study_outcome_observation_identity")
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_study_outcome_observation_identity ON study_outcomes(study_id,participant_id,outcome_name,observation_type,COALESCE(session_id,''),timepoint) WHERE timepoint IS NOT NULL")
         con.executescript(PHASE_AGENT_OUTPUT_SCHEMA); con.executescript(PHASE4_SCHEMA); con.executescript(PHASE5_SCHEMA); con.executescript(PHASE6_SCHEMA); con.executescript(PHASE7_SCHEMA); con.executescript(OPTIONAL_SCIENCE_SCHEMA)
+        existing_code_change={row[1] for row in con.execute("PRAGMA table_info(code_change_proposals)")}
+        if "approval_id" not in existing_code_change:
+            con.execute("ALTER TABLE code_change_proposals ADD COLUMN approval_id TEXT")
+        existing_research_workspace={row[1] for row in con.execute("PRAGMA table_info(research_workspaces)")}
+        if "research_queue_id" not in existing_research_workspace:
+            con.execute("ALTER TABLE research_workspaces ADD COLUMN research_queue_id TEXT")
+        existing_research_queue={row[1] for row in con.execute("PRAGMA table_info(hds_research_queue)")}
+        if "research_queue_workspace_id" not in existing_research_queue:
+            con.execute("ALTER TABLE hds_research_queue ADD COLUMN research_queue_workspace_id TEXT")
         _ensure_hds_schema(con)
         _ensure_hds_indexes(con)
         existing_studies={row[1] for row in con.execute("PRAGMA table_info(studies)")}
