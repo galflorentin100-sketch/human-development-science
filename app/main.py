@@ -931,10 +931,11 @@ def validate_knowledge_freshness(body: dict, principal: Principal = Depends(prin
     return KnowledgeFreshness(db).validate(body["entity_type"],body["entity_id"],principal.user_id,body["rationale"],project_id)
 
 @app.post("/api/science/maintenance/discover")
-def discover_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+def discover_scientific_maintenance(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    require_project(principal, project_id, "WRITE")
     from app.scientific_maintenance_controller import ScientificMaintenanceController
-    return ScientificMaintenanceController(db).discover()
+    return ScientificMaintenanceController(db).discover(project_id)
 
 @app.post("/api/science/maintenance/{work_id}/request-approval")
 def request_scientific_maintenance_approval(work_id: str, principal: Principal = Depends(principal_from_header)):
