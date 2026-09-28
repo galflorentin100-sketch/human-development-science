@@ -33,6 +33,6 @@ class ScientificCompletionGate:
         if int(pending["n"])>0: blockers.append("tasks_pending")
         if int(unresolved["n"])>0: blockers.append("uncertain_claims")
         if int(unreviewed["n"])>0: blockers.append("unreviewed_evidence")
-        if int(validation["n"])==0: blockers.append("no_completed_validation_task")
+        if int(validation["n"])==0: blockers.append("no_structured_scientific_validation")
         return {"project_id":project_id,"ready":not blockers,"blockers":blockers,
                 "checks":{"pending_tasks":int(pending["n"]),"uncertain_claims":int(unresolved["n"]),"unreviewed_evidence":int(unreviewed["n"]),"completed_validation_work":int(validation["n"])}}
