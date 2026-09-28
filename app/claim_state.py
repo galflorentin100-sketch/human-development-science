@@ -62,16 +62,16 @@ class ClaimStateService:
             contradict=sum(stance=="CONTRADICTS" and state=="VERIFIED" for stance,state in states.values())
             if new_status=="SUPPORTED":
                 if support < 1 or evidence_id is None: raise ValueError("SUPPORTED requires verified supporting evidence")
+                if contradict > 0: raise ValueError("conflicting verified evidence requires UNCERTAIN status")
                 selected=states.get(evidence_id)
                 if not selected or selected[0]!="SUPPORTS" or selected[1]!="VERIFIED":
                     raise ValueError("SUPPORTED requires the selected evidence to be verified and supporting")
-                if contradict > 0: raise ValueError("conflicting verified evidence requires UNCERTAIN status")
             if new_status=="CONTRADICTED":
                 if contradict < 1 or evidence_id is None: raise ValueError("CONTRADICTED requires verified contradicting evidence")
+                if support > 0: raise ValueError("conflicting verified evidence requires UNCERTAIN status")
                 selected=states.get(evidence_id)
                 if not selected or selected[0]!="CONTRADICTS" or selected[1]!="VERIFIED":
                     raise ValueError("CONTRADICTED requires the selected evidence to be verified and contradicting")
-                if support > 0: raise ValueError("conflicting verified evidence requires UNCERTAIN status")
             updated=con.execute("UPDATE claims SET status=?,updated_at=?,review_required=? WHERE id=? AND status=?",
                 (new_status,ts,1 if new_status in {"PROPOSED","UNCERTAIN"} else 0,claim_id,old))
             if updated.rowcount != 1:
