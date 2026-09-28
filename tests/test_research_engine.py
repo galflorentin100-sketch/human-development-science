@@ -105,10 +105,6 @@ def test_accepted_synthesis_becomes_candidate_finding_not_claim(tmp_path):
     evidence_ref=_verified_evidence(db,pid,source["id"])
     syn=engine.synthesize(ws["id"],"Candidate synthesis","limitations","uncertain","researcher",evidence_refs=[evidence_ref])
     _accept_with_skeptic_gate(db,engine,ws["id"],syn["id"])
-    from app.skeptic import SkepticService
-    skeptic=SkepticService(db).create(ws["id"],syn["id"],"skeptic")
-    SkepticService(db).record(skeptic["id"],["alternative explanation"],["missing evidence"],["selection effects"])
-    SkepticService(db).review(skeptic["id"],"ACCEPTED","independent-reviewer","reviewed objections")
     EvidencePipeline(db).ingest_text(source["id"],"Relevant excerpt")
     # Create a real, independently verified evidence reference before promotion.
     from app.evidence_pipeline import EvidencePipeline
