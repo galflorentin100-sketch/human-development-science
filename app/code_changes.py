@@ -67,22 +67,38 @@ class CodeChangeService:
         if str(resource_project_id) != str(project_id):
             raise ValueError("maintenance work belongs to another project")
         i=str(uuid4())
-        self.db.execute("""INSERT INTO code_change_proposals
-            (id,project_id,maintenance_work_id,title,patch_format,patch_payload,test_command,
-             risk_level,status,proposed_by,approved_by,verification_run_id,rollback_payload,created_at,updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (i,project_id,maintenance_work_id,title,patch_format,patch_payload,test_command,
-             risk_level,"PROPOSED",actor,None,None,None,now(),now()))
+        from app.approvals import ApprovalService
+        with self.db.transaction() as con:
+            approval=ApprovalService(self.db)._request_in_transaction(
+                con,
+                action="CODE_CHANGE",
+                requested_by=actor,
+                reason=title,
+                risk_level=risk_level,
+                context={
+                    "proposal_id":i,
+                    "project_id":str(project_id),
+                    "maintenance_work_id":str(maintenance_work_id),
+                },
+            )
+            con.execute("""INSERT INTO code_change_proposals
+                (id,project_id,maintenance_work_id,title,patch_format,patch_payload,test_command,
+                 risk_level,status,proposed_by,approved_by,verification_run_id,rollback_payload,approval_id,created_at,updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (i,project_id,maintenance_work_id,title,patch_format,patch_payload,test_command,
+                 risk_level,"APPROVAL_PENDING",actor,None,None,None,approval["id"],now(),now()))
         return self.get(i)
 
     def approve(self, proposal_id, actor):
         if not str(actor or "").strip(): raise ValueError("actor is required")
         with self.db.transaction() as con:
             row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
-            if not row or row["status"]!="PROPOSED": raise ValueError("proposal is not awaiting approval")
-            if str(row["proposed_by"])==str(actor): raise ValueError("separation of duties required")
+            if not row or row["status"]!="APPROVAL_PENDING": raise ValueError("proposal is not awaiting approval")
+            if not row["approval_id"]: raise ValueError("proposal approval is missing")
+            from app.approvals import ApprovalService
+            ApprovalService(self.db)._resolve_in_transaction(con,row["approval_id"],"APPROVED",actor)
             updated=con.execute("""UPDATE code_change_proposals
-                SET status='APPROVED',approved_by=?,updated_at=? WHERE id=? AND status='PROPOSED'""",
+                SET status='APPROVED',approved_by=?,updated_at=? WHERE id=? AND status='APPROVAL_PENDING'""",
                 (actor,now(),proposal_id))
             if updated.rowcount!=1: raise ValueError("proposal changed concurrently")
         return self.get(proposal_id)
@@ -172,9 +188,14 @@ class CodeChangeService:
 
     def reject(self, proposal_id, actor):
         with self.db.transaction() as con:
+            row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
+            if not row or row["status"]!="APPROVAL_PENDING": raise ValueError("proposal is not rejectable")
+            if row["approval_id"]:
+                from app.approvals import ApprovalService
+                ApprovalService(self.db)._resolve_in_transaction(con,row["approval_id"],"REJECTED",actor)
             updated=con.execute("""UPDATE code_change_proposals
-                SET status='REJECTED',updated_at=? WHERE id=? AND status IN ('PROPOSED','APPROVAL_PENDING')""",(now(),proposal_id))
-            if updated.rowcount!=1: raise ValueError("proposal is not rejectable")
+                SET status='REJECTED',updated_at=? WHERE id=? AND status='APPROVAL_PENDING'""",(now(),proposal_id))
+            if updated.rowcount!=1: raise ValueError("proposal changed concurrently")
         return self.get(proposal_id)
 
     def get(self, proposal_id):
