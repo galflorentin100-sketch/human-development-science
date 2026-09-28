@@ -9,7 +9,14 @@ class Principal:
     def can(self,permission):
         return permission in self.permissions
 class AuthService:
-    def __init__(self,db): self.db=db; self._seed_roles()
+    def __init__(self,db,owner_external_subject=None):
+        self.db=db
+        self.owner_external_subject=owner_external_subject
+        self._seed_roles()
+
+    def _require_owner(self,external_subject):
+        if self.owner_external_subject is not None and external_subject != self.owner_external_subject:
+            raise PermissionError("principal is not the configured system owner")
     def _seed_roles(self):
         roles=[("founder",["READ","WRITE","EXECUTE","PUBLISH","SPEND","DELETE","DEPLOY","CONTACT_EXTERNAL_PARTY","APPROVE"]),("operator",["READ","WRITE","EXECUTE"]),("reviewer",["READ","WRITE"])]
         for name,permissions in roles:
@@ -68,6 +75,7 @@ class AuthService:
         return Principal(user["id"],membership["name"],permissions)
 
     def authorize(self,external_subject,required_permission=None):
+        self._require_owner(external_subject)
         user=self.db.one("SELECT * FROM users WHERE external_subject=?",(external_subject,))
         if not user: raise PermissionError("unknown principal")
         membership=self.db.one("SELECT r.permissions FROM company_memberships m JOIN roles r ON r.id=m.role_id WHERE m.company_id='hds' AND m.user_id=? AND m.status='ACTIVE'",(user["id"],))
