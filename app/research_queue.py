@@ -17,6 +17,7 @@ class ResearchQueue:
         self.db.execute("""CREATE TABLE IF NOT EXISTS hds_research_queue (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
+            research_queue_workspace_id TEXT,
             question TEXT NOT NULL,
             rationale TEXT NOT NULL,
             trigger_type TEXT NOT NULL,
@@ -26,6 +27,8 @@ class ResearchQueue:
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )""")
+        if "research_queue_workspace_id" not in set(self.db.table_columns("hds_research_queue")):
+            self.db.execute("ALTER TABLE hds_research_queue ADD COLUMN research_queue_workspace_id TEXT")
 
     def propose(self, project_id, question, rationale, trigger_type="MANUAL",
                 evidence_refs=(), priority="NORMAL"):
@@ -110,9 +113,14 @@ class ResearchQueue:
                 if updated_ws.rowcount != 1:
                     raise ValueError("research workspace changed concurrently")
                 workspace["status"]="ACTIVE"; workspace["updated_at"]=ts
+            linked=con.execute(
+                "UPDATE hds_research_queue SET research_queue_workspace_id=? WHERE id=? AND status='APPROVED' AND (research_queue_workspace_id IS NULL OR research_queue_workspace_id=?)",
+                (workspace["id"],item_id,workspace["id"]))
+            if linked.rowcount != 1:
+                raise ValueError("research queue workspace linkage changed concurrently")
             updated=con.execute(
-                "UPDATE hds_research_queue SET status='IN_PROGRESS',updated_at=? WHERE id=? AND status='APPROVED'",
-                (now(),item_id))
+                "UPDATE hds_research_queue SET status='IN_PROGRESS',updated_at=? WHERE id=? AND status='APPROVED' AND research_queue_workspace_id=?",
+                (now(),item_id,workspace["id"]))
             if updated.rowcount != 1:
                 raise ValueError("research item was changed concurrently")
             con.execute(
