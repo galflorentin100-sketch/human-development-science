@@ -52,8 +52,15 @@ class KnowledgeFreshness:
                 (str(uuid4()),"knowledge.revalidated",entity_type.lower(),entity_id,actor,'{"rationale":'+__import__("json").dumps(rationale)+ '}',ts))
         return self.db.one("SELECT * FROM knowledge_freshness WHERE id=?",(row["id"],))
 
-    def scan(self):
-        rows=self.db.all("SELECT * FROM knowledge_freshness ORDER BY next_review_at")
+    def scan(self,project_id=None):
+        if project_id is None:
+            raise ValueError("project_id is required")
+        rows=self.db.all("""SELECT kf.* FROM knowledge_freshness kf
+            JOIN (SELECT 'CLAIM' AS entity_type,id,project_id FROM claims
+                  UNION ALL SELECT 'INTERVENTION',id,project_id FROM interventions
+                  UNION ALL SELECT 'TRAINING_PROTOCOL',id,project_id FROM training_protocols) e
+            ON e.entity_type=kf.entity_type AND e.id=kf.entity_id
+            WHERE e.project_id=? ORDER BY kf.next_review_at""",(project_id,))
         t=datetime.now(timezone.utc)
         stale=[]
         for r in rows:
