@@ -959,16 +959,18 @@ def dispatch_scientific_maintenance(work_id: str, principal: Principal = Depends
     return ScientificMaintenanceController(db).dispatch(work_id,principal.user_id)
 
 @app.post("/api/organization/maintenance/propose")
-def propose_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+def propose_scientific_maintenance(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_project(principal,project_id,"READ")
     from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
-    return AutonomousScientificMaintenance(db).propose()
+    return AutonomousScientificMaintenance(db).propose(project_id)
 
 @app.post("/api/science/maintenance/materialize")
-def materialize_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+def materialize_scientific_maintenance(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
+    require_project(principal,project_id,"EXECUTE")
     from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
-    return AutonomousScientificMaintenance(db).materialize(principal.user_id)
+    return AutonomousScientificMaintenance(db).materialize(principal.user_id,project_id)
 
 @app.get("/api/science/maintenance")
 def list_scientific_maintenance(project_id: str, principal: Principal = Depends(principal_from_header)):
@@ -985,10 +987,11 @@ def scan_knowledge_freshness(project_id: str, principal: Principal = Depends(pri
     return KnowledgeFreshness(db).scan(project_id)
 
 @app.get("/api/science/autonomous-maintenance")
-def autonomous_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+def autonomous_scientific_maintenance(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_project(principal,project_id,"READ")
     from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
-    return AutonomousScientificMaintenance(db).propose()
+    return AutonomousScientificMaintenance(db).propose(project_id)
 
 @app.get("/api/science/control-plane")
 def scientific_control_plane(principal: Principal = Depends(principal_from_header)):
