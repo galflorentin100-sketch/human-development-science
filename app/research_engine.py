@@ -34,6 +34,9 @@ class ResearchEngine:
             provenance_hash TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]',
             status TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL
         )""")
+        cols=set(self.db.table_columns("research_workspaces"))
+        if "research_queue_id" not in cols:
+            self.db.execute("ALTER TABLE research_workspaces ADD COLUMN research_queue_id TEXT")
         cols=set(self.db.table_columns("research_syntheses"))
         if "evidence_refs" not in cols:
             self.db.execute("ALTER TABLE research_syntheses ADD COLUMN evidence_refs TEXT NOT NULL DEFAULT '[]'")
@@ -136,8 +139,8 @@ class ResearchEngine:
                 # It is complete once the governed synthesis itself is accepted; downstream
                 # finding/knowledge promotion remains separately gated and auditable.
                 queue_updated=con.execute(
-                    "UPDATE hds_research_queue SET status='DONE',updated_at=? WHERE project_id=? AND question=? AND status='IN_PROGRESS'",
-                    (ts,workspace["project_id"],workspace["question"]))
+                    "UPDATE hds_research_queue SET status='DONE',updated_at=? WHERE id=(SELECT research_queue_id FROM research_workspaces WHERE id=?) AND status='IN_PROGRESS'",
+                    (ts,workspace["id"]))
                 queue_completed=queue_updated.rowcount == 1
                 if queue_completed:
                     con.execute(
