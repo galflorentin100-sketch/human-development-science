@@ -3,6 +3,7 @@ import json, os, subprocess, time
 from pathlib import Path
 
 ROOT=Path(os.getenv("HDS_WORKER_SHARED_DIR","/var/lib/hds-code-worker"))
+RESULTS=Path(os.getenv("HDS_WORKER_RESULT_DIR","/var/lib/hds-code-worker-results"))
 ALLOWED={"pytest","python","python3"}
 
 def run_job(job):
@@ -20,18 +21,21 @@ def run_job(job):
         out=exc.stdout or ""
         if isinstance(out,bytes): out=out.decode("utf-8",errors="replace")
         result={"passed":False,"return_code":None,"timed_out":True,"output":out[-200000:]}
-    tmp=job/"result.json.tmp"; tmp.write_text(json.dumps(result),encoding="utf-8"); tmp.replace(job/"result.json")
+    RESULTS.mkdir(parents=True,exist_ok=True)
+    out=RESULTS/(job.name+".json"); tmp=RESULTS/(job.name+".json.tmp")
+    tmp.write_text(json.dumps(result),encoding="utf-8"); tmp.replace(out)
 
 def main():
     if os.getenv("HDS_WORKER_NETWORK","none")!="none" or os.geteuid()==0:
         raise SystemExit("worker security precondition failed")
     ROOT.mkdir(parents=True,exist_ok=True); jobs=ROOT/"jobs"; jobs.mkdir(exist_ok=True)
+    RESULTS.mkdir(parents=True,exist_ok=True)
     while True:
         for job in sorted(jobs.iterdir()):
-            if not job.is_dir() or not (job/"request.json").exists() or (job/"result.json").exists(): continue
+            if not job.is_dir() or not (job/"request.json").exists() or (RESULTS/(job.name+".json")).exists(): continue
             try: run_job(job)
             except Exception as exc:
-                (job/"result.json").write_text(json.dumps({"passed":False,"return_code":None,"timed_out":False,"output":str(exc)}),encoding="utf-8")
+                (RESULTS/(job.name+".json")).write_text(json.dumps({"passed":False,"return_code":None,"timed_out":False,"output":str(exc)}),encoding="utf-8")
         time.sleep(0.25)
 
 if __name__=="__main__": main()
