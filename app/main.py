@@ -958,15 +958,18 @@ def materialize_scientific_maintenance(principal: Principal = Depends(principal_
     return AutonomousScientificMaintenance(db).materialize(principal.user_id)
 
 @app.get("/api/science/maintenance")
-def list_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
+def list_scientific_maintenance(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
-    return db.all("SELECT * FROM maintenance_work ORDER BY created_at DESC")
+    require_project(principal,project_id,"READ")
+    rows=db.all("SELECT mw.* FROM maintenance_work mw WHERE mw.entity_type='claim' AND EXISTS (SELECT 1 FROM claims c WHERE c.id=mw.entity_id AND c.project_id=?) OR mw.entity_type='research_finding' AND EXISTS (SELECT 1 FROM research_findings f WHERE f.id=mw.entity_id AND f.project_id=?) OR mw.entity_type='training_protocol' AND EXISTS (SELECT 1 FROM training_protocols tp WHERE tp.id=mw.entity_id AND tp.project_id=?) OR mw.entity_type='intervention' AND EXISTS (SELECT 1 FROM interventions i WHERE i.id=mw.entity_id AND i.project_id=?) OR mw.entity_type='experiment' AND EXISTS (SELECT 1 FROM experiments e WHERE e.id=mw.entity_id AND e.project_id=?) OR mw.entity_type='study' AND EXISTS (SELECT 1 FROM studies s WHERE s.id=mw.entity_id AND s.project_id=?) OR mw.entity_type='research_workspace' AND EXISTS (SELECT 1 FROM research_workspaces rw WHERE rw.id=mw.entity_id AND rw.project_id=?) ORDER BY mw.created_at DESC",(project_id,project_id,project_id,project_id,project_id,project_id,project_id))
+    return rows
 
 @app.get("/api/science/knowledge-freshness/scan")
-def scan_knowledge_freshness(principal: Principal = Depends(principal_from_header)):
+def scan_knowledge_freshness(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_project(principal,project_id,"READ")
     from app.knowledge_freshness import KnowledgeFreshness
-    return KnowledgeFreshness(db).scan()
+    return KnowledgeFreshness(db).scan(project_id)
 
 @app.get("/api/science/autonomous-maintenance")
 def autonomous_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
@@ -1001,10 +1004,11 @@ def training_next_session(protocol_id: str, participant_ref: str, principal: Pri
     return ProtocolEngine(db).next_session(protocol_id,participant_ref)
 
 @app.get("/api/science/knowledge-review-queue")
-def knowledge_review_queue(principal: Principal = Depends(principal_from_header)):
+def knowledge_review_queue(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_project(principal,project_id,"READ")
     from app.knowledge_review_queue import KnowledgeReviewQueue
-    return KnowledgeReviewQueue(db).generate()
+    return KnowledgeReviewQueue(db).generate(project_id)
 
 @app.get("/api/science/knowledge-impact/claim/{claim_id}")
 def knowledge_claim_impact(claim_id: str, principal: Principal = Depends(principal_from_header)):
@@ -1014,10 +1018,11 @@ def knowledge_claim_impact(claim_id: str, principal: Principal = Depends(princip
     return KnowledgeImpactAnalyzer(db).claim_impact(claim_id)
 
 @app.get("/api/science/knowledge-impact/contradictions")
-def knowledge_contradictions(principal: Principal = Depends(principal_from_header)):
+def knowledge_contradictions(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
+    require_project(principal,project_id,"READ")
     from app.knowledge_impact import KnowledgeImpactAnalyzer
-    return KnowledgeImpactAnalyzer(db).contradiction_scan()
+    return KnowledgeImpactAnalyzer(db).contradiction_scan(project_id)
 
 @app.get("/api/science/admission/claim/{claim_id}")
 def scientific_claim_admission(claim_id: str, principal: Principal = Depends(principal_from_header)):
