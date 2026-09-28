@@ -41,12 +41,12 @@ class TaskEngine:
             limit=int(task["retry_limit"] or 0)
             next_attempt=count+1
             if next_attempt<=limit:
-                updated=con.execute("UPDATE tasks SET status='PLANNED',retry_count=?,updated_at=? WHERE id=? AND status IN ('RUNNING','REVIEW') AND retry_count=?",(next_attempt,now(),task_id,count))
+                updated=con.execute("UPDATE tasks SET status='PLANNED',retry_count=?,updated_at=? WHERE id=? AND status IN ('RUNNING','REVIEW','FAILED') AND retry_count=?",(next_attempt,now(),task_id,count))
                 if getattr(updated,"rowcount",1)!=1: raise ValueError("retry state changed concurrently")
                 con.execute("INSERT INTO task_attempts(id,task_id,attempt_number,outcome,error,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,next_attempt,"RETRY",reason,now()))
                 con.execute("INSERT INTO retry_events(id,task_id,attempt,reason,action,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,next_attempt,reason,"RETRY",now()))
                 return {"action":"RETRY","attempt":next_attempt,"limit":limit}
-            updated=con.execute("UPDATE tasks SET status='FAILED',retry_count=?,escalation_required=1,updated_at=? WHERE id=? AND status IN ('RUNNING','REVIEW') AND retry_count=?",(next_attempt,now(),task_id,count))
+            updated=con.execute("UPDATE tasks SET status='FAILED',retry_count=?,escalation_required=1,updated_at=? WHERE id=? AND status IN ('RUNNING','REVIEW','FAILED') AND retry_count=?",(next_attempt,now(),task_id,count))
             if getattr(updated,"rowcount",1)!=1: raise ValueError("escalation state changed concurrently")
             con.execute("INSERT INTO retry_events(id,task_id,attempt,reason,action,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),task_id,next_attempt,reason,"ESCALATE",now()))
             return {"action":"ESCALATE","attempt":next_attempt,"limit":limit}
