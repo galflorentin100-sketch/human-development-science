@@ -145,7 +145,7 @@ class ResearchEngine:
                 if queue_completed:
                     con.execute(
                         "INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
-                        (str(uuid4()),"research_queue.completed","research_queue",workspace["id"],reviewer,
+                        (str(uuid4()),"research_queue.completed","research_queue",workspace["research_queue_id"],reviewer,
                          json.dumps({"workspace_id":workspace["id"],"synthesis_id":synthesis_id},sort_keys=True),ts))
             con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
                         (str(uuid4()),"research_synthesis.reviewed","research_synthesis",synthesis_id,reviewer,
