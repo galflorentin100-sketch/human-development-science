@@ -35,3 +35,16 @@ def test_authorize_principal_uses_database_user_id(tmp_path):
     principal=auth.authorize("subject-1")
     assert principal.user_id == user["id"]
     assert principal.user_id != user["external_subject"]
+
+
+def test_configured_owner_is_the_only_authorized_principal(tmp_path):
+    db=Database(str(tmp_path/"owner.db")); ResearchCycle(db)
+    auth=AuthService(db,"owner-subject")
+    auth.create_user("owner-subject","owner@example.com","founder")
+    auth.create_user("other-subject","other@example.com","operator")
+    assert auth.authorize("owner-subject").role=="founder"
+    try:
+        auth.authorize("other-subject")
+        assert False
+    except PermissionError as exc:
+        assert "system owner" in str(exc)
