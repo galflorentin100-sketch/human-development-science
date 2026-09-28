@@ -5,6 +5,7 @@ Execution must happen in an external isolated runner after approval.
 """
 from uuid import uuid4
 import hashlib
+import json
 from app.models import now
 
 
@@ -91,6 +92,14 @@ class CodeChangeService:
         with self.db.transaction() as con:
             row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
             if not row or row["status"]!="APPROVED": raise ValueError("proposal is not approved")
+            execution=con.execute(
+                "SELECT * FROM code_change_execution_runs WHERE id=? AND proposal_id=? AND run_type='VERIFICATION' AND status='PASSED'",
+                (verification_run_id,proposal_id),
+            ).fetchone()
+            if not execution:
+                raise ValueError("verification run is not bound to this proposal")
+            if str(execution["proposal_fingerprint"])!=self.fingerprint(dict(row)):
+                raise ValueError("verification run does not match the current proposal")
             if con.execute("SELECT 1 FROM code_change_verifications WHERE verification_run_id=?",(verification_run_id,)).fetchone():
                 raise ValueError("verification run already recorded")
             digest=hashlib.sha256(str(output or "").encode("utf-8")).hexdigest()
