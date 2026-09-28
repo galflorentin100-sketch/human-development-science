@@ -54,7 +54,7 @@ def test_configured_owner_is_the_only_authorized_principal(tmp_path):
         assert "system owner" in str(exc)
 
 
-def test_configured_owner_blocks_other_project_members(tmp_path):
+def test_configured_owner_does_not_block_project_members(tmp_path):
     db=Database(str(tmp_path/"owner-project.db")); ResearchCycle(db)
     bootstrap=AuthService(db)
     bootstrap.create_user("owner-subject","owner@example.com","founder")
@@ -67,8 +67,6 @@ def test_configured_owner_blocks_other_project_members(tmp_path):
         (project_id,"hds","test","ACTIVE","chief-scientist",now()),
     )
     auth.grant_project_access("owner-subject","operator-subject",project_id,"operator")
-    try:
-        auth.project_authorize("operator-subject",project_id,"EXECUTE")
-        assert False
-    except PermissionError as exc:
-        assert "system owner" in str(exc)
+    principal=auth.project_authorize("operator-subject",project_id,"EXECUTE")
+    assert principal.user_id == db.one("SELECT id FROM users WHERE external_subject='operator-subject'")["id"]
+    assert principal.role == "operator"
