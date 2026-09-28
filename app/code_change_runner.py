@@ -33,6 +33,11 @@ class CodeChangeRunner:
                 raise ValueError("verification command cannot address paths outside the workspace")
         return parts
 
+    def _assert_no_symlinks(self, root):
+        for path in root.rglob("*"):
+            if path.is_symlink():
+                raise ValueError("verification workspace cannot contain symlinks")
+
     def _apply_patch(self,proposal,target):
         if proposal["patch_format"]=="FILE_REPLACEMENT":
             import json
@@ -82,6 +87,7 @@ class CodeChangeRunner:
         proposal=self._proposal(proposal_id)
         root=Path(workspace).resolve()
         if not root.is_dir(): raise ValueError("workspace does not exist")
+        self._assert_no_symlinks(root)
         timeout=min(max(int(timeout_seconds),1),MAX_TIMEOUT_SECONDS)
         command=self._command(proposal["test_command"]); run_id=str(uuid4())
         if self.settings.code_runner_mode=="isolated":
