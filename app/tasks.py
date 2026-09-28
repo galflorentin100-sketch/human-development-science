@@ -35,7 +35,7 @@ class TaskEngine:
             if row is None: raise ValueError("task not found")
             task=dict(row) if hasattr(row,"keys") else dict(zip([d.name for d in cur.description],row))
             current=task["status"]
-            if current not in {"RUNNING","REVIEW"}:
+            if current not in {"RUNNING","REVIEW","FAILED"}:
                 raise ValueError(f"task is not retryable from {current}")
             count=int(task.get("retry_count") or 0)
             limit=int(task["retry_limit"] or 0)
