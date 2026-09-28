@@ -1093,7 +1093,8 @@ def science_ai_constraints(principal: Principal = Depends(principal_from_header)
 @app.post("/api/research/run")
 def research_run(body: ResearchRequest, principal: Principal = Depends(principal_from_header)):
     require_execute(principal)
-    return cycle.run(body.question)
+    require_project(principal, body.project_id, "EXECUTE")
+    return cycle.run(body.question, project_id=body.project_id)
 @app.post("/api/studies/participants")
 def study_participant(body: StudyParticipantRequest, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
