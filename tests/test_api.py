@@ -561,3 +561,16 @@ def test_founder_chat_is_governed_and_unverified(tmp_path, monkeypatch):
     assert result["verified"] is False
     assert result["provider"]=="local"
     assert "unverified" in result["uncertainty"].lower()
+
+
+def test_high_risk_approval_is_bound_and_one_shot(db):
+    from app.approvals import ApprovalService, ApprovalRequired
+    svc=ApprovalService(db)
+    approval=svc.request("DEPLOY","requester",context={"task_id":"task-1","project_id":"project-1"})
+    svc.resolve(approval["id"],"APPROVED","approver")
+    svc.consume(approval["id"],expected_action="DEPLOY",expected_context={"task_id":"task-1","project_id":"project-1"},actor="agent")
+    try:
+        svc.consume(approval["id"],expected_action="DEPLOY",expected_context={"task_id":"task-1","project_id":"project-1"},actor="agent")
+        assert False, "approval must be one-shot"
+    except ApprovalRequired:
+        pass
