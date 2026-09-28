@@ -95,11 +95,11 @@ def test_maintenance_discover_materializes_proposal_contract(tmp_path, monkeypat
     from app.knowledge_impact import KnowledgeImpactAnalyzer
     from app.scientific_maintenance_controller import ScientificMaintenanceController
     db=Database(str(tmp_path/"maintenance-discover.db")); ResearchCycle(db)
-    monkeypatch.setattr(KnowledgeFreshness, "scan", lambda self: {
+    monkeypatch.setattr(KnowledgeFreshness, "scan", lambda self, project_id: {
         "stale":[{"entity_type":"CLAIM","entity_id":"claim-1"}],
         "stale_count":1,
     })
-    monkeypatch.setattr(KnowledgeImpactAnalyzer, "contradiction_scan", lambda self: {"impacts":[]})
-    result=ScientificMaintenanceController(db).discover()
+    monkeypatch.setattr(KnowledgeImpactAnalyzer, "contradiction_scan", lambda self, project_id: {"impacts":[]})
+    result=ScientificMaintenanceController(db).discover(pid)
     assert result["count"]==1
     assert result["created_or_existing"][0]["success_criteria"]
