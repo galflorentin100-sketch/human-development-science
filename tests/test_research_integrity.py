@@ -2,6 +2,7 @@ from app.database import Database
 from app.workflow import ResearchCycle
 from app.research import ResearchRepository, StudyExecution
 from app.evidence_pipeline import EvidencePipeline
+from app.models import now
 
 def make_db(tmp_path):
     db=Database(str(tmp_path/"integrity.db"))
