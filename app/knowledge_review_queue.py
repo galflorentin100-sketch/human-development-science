@@ -5,9 +5,11 @@ from app.models import now
 class KnowledgeReviewQueue:
     def __init__(self,db): self.db=db
 
-    def generate(self):
+    def generate(self,project_id=None):
+        if project_id is None:
+            raise ValueError("project_id is required")
         from app.knowledge_impact import KnowledgeImpactAnalyzer
-        scan=KnowledgeImpactAnalyzer(self.db).contradiction_scan()
+        scan=KnowledgeImpactAnalyzer(self.db).contradiction_scan(project_id)
         queue=[]
         for item in scan["impacts"]:
             queue.append({"id":str(uuid4()),"claim_id":item["claim_id"],"reason":item["reason"],"priority":"HIGH","status":"PROPOSED","created_at":now(),
