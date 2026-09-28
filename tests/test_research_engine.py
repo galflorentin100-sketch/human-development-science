@@ -22,6 +22,19 @@ def _verified_evidence(db, project_id, source_id, excerpt="verified research exc
     EvidencePipeline(db).review(evidence["id"],"independent-reviewer","VERIFIED","verified against source")
     return evidence["id"]
 
+
+def _accept_with_skeptic_gate(db, engine, workspace_id, synthesis_id):
+    from app.skeptic import SkepticService
+    skeptic=SkepticService(db).create(workspace_id,synthesis_id,"skeptic")
+    SkepticService(db).record(
+        skeptic["id"],
+        ["alternative explanation"],
+        ["missing evidence"],
+        ["selection effects"],
+    )
+    SkepticService(db).review(skeptic["id"],"ACCEPTED","independent-reviewer","reviewed objections")
+    return engine.review(synthesis_id,"founder","ACCEPTED","reviewed")
+
 def test_approved_queue_starts_research_workspace(tmp_path):
     from app.research_queue import ResearchQueue
     from app.research_engine import ResearchEngine
@@ -47,7 +60,7 @@ def test_research_queue_completion_is_bound_to_exact_workspace(tmp_path):
     engine.add_source(started_first["workspace"]["id"],source["id"])
     evidence_ref=_verified_evidence(db,pid,source["id"])
     syn=engine.synthesize(started_first["workspace"]["id"],"candidate","limits","uncertain","researcher",evidence_refs=[evidence_ref])
-    engine.review(syn["id"],"founder","ACCEPTED","reviewed")
+    _accept_with_skeptic_gate(db,engine,started_first["workspace"]["id"],syn["id"])
     assert queue.get(first["id"])["status"]=="DONE"
 
     second=queue.propose(pid,"same question","second","EVIDENCE_GAP")
@@ -75,7 +88,7 @@ def test_research_synthesis_requires_sources_and_review(tmp_path):
     evidence_ref=_verified_evidence(db,pid,source["id"])
     syn=engine.synthesize(ws["id"],"candidate synthesis","small sample","causal effect not established","researcher",evidence_refs=[evidence_ref])
     assert syn["status"]=="CANDIDATE"
-    accepted=engine.review(syn["id"],"founder","ACCEPTED","reviewed source scope and limitations")
+    accepted=_accept_with_skeptic_gate(db,engine,ws["id"],syn["id"])
     assert accepted["status"]=="ACCEPTED"
     assert engine.get(ws["id"])["status"]=="REVIEWED"
 
@@ -91,7 +104,7 @@ def test_accepted_synthesis_becomes_candidate_finding_not_claim(tmp_path):
     engine.add_source(ws["id"],source["id"])
     evidence_ref=_verified_evidence(db,pid,source["id"])
     syn=engine.synthesize(ws["id"],"Candidate synthesis","limitations","uncertain","researcher",evidence_refs=[evidence_ref])
-    engine.review(syn["id"],"founder","ACCEPTED","reviewed")
+    _accept_with_skeptic_gate(db,engine,ws["id"],syn["id"])
     from app.skeptic import SkepticService
     skeptic=SkepticService(db).create(ws["id"],syn["id"],"skeptic")
     SkepticService(db).record(skeptic["id"],["alternative explanation"],["missing evidence"],["selection effects"])
@@ -154,7 +167,7 @@ def test_finding_promotion_requires_skeptic_review(tmp_path):
     evidence_ref=_verified_evidence(db,pid,source["id"])
     syn=engine.synthesize(ws["id"],"candidate","limitations","uncertain","researcher",evidence_refs=[evidence_ref])
     # An accepted synthesis alone is not enough.
-    engine.review(syn["id"],"founder","ACCEPTED","reviewed")
+    _accept_with_skeptic_gate(db,engine,ws["id"],syn["id"])
     try:
         engine.promote_to_candidate_finding(syn["id"],"knowledge-manager")
         assert False
