@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS code_change_proposals (
  approved_by TEXT,
  verification_run_id TEXT,
  rollback_payload TEXT,
+ approval_id TEXT REFERENCES approvals(id),
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL
 );
@@ -700,6 +701,9 @@ def _migrate_phase4(self):
             existing={row[1] for row in con.execute(f"PRAGMA table_info({table})")}
             for name,definition in columns.items():
                 if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+        existing_code_change={row[1] for row in con.execute("PRAGMA table_info(code_change_proposals)")}
+        if "approval_id" not in existing_code_change:
+            con.execute("ALTER TABLE code_change_proposals ADD COLUMN approval_id TEXT REFERENCES approvals(id)")
         existing={row[1] for row in con.execute("PRAGMA table_info(study_outcomes)")}
         if "observation_type" not in existing:
             con.execute("ALTER TABLE study_outcomes ADD COLUMN observation_type TEXT NOT NULL DEFAULT 'TRAINING'")
