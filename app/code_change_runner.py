@@ -50,7 +50,9 @@ class CodeChangeRunner:
 
     def _verify_isolated(self, proposal, proposal_id, workspace, command, timeout, run_id):
         shared = Path(os.getenv('HDS_WORKER_SHARED_DIR', '/var/lib/hds-code-worker')).resolve()
+        results_dir = Path(os.getenv('HDS_WORKER_RESULT_DIR', '/var/lib/hds-code-worker-results')).resolve()
         jobs = shared / 'jobs'; jobs.mkdir(parents=True, exist_ok=True)
+        results_dir.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='hds-verify-') as temp:
             target = Path(temp) / 'workspace'
             shutil.copytree(Path(workspace).resolve(), target, ignore=shutil.ignore_patterns('.git','__pycache__','.pytest_cache'))
@@ -58,7 +60,7 @@ class CodeChangeRunner:
             job_dir = jobs / run_id; job_dir.mkdir()
             shutil.copytree(target, job_dir / 'workspace', ignore=shutil.ignore_patterns('.git','__pycache__','.pytest_cache'))
             (job_dir / 'request.json').write_text(json.dumps({'command': command, 'timeout': timeout}), encoding='utf-8')
-            deadline=time.monotonic()+timeout+30; result_file=job_dir/'result.json'
+            deadline=time.monotonic()+timeout+30; result_file=results_dir/(run_id+'.json')
             try:
                 while time.monotonic() < deadline:
                     if result_file.exists():
