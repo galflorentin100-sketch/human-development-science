@@ -259,3 +259,23 @@ def test_claim_admission_requires_supporting_evidence(tmp_path):
     assert admission["verified_support"]==0
     assert admission["verified_contradict"]==1
     assert admission["supported"] is False
+
+
+def test_completion_gate_uses_structured_scientific_validation(tmp_path):
+    from app.database import Database
+    from app.models import now
+    from app.scientific_completion import ScientificCompletionGate
+    from app.experiment_engine import ExperimentEngine
+    db=Database(str(tmp_path/"completion.db"))
+    ExperimentEngine(db)
+    ts=now()
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",("p1","hds","objective","RUNNING","chief-scientist",ts))
+    db.execute("INSERT INTO tasks(id,project_id,title,assigned_agent_id,priority,status,success_criteria,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",("t1","p1","validation task","chief-scientist",1.0,"COMPLETED","validate",ts,ts))
+    assert "no_structured_scientific_validation" in ScientificCompletionGate(db).evaluate("p1")["blockers"]
+    db.execute("""INSERT INTO hds_experiments
+        (id,project_id,research_question,hypothesis,design,population,intervention,comparison,outcomes,analysis_plan,status,preregistered,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",("e1","p1","question","hypothesis","design","population","intervention","comparison","outcomes","{}","COMPLETED",1,ts,ts))
+    db.execute("INSERT INTO hds_experiment_results(id,experiment_id,outcome,interpretation,evidence_refs,created_at) VALUES (?,?,?,?,?,?)",("r1","e1","outcome","interpretation","[]",ts))
+    result=ScientificCompletionGate(db).evaluate("p1")
+    assert result["ready"] is True
+    assert result["checks"]["completed_validation_work"] == 1
