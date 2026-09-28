@@ -52,9 +52,10 @@ def test_configured_owner_is_the_only_authorized_principal(tmp_path):
 
 def test_configured_owner_blocks_other_project_members(tmp_path):
     db=Database(str(tmp_path/"owner-project.db")); ResearchCycle(db)
+    bootstrap=AuthService(db)
+    bootstrap.create_user("owner-subject","owner@example.com","founder")
+    bootstrap.create_user("operator-subject","operator@example.com","operator")
     auth=AuthService(db,"owner-subject")
-    auth.create_user("owner-subject","owner@example.com","founder")
-    auth.create_user("operator-subject","operator@example.com","operator")
     from app.models import now
     project_id="owner-project"
     db.execute(
