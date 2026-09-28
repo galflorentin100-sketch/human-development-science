@@ -97,3 +97,12 @@ def test_study_preserves_project_provenance(tmp_path):
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",("pp","cp","o","RUNNING","ap","2026-01-01"))
     study=ResearchRepository(db).study(None,"S","RCT","adults","","pp")
     assert study["project_id"]=="pp"
+
+
+def test_research_cycle_can_run_inside_existing_project_without_completing_it(tmp_path):
+    db=make_db(tmp_path)
+    pid="project-existing"
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(pid,"hds","existing","RUNNING","chief-scientist",now()))
+    result=ResearchCycle(db).run("question",project_id=pid)
+    assert result["project"]["id"]==pid
+    assert db.one("SELECT status FROM projects WHERE id=?",(pid,))["status"]=="RUNNING"
