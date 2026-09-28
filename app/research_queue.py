@@ -105,6 +105,11 @@ class ResearchQueue:
                     ["id","project_id","question","scope","inclusion_rules","exclusion_rules","status","owner","created_at","updated_at"],
                     [workspace_id,row["project_id"],row["question"],
                      "Created from founder-approved research queue item.","[]","[]","DRAFT",actor,ts,ts]))
+            linked_workspace=con.execute(
+                "UPDATE research_workspaces SET research_queue_id=? WHERE id=? AND (research_queue_id IS NULL OR research_queue_id=?)",
+                (item_id,workspace["id"],item_id))
+            if linked_workspace.rowcount != 1:
+                raise ValueError("research workspace queue linkage changed concurrently")
             if workspace["status"]=="DRAFT":
                 ts=now()
                 updated_ws=con.execute(
