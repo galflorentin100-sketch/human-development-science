@@ -25,6 +25,27 @@ class ChallengeExecutionService:
         if getattr(updated,"rowcount",1)!=1: raise ValueError("challenge execution changed concurrently")
         self.db.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",(str(uuid4()),"hds.challenge.stopped","hds_challenge_execution",execution_id,actor,"{}",now()))
         return self.db.one("SELECT * FROM hds_challenge_executions WHERE id=?",(execution_id,))
+    def emergency_stop(self,project_id,reason,actor="system",challenge_id=None):
+        if not str(reason or "").strip(): raise ValueError("emergency stop reason is required")
+        query="SELECT id FROM hds_challenge_executions WHERE project_id=? AND status='RUNNING'"
+        params=[project_id]
+        if challenge_id:
+            query += " AND challenge_id=?"
+            params.append(challenge_id)
+        rows=self.db.all(query,tuple(params))
+        stopped=[]
+        for row in rows:
+            updated=self.db.execute(
+                "UPDATE hds_challenge_executions SET status='STOPPED',stopped_at=?,stop_reason=? WHERE id=? AND status='RUNNING'",
+                (now(),reason.strip(),row["id"]))
+            if getattr(updated,"rowcount",1)==1:
+                stopped.append(row["id"])
+                self.db.execute(
+                    "INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                    (str(uuid4()),"hds.challenge.emergency_stopped","hds_challenge_execution",row["id"],actor,
+                     '{"reason":"'+reason.replace('"','\\"')+'"}',now()))
+        return {"project_id":project_id,"challenge_id":challenge_id,"stopped_execution_ids":stopped,"count":len(stopped)}
+
     def complete(self,execution_id,actor="system"):
         row=self.db.one("SELECT * FROM hds_challenge_executions WHERE id=?",(execution_id,))
         if not row: raise ValueError("challenge execution not found")
