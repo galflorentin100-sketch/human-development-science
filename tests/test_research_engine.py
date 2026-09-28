@@ -12,6 +12,16 @@ def _setup(db):
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(p,c,"o","ACTIVE",a,now()))
     return p
 
+def _verified_evidence(db, project_id, source_id, excerpt="verified research excerpt"):
+    from app.evidence_pipeline import EvidencePipeline
+    claim=db.one("SELECT id FROM claims WHERE project_id=? LIMIT 1",(project_id,))
+    if not claim:
+        raise AssertionError("test project must contain a seed claim")
+    EvidencePipeline(db).ingest_text(source_id,excerpt)
+    evidence=EvidencePipeline(db).attach(claim["id"],source_id,excerpt,"SUPPORTS",actor="researcher")
+    EvidencePipeline(db).review(evidence["id"],"independent-reviewer","VERIFIED","verified against source")
+    return evidence["id"]
+
 def test_approved_queue_starts_research_workspace(tmp_path):
     from app.research_queue import ResearchQueue
     from app.research_engine import ResearchEngine
@@ -35,7 +45,8 @@ def test_research_queue_completion_is_bound_to_exact_workspace(tmp_path):
     started_first=queue.begin(first["id"],"founder")
     source=EvidencePipeline(db).register_source("Paper 1","https://example.org/1","Author",2025)
     engine.add_source(started_first["workspace"]["id"],source["id"])
-    syn=engine.synthesize(started_first["workspace"]["id"],"candidate","limits","uncertain","researcher")
+    evidence_ref=_verified_evidence(db,pid,source["id"])
+    syn=engine.synthesize(started_first["workspace"]["id"],"candidate","limits","uncertain","researcher",evidence_refs=[evidence_ref])
     engine.review(syn["id"],"founder","ACCEPTED","reviewed")
     assert queue.get(first["id"])["status"]=="DONE"
 
@@ -61,7 +72,8 @@ def test_research_synthesis_requires_sources_and_review(tmp_path):
         assert "at least one source" in str(exc)
     source=EvidencePipeline(db).register_source("Paper","https://example.org/paper","Author",2025)
     engine.add_source(ws["id"],source["id"],"RELEVANT","primary study")
-    syn=engine.synthesize(ws["id"],"candidate synthesis","small sample","causal effect not established","researcher")
+    evidence_ref=_verified_evidence(db,pid,source["id"])
+    syn=engine.synthesize(ws["id"],"candidate synthesis","small sample","causal effect not established","researcher",evidence_refs=[evidence_ref])
     assert syn["status"]=="CANDIDATE"
     accepted=engine.review(syn["id"],"founder","ACCEPTED","reviewed source scope and limitations")
     assert accepted["status"]=="ACCEPTED"
@@ -77,7 +89,8 @@ def test_accepted_synthesis_becomes_candidate_finding_not_claim(tmp_path):
     engine.activate(ws["id"],"researcher")
     source=EvidencePipeline(db).register_source("Paper","https://example.org/resilience","Author",2025)
     engine.add_source(ws["id"],source["id"])
-    syn=engine.synthesize(ws["id"],"Candidate synthesis","limitations","uncertain","researcher")
+    evidence_ref=_verified_evidence(db,pid,source["id"])
+    syn=engine.synthesize(ws["id"],"Candidate synthesis","limitations","uncertain","researcher",evidence_refs=[evidence_ref])
     engine.review(syn["id"],"founder","ACCEPTED","reviewed")
     from app.skeptic import SkepticService
     skeptic=SkepticService(db).create(ws["id"],syn["id"],"skeptic")
@@ -138,7 +151,8 @@ def test_finding_promotion_requires_skeptic_review(tmp_path):
     ws=engine.create(pid,"Does friction affect adherence?",owner="researcher"); engine.activate(ws["id"],"researcher")
     source=EvidencePipeline(db).register_source("Paper","https://example.org/friction","Author",2025)
     engine.add_source(ws["id"],source["id"])
-    syn=engine.synthesize(ws["id"],"candidate","limitations","uncertain","researcher")
+    evidence_ref=_verified_evidence(db,pid,source["id"])
+    syn=engine.synthesize(ws["id"],"candidate","limitations","uncertain","researcher",evidence_refs=[evidence_ref])
     # An accepted synthesis alone is not enough.
     engine.review(syn["id"],"founder","ACCEPTED","reviewed")
     try:
