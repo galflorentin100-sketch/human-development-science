@@ -24,6 +24,7 @@ def _verified_evidence(db, project_id, source_id, excerpt="verified research exc
 
 
 def _accept_with_skeptic_gate(db, engine, workspace_id, synthesis_id):
+    from app.skeptic import SkepticService
     skeptic=SkepticService(db).create(workspace_id,synthesis_id,"skeptic")
     SkepticService(db).record(
         skeptic["id"],
