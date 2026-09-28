@@ -13,6 +13,10 @@ def run_job(job):
         raise ValueError("verification command is not allowlisted")
     if any(x in {"-c","--command","-m","--module"} for x in command):
         raise ValueError("dynamic code execution is not allowed")
+    for arg in command[1:]:
+        if isinstance(arg,str) and arg.startswith("-"): continue
+        if Path(arg).is_absolute() or ".." in Path(arg).parts:
+            raise ValueError("verification command cannot address paths outside the workspace")
     env={"PATH":"/usr/local/bin:/usr/bin:/bin","PYTHONDONTWRITEBYTECODE":"1","PYTHONNOUSERSITE":"1"}
     try:
         p=subprocess.run(command,cwd=job/"workspace",env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=timeout,check=False)
