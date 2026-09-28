@@ -10,12 +10,26 @@ from app.models import now
 
 ALLOWED_FORMATS={"UNIFIED_DIFF","FILE_REPLACEMENT"}
 RISK_LEVELS={"LOW","MEDIUM","HIGH","CRITICAL"}
-STATUSES={"PROPOSED","APPROVAL_PENDING","APPROVED","VERIFIED","REJECTED","ROLLED_BACK"}
+STATUSES={"PROPOSED","APPROVAL_PENDING","APPROVED","VERIFIED","DEPLOYED","REJECTED","ROLLED_BACK"}
+RUN_TYPES={"VERIFICATION","DEPLOYMENT","ROLLBACK"}
 
 
 class CodeChangeService:
     def __init__(self,db):
         self.db=db
+
+    @staticmethod
+    def fingerprint(proposal):
+        payload={
+            "project_id":str(proposal["project_id"]),
+            "maintenance_work_id":str(proposal["maintenance_work_id"]),
+            "title":str(proposal["title"]),
+            "patch_format":str(proposal["patch_format"]),
+            "patch_payload":str(proposal["patch_payload"]),
+            "test_command":str(proposal["test_command"]),
+            "risk_level":str(proposal["risk_level"]),
+        }
+        return hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(",",":")).encode("utf-8")).hexdigest()
 
     def propose(self, project_id, maintenance_work_id, title, patch_format, patch_payload, test_command, risk_level, actor):
         if patch_format not in ALLOWED_FORMATS: raise ValueError("unsupported patch format")
@@ -91,11 +105,14 @@ class CodeChangeService:
         with self.db.transaction() as con:
             row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
             if not row or row["status"]!="APPROVED": raise ValueError("proposal is not approved")
-            verification=con.execute(
-                "SELECT * FROM code_change_verifications WHERE verification_run_id=? AND proposal_id=? AND passed=1",
-                (verification_run_id,proposal_id)).fetchone()
-            if not verification:
-                raise ValueError("verified result is not bound to this proposal")
+            run=con.execute(
+                "SELECT * FROM code_change_execution_runs WHERE id=? AND proposal_id=? AND run_type='VERIFICATION'",
+                (verification_run_id,proposal_id),
+            ).fetchone()
+            if not run or run["status"]!="PASSED":
+                raise ValueError("verification run is not a recorded successful runner result")
+            if str(run["proposal_fingerprint"])!=self.fingerprint(dict(row)):
+                raise ValueError("verification result does not match the current proposal")
             updated=con.execute("""UPDATE code_change_proposals
                 SET status='VERIFIED',verification_run_id=?,rollback_payload=?,updated_at=?
                 WHERE id=? AND status='APPROVED'""",
@@ -103,14 +120,44 @@ class CodeChangeService:
             if updated.rowcount!=1: raise ValueError("proposal changed concurrently")
         return self.get(proposal_id)
 
-    def rollback(self, proposal_id, actor):
+    def record_deployed(self, proposal_id, deployment_run_id, actor):
         if not str(actor or "").strip(): raise ValueError("actor is required")
         with self.db.transaction() as con:
             row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
-            if not row or row["status"]!="VERIFIED": raise ValueError("only verified changes can request rollback")
+            if not row or row["status"]!="VERIFIED": raise ValueError("only verified changes can be deployed")
+            run=con.execute(
+                "SELECT * FROM code_change_execution_runs WHERE id=? AND proposal_id=? AND run_type='DEPLOYMENT'",
+                (deployment_run_id,proposal_id),
+            ).fetchone()
+            if not run or run["status"]!="PASSED":
+                raise ValueError("deployment run is not a recorded successful deployment")
+            if str(run["proposal_fingerprint"])!=self.fingerprint(dict(row)):
+                raise ValueError("deployment result does not match the current proposal")
+            updated=con.execute(
+                "UPDATE code_change_proposals SET status='DEPLOYED',updated_at=? WHERE id=? AND status='VERIFIED'",
+                (now(),proposal_id),
+            )
+            if updated.rowcount!=1: raise ValueError("proposal changed concurrently")
+        return self.get(proposal_id)
+
+    def rollback(self, proposal_id, rollback_run_id, actor):
+        if not str(actor or "").strip(): raise ValueError("actor is required")
+        with self.db.transaction() as con:
+            row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
+            if not row or row["status"]!="DEPLOYED": raise ValueError("only deployed changes can be rolled back")
             if not row["rollback_payload"]: raise ValueError("rollback payload is missing")
-            updated=con.execute("""UPDATE code_change_proposals
-                SET status='ROLLBACK_REQUESTED',updated_at=? WHERE id=? AND status='VERIFIED'""",(now(),proposal_id))
+            run=con.execute(
+                "SELECT * FROM code_change_execution_runs WHERE id=? AND proposal_id=? AND run_type='ROLLBACK'",
+                (rollback_run_id,proposal_id),
+            ).fetchone()
+            if not run or run["status"]!="PASSED":
+                raise ValueError("rollback run is not a recorded successful rollback")
+            if str(run["proposal_fingerprint"])!=self.fingerprint(dict(row)):
+                raise ValueError("rollback result does not match the deployed proposal")
+            updated=con.execute(
+                "UPDATE code_change_proposals SET status='ROLLED_BACK',updated_at=? WHERE id=? AND status='DEPLOYED'",
+                (now(),proposal_id),
+            )
             if updated.rowcount!=1: raise ValueError("proposal changed concurrently")
         return self.get(proposal_id)
 
