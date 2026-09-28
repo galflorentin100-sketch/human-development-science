@@ -563,8 +563,10 @@ def test_founder_chat_is_governed_and_unverified(tmp_path, monkeypatch):
     assert "unverified" in result["uncertainty"].lower()
 
 
-def test_high_risk_approval_is_bound_and_one_shot(db):
+def test_high_risk_approval_is_bound_and_one_shot(tmp_path):
+    from app.database import Database
     from app.approvals import ApprovalService, ApprovalRequired
+    db=Database(str(tmp_path/"approval.db"))
     svc=ApprovalService(db)
     approval=svc.request("DEPLOY","requester",context={"task_id":"task-1","project_id":"project-1"})
     svc.resolve(approval["id"],"APPROVED","approver")
