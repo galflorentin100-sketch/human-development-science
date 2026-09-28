@@ -35,8 +35,10 @@ class KnowledgeImpactAnalyzer:
             "policy":"impact analysis is advisory; no automatic retirement or downgrade"
         }
 
-    def contradiction_scan(self):
-        rows=self.db.all("SELECT id,statement,status FROM claims WHERE status IN ('SUPPORTED','CONTRADICTED')")
+    def contradiction_scan(self,project_id=None):
+        if project_id is None:
+            raise ValueError("project_id is required")
+        rows=self.db.all("SELECT id,statement,status FROM claims WHERE project_id=? AND status IN ('SUPPORTED','CONTRADICTED')",(project_id,))
         findings=[]
         for c in rows:
             evidence=self.db.all("SELECT id FROM evidence WHERE claim_id=?",(c["id"],))
