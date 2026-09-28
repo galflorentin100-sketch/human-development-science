@@ -36,6 +36,17 @@ class CompanyOrchestrator:
             # fails before AgentExecutor can create an agent_run record.
             retry=self.tasks.retry_or_escalate(task["id"],f"Execution preflight failed: {exc}")
             return {"status":"EXECUTION_PREFLIGHT_FAILED","task":task,"error":str(exc),"retry":retry}
+        if result.error:
+            # AgentExecutor records provider/runtime failures itself and returns a
+            # structured ExecutionResult. Do not treat that object as a mapping.
+            retry=self.tasks.retry_or_escalate(task["id"],f"Agent execution failed: {result.error}")
+            return {
+                "status":"EXECUTION_FAILED",
+                "task":task,
+                "error":result.error,
+                "execution":result,
+                "retry":retry,
+            }
         run=self.db.one("SELECT id FROM agent_runs WHERE task_id=? ORDER BY started_at DESC LIMIT 1",(task["id"],))
         if not run:
             self.tasks.retry_or_escalate(task["id"],"Execution completed without an agent run record.")
