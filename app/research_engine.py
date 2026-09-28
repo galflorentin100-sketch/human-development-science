@@ -128,6 +128,49 @@ class ResearchEngine:
             if not workspace: raise ValueError("research workspace not found")
             workspace=dict(workspace)
             if workspace["status"]!="SYNTHESIS_READY": raise ValueError("workspace is not ready for synthesis review")
+            if decision=="ACCEPTED":
+                refs=json.loads(syn["evidence_refs"] or "[]")
+                if not refs:
+                    raise ValueError("ACCEPTED synthesis requires evidence references")
+                workspace_source_ids={
+                    str(r["source_id"])
+                    for r in con.execute(
+                        "SELECT source_id FROM research_workspace_sources WHERE workspace_id=?",
+                        (syn["workspace_id"],)
+                    ).fetchall()
+                }
+                for ref in refs:
+                    evidence=con.execute(
+                        """SELECT e.id,e.source_id,e.verified
+                           FROM evidence e
+                           JOIN claims c ON c.id=e.claim_id
+                           WHERE e.id=? AND c.project_id=?""",
+                        (str(ref),workspace["project_id"])
+                    ).fetchone()
+                    if not evidence:
+                        raise ValueError("ACCEPTED synthesis requires project-scoped evidence")
+                    evidence=dict(evidence)
+                    if str(evidence["source_id"]) not in workspace_source_ids:
+                        raise ValueError("ACCEPTED synthesis contains out-of-scope evidence")
+                    verdicts={
+                        str(r["verdict"]).upper()
+                        for r in con.execute(
+                            "SELECT verdict FROM evidence_reviews WHERE evidence_id=?",
+                            (str(ref),)
+                        ).fetchall()
+                    }
+                    if evidence["verified"] != 1 or verdicts != {"VERIFIED"}:
+                        raise ValueError("ACCEPTED synthesis requires all referenced evidence to be VERIFIED")
+                skeptic=con.execute(
+                    """SELECT status
+                       FROM research_skeptic_reviews
+                       WHERE synthesis_id=?
+                       ORDER BY created_at DESC
+                       LIMIT 1""",
+                    (synthesis_id,)
+                ).fetchone()
+                if not skeptic or str(skeptic["status"])!="ACCEPTED":
+                    raise ValueError("ACCEPTED synthesis requires an accepted skeptic review")
             new_status="REVIEWED" if decision=="ACCEPTED" else "ACTIVE"
             updated=con.execute("UPDATE research_syntheses SET status=? WHERE id=? AND status='CANDIDATE'",(decision,synthesis_id))
             if updated.rowcount != 1: raise ValueError("synthesis review was already resolved")
