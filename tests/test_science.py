@@ -279,3 +279,45 @@ def test_completion_gate_uses_structured_scientific_validation(tmp_path):
     result=ScientificCompletionGate(db).evaluate("p1")
     assert result["ready"] is True
     assert result["checks"]["completed_validation_work"] == 1
+
+
+def test_research_synthesis_acceptance_requires_evidence_and_skeptic_gates(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.research_engine import ResearchEngine
+    from app.evidence_pipeline import EvidencePipeline
+    from app.models import now
+    import uuid
+
+    db=Database(str(tmp_path/"synthesis-gates.db")); cycle=ResearchCycle(db)
+    project=cycle.run("synthesis gates")["project"]
+    source=EvidencePipeline(db).register_source(
+        "Gate source","https://example.org/synthesis-gates-"+str(uuid.uuid4())
+    )
+    EvidencePipeline(db).ingest_text(source["id"],"verified excerpt")
+    claim=db.one("SELECT id FROM claims WHERE project_id=? LIMIT 1",(project["id"],))
+    evidence=EvidencePipeline(db).attach(claim["id"],source["id"],"verified excerpt")
+    EvidencePipeline(db).review(evidence["id"],"independent-reviewer","VERIFIED","checked")
+
+    engine=ResearchEngine(db)
+    workspace=engine.create(project["id"],"Does the evidence support the synthesis?")
+    engine.activate(workspace["id"],"researcher")
+    engine.add_source(workspace["id"],source["id"],content="verified excerpt")
+    synthesis=engine.synthesize(workspace["id"],"Evidence-grounded synthesis","limitations","uncertainty",[evidence["id"]])
+
+    try:
+        engine.review(synthesis["id"],"approver","ACCEPTED","accept")
+        assert False, "accepted synthesis must require an accepted skeptic review"
+    except ValueError as exc:
+        assert "skeptic review" in str(exc)
+
+    ts=now()
+    db.execute(
+        """INSERT INTO research_skeptic_reviews
+        (id,workspace_id,synthesis_id,project_id,reviewer_agent_id,status,objections,missing_evidence,alternative_explanations,created_at,reviewed_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        (str(uuid.uuid4()),workspace["id"],synthesis["id"],project["id"],"skeptic",
+         "ACCEPTED","[]","[]","[]",ts,ts),
+    )
+    accepted=engine.review(synthesis["id"],"approver","ACCEPTED","accept")
+    assert accepted["status"]=="ACCEPTED"
