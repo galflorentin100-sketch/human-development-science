@@ -16,10 +16,16 @@ def test_code_change_requires_separation_of_duties_and_verification(tmp_path):
     except ValueError as exc: assert "separation" in str(exc)
     approved=svc.approve(p["id"],"bob")
     assert approved["status"]=="APPROVED"
+    try:
+        svc.mark_verified(p["id"],"ci-123","rollback")
+        assert False
+    except ValueError as exc:
+        assert "not bound" in str(exc)
+    svc.record_verification(p["id"],"ci-123",True,0,False,"tests passed")
     verified=svc.mark_verified(p["id"],"ci-123","rollback")
     assert verified["status"]=="VERIFIED"
     rolled=svc.rollback(p["id"],"bob")
-    assert rolled["status"]=="ROLLED_BACK"
+    assert rolled["status"]=="ROLLBACK_REQUESTED"
 
 
 def test_code_change_runner_only_executes_approved_allowlisted_patch(tmp_path):
