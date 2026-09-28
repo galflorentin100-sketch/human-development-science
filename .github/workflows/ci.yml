@@ -4,6 +4,9 @@ on:
     branches: [main, hds-scientific-provenance]
   pull_request:
     branches: [main]
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -73,3 +76,4 @@ jobs:
           POSTGRES_PASSWORD: postgres
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hds_ci
           HDS_AUTH_HMAC_SECRET: ci-only-secret
+          HDS_OWNER_EXTERNAL_SUBJECT: ci-owner
