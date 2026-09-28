@@ -48,9 +48,10 @@ def test_high_risk_approval_is_scoped_to_action(tmp_path):
     db=Database(str(tmp_path/"approval_scope.db")); ResearchCycle(db)
     approval=ApprovalService(db).request("PUBLISH","founder","publish approval","HIGH",{})
     ApprovalService(db).resolve(approval["id"],"APPROVED","reviewer")
-    task=TaskEngine(db).create_task("high risk","execute",ResearchCycle(db).run("approval scope")["project"]["id"],"researcher",required_permissions=["EXECUTE"])
+    project=ResearchCycle(db).run("approval scope")["project"]
+    task=TaskEngine(db).create_task("high risk","execute",project["id"],"researcher",required_permissions=["EXECUTE"])
     try:
-        AgentExecutor(db).execute("researcher",task["id"],{"action":"SPEND","approval_id":approval["id"]},{})
+        AgentExecutor(db).execute("researcher",task["id"],{"action":"SPEND","approval_id":approval["id"]},{"project_id":project["id"]})
         assert False
     except ApprovalRequired:
         pass
