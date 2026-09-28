@@ -24,6 +24,29 @@ def test_approved_queue_starts_research_workspace(tmp_path):
     assert started["workspace"]["status"]=="ACTIVE"
     assert started["workspace"]["question"]=="What changes transfer?"
 
+def test_research_queue_completion_is_bound_to_exact_workspace(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    from app.research_engine import ResearchEngine
+    from app.research_queue import ResearchQueue
+    db=Database(str(tmp_path/"queue-identity.db")); ResearchCycle(db); pid=_setup(db)
+    queue=ResearchQueue(db); engine=ResearchEngine(db)
+    first=queue.propose(pid,"same question","first","EVIDENCE_GAP")
+    queue.approve(first["id"],"founder")
+    started_first=queue.begin(first["id"],"founder")
+    source=EvidencePipeline(db).register_source("Paper 1","https://example.org/1","Author",2025)
+    engine.add_source(started_first["workspace"]["id"],source["id"])
+    syn=engine.synthesize(started_first["workspace"]["id"],"candidate","limits","uncertain","researcher")
+    engine.review(syn["id"],"founder","ACCEPTED","reviewed")
+    assert queue.get(first["id"])["status"]=="DONE"
+
+    second=queue.propose(pid,"same question","second","EVIDENCE_GAP")
+    queue.approve(second["id"],"founder")
+    started_second=queue.begin(second["id"],"founder")
+    assert started_second["workspace"]["id"] != started_first["workspace"]["id"]
+    assert queue.get(second["id"])["status"]=="IN_PROGRESS"
+    assert queue.get(first["id"])["status"]=="DONE"
+
+
 def test_research_synthesis_requires_sources_and_review(tmp_path):
     from app.evidence_pipeline import EvidencePipeline
     from app.research_engine import ResearchEngine
