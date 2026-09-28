@@ -94,7 +94,7 @@ def test_maintenance_discover_materializes_proposal_contract(tmp_path, monkeypat
     from app.knowledge_freshness import KnowledgeFreshness
     from app.knowledge_impact import KnowledgeImpactAnalyzer
     from app.scientific_maintenance_controller import ScientificMaintenanceController
-    db=Database(str(tmp_path/"maintenance-discover.db")); ResearchCycle(db)
+    db=Database(str(tmp_path/"maintenance-discover.db")); ResearchCycle(db); pid=_setup(db)
     monkeypatch.setattr(KnowledgeFreshness, "scan", lambda self, project_id: {
         "stale":[{"entity_type":"CLAIM","entity_id":"claim-1"}],
         "stale_count":1,
