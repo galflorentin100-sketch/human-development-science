@@ -25,6 +25,7 @@ class AuthService:
                 self.db.execute("INSERT INTO roles(id,name,permissions) VALUES (?,?,?)",(str(uuid4()),name,json.dumps(permissions)))
 
     def create_user(self,external_subject,email,role="operator"):
+        self._require_owner(external_subject)
         if role not in {"founder","operator","reviewer"}: raise ValueError("unknown role")
         role_row=self.db.one("SELECT id FROM roles WHERE name=?",(role,))
         existing=self.db.one("SELECT * FROM users WHERE external_subject=?",(external_subject,))
@@ -55,6 +56,7 @@ class AuthService:
         return self.project_authorize(target_external_subject,project_id)
 
     def project_authorize(self, external_subject, project_id, required_permission=None):
+        self._require_owner(external_subject)
         user=self.db.one("SELECT * FROM users WHERE id=? OR external_subject=? LIMIT 1",(external_subject,external_subject))
         if not user: raise PermissionError("unknown principal")
         company=self.db.one(
