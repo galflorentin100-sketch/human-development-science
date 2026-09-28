@@ -91,8 +91,8 @@ class ResearchQueue:
                 raise ValueError("research item must be APPROVED before work begins")
             row=dict(row)
             existing=con.execute(
-                "SELECT * FROM research_workspaces WHERE project_id=? AND question=? AND status IN ('DRAFT','ACTIVE','SYNTHESIS_READY','REVIEWED') LIMIT 1",
-                (row["project_id"],row["question"])).fetchone()
+                "SELECT * FROM research_workspaces WHERE project_id=? AND question=? AND status IN ('DRAFT','ACTIVE','SYNTHESIS_READY','REVIEWED') AND (research_queue_id IS NULL OR research_queue_id=?) LIMIT 1",
+                (row["project_id"],row["question"],item_id)).fetchone()
             if existing:
                 workspace=dict(existing)
             else:
