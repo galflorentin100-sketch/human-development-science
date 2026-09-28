@@ -609,6 +609,7 @@ CREATE INDEX IF NOT EXISTS idx_claim_state_transitions_claim ON claim_state_tran
 CREATE TABLE IF NOT EXISTS claim_revisions (id TEXT PRIMARY KEY, claim_id TEXT NOT NULL REFERENCES claims(id), prior_classification TEXT NOT NULL, prior_confidence REAL NOT NULL, new_classification TEXT NOT NULL, new_confidence REAL NOT NULL, reason TEXT NOT NULL, evidence_id TEXT REFERENCES evidence(id), review_required INTEGER NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS findings (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), claim_id TEXT REFERENCES claims(id), category TEXT NOT NULL, title TEXT NOT NULL, change_type TEXT NOT NULL, confidence REAL NOT NULL, evidence_level TEXT, provenance TEXT NOT NULL, why_it_matters TEXT NOT NULL, recommended_action TEXT NOT NULL, review_required INTEGER NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status,created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_approval_events_consumed_once ON approval_events(approval_id) WHERE action='CONSUMED';
 CREATE INDEX IF NOT EXISTS idx_model_calls_correlation ON model_calls(correlation_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_claim_revisions_claim ON claim_revisions(claim_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_findings_project_created ON findings(project_id,created_at);
