@@ -291,8 +291,8 @@ def test_maintenance_materialize_is_idempotent(tmp_path):
         "INSERT INTO knowledge_freshness(id,entity_type,entity_id,review_interval_days,last_validated_at,next_review_at,status,owner,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
         ("fresh-maint","CLAIM","claim-maint",1,"2025-01-01T00:00:00+00:00","2025-01-02T00:00:00+00:00","STALE","system","2025-01-01T00:00:00+00:00","2025-01-01T00:00:00+00:00"))
     service=AutonomousScientificMaintenance(db)
-    first=service.materialize()
-    second=service.materialize()
+    first=service.materialize(project_id=p["id"])
+    second=service.materialize(project_id=p["id"])
     assert first["count"]==1
     assert second["count"]==0
     assert db.one("SELECT COUNT(*) AS n FROM maintenance_work WHERE entity_id='claim-maint'")["n"]==1
