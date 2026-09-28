@@ -53,6 +53,22 @@ CREATE TABLE IF NOT EXISTS code_change_proposals (
  updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_code_change_proposals_work ON code_change_proposals(maintenance_work_id,status);
+CREATE TABLE IF NOT EXISTS code_change_execution_runs (
+ id TEXT PRIMARY KEY,
+ proposal_id TEXT NOT NULL REFERENCES code_change_proposals(id),
+ run_type TEXT NOT NULL,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ proposal_fingerprint TEXT NOT NULL,
+ status TEXT NOT NULL,
+ actor TEXT NOT NULL,
+ runner_mode TEXT NOT NULL,
+ result_hash TEXT,
+ return_code INTEGER,
+ timed_out INTEGER NOT NULL DEFAULT 0,
+ created_at TEXT NOT NULL,
+ completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_code_change_execution_runs_proposal ON code_change_execution_runs(proposal_id,run_type,status);
 CREATE TABLE IF NOT EXISTS code_change_verifications (
  id TEXT PRIMARY KEY,
  proposal_id TEXT NOT NULL REFERENCES code_change_proposals(id),
