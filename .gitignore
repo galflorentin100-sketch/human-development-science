@@ -10,3 +10,10 @@ __pycache__/
 !.env.example
 *.pem
 *.key
+
+# Local secrets and private key material
+.env
+.env.*
+!.env.example
+*.pem
+*.key
