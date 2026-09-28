@@ -26,6 +26,7 @@ class ResearchCycle:
         if not question.strip(): raise ValueError("question is required")
         if max_iterations>10: raise ValueError("must enforce autonomous-loop limit")
         ts=now()
+        created_project = project_id is None
         if project_id is not None:
             project=self.db.one("SELECT id,company_id,status FROM projects WHERE id=?",(project_id,))
             if not project: raise ValueError("project does not exist")
@@ -54,7 +55,8 @@ class ResearchCycle:
             eid=str(uuid4())
             self.db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_at) VALUES (?,?,?,?,?,?,?)",(eid,claim_id,src["id"],"SUPPORTS","Seeded bibliographic source; excerpt not yet independently verified.",0,ts))
         self.db.execute("INSERT INTO findings(id,project_id,claim_id,category,title,change_type,confidence,evidence_level,provenance,why_it_matters,recommended_action,review_required,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",(str(uuid4()),pid,claim_id,"RESEARCH","Transfer is not automatic","BASELINE",0.72,"E3","Unverified seed; no claim-level synthesis accepted.","Prevents unsupported scientific conclusions.","Verify primary sources, extract evidence, then run a controlled transfer and retention study.",1,ts))
-        self.db.execute("UPDATE projects SET status='COMPLETED',updated_at=? WHERE id=?",(now(),pid))
+        if created_project:
+            self.db.execute("UPDATE projects SET status='COMPLETED',updated_at=? WHERE id=?",(now(),pid))
         qid=str(uuid4())
         self.db.execute("INSERT INTO research_questions(id,project_id,question,status,created_at) VALUES (?,?,?,'OPEN',?)",(qid,pid,"What mechanisms explain transfer and retention?",now()))
         brief=FounderBriefService(self.db).build()
