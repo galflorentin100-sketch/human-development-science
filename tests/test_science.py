@@ -303,7 +303,7 @@ def test_research_synthesis_acceptance_requires_evidence_and_skeptic_gates(tmp_p
     workspace=engine.create(project["id"],"Does the evidence support the synthesis?")
     engine.activate(workspace["id"],"researcher")
     engine.add_source(workspace["id"],source["id"],content="verified excerpt")
-    synthesis=engine.synthesize(workspace["id"],"Evidence-grounded synthesis","limitations","uncertainty",[evidence["id"]])
+    synthesis=engine.synthesize(workspace["id"],"Evidence-grounded synthesis","limitations","uncertainty",created_by="researcher",evidence_refs=[evidence["id"]])
 
     try:
         engine.review(synthesis["id"],"approver","ACCEPTED","accept")
