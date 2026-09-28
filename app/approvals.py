@@ -87,5 +87,24 @@ class ApprovalService:
         if row["expires_at"] and datetime.fromisoformat(row["expires_at"])<=datetime.now(timezone.utc): self._expire(row); raise ApprovalRequired(i)
         if expected_action is not None and row.get("action")!=expected_action: raise ApprovalRequired(i)
         if correlation_id is not None and row.get("correlation_id")!=correlation_id: raise ApprovalRequired(i)
-        if expected_action is not None and str(row.get("action")) != str(expected_action): raise ApprovalRequired(i)
         return row
+
+    def consume(self,i,expected_action=None,expected_context=None,correlation_id=None,actor="system"):
+        with self.db.transaction() as con:
+            row=con.execute("SELECT * FROM approvals WHERE id=?",(i,)).fetchone()
+            if not row: raise ApprovalRequired(i)
+            row=dict(row)
+            if row["status"]!="APPROVED": raise ApprovalRequired(i)
+            if row["expires_at"] and datetime.fromisoformat(row["expires_at"])<=datetime.now(timezone.utc):
+                raise ApprovalRequired(i)
+            if expected_action is not None and row["action"]!=expected_action: raise ApprovalRequired(i)
+            if correlation_id is not None and row.get("correlation_id")!=correlation_id: raise ApprovalRequired(i)
+            stored=json.loads(row.get("context") or "{}")
+            for key,value in (expected_context or {}).items():
+                if str(stored.get(key))!=str(value): raise ApprovalRequired(i)
+            used=con.execute("SELECT 1 FROM approval_events WHERE approval_id=? AND action='CONSUMED' LIMIT 1",(i,)).fetchone()
+            if used: raise ApprovalRequired(i)
+            ts=now()
+            con.execute("INSERT INTO approval_events(id,approval_id,actor,action,payload,created_at) VALUES (?,?,?,?,?,?)",
+                        (str(uuid4()),i,actor,"CONSUMED",json.dumps({"action":expected_action,"context":expected_context or {}},sort_keys=True),ts))
+            return row
