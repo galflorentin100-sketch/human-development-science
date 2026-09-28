@@ -29,6 +29,10 @@ class ResearchQueue:
         )""")
         if "research_queue_workspace_id" not in set(self.db.table_columns("hds_research_queue")):
             self.db.execute("ALTER TABLE hds_research_queue ADD COLUMN research_queue_workspace_id TEXT")
+        # The application-level duplicate check is not sufficient under concurrent workers.
+        self.db.execute("""CREATE UNIQUE INDEX IF NOT EXISTS idx_hds_research_queue_active_question
+            ON hds_research_queue(project_id,question)
+            WHERE status IN ('PROPOSED','APPROVED','IN_PROGRESS')""")
 
     def propose(self, project_id, question, rationale, trigger_type="MANUAL",
                 evidence_refs=(), priority="NORMAL"):
