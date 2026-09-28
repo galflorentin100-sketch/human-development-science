@@ -20,12 +20,36 @@ def test_code_change_requires_separation_of_duties_and_verification(tmp_path):
         svc.mark_verified(p["id"],"ci-123","rollback")
         assert False
     except ValueError as exc:
-        assert "not bound" in str(exc)
+        assert "recorded successful runner result" in str(exc)
+    fingerprint=svc.fingerprint(svc.get(p["id"]))
+    db.execute(
+        """INSERT INTO code_change_execution_runs
+           (id,proposal_id,run_type,project_id,proposal_fingerprint,status,actor,runner_mode,created_at)
+           VALUES (?,?,?,?,?,?,?,?,?)""",
+        ("ci-123",p["id"],"VERIFICATION",project["id"],fingerprint,"PASSED","runner","isolated","now"),
+    )
     svc.record_verification(p["id"],"ci-123",True,0,False,"tests passed")
     verified=svc.mark_verified(p["id"],"ci-123","rollback")
     assert verified["status"]=="VERIFIED"
-    rolled=svc.rollback(p["id"],"bob")
-    assert rolled["status"]=="ROLLBACK_REQUESTED"
+    try:
+        svc.rollback(p["id"],"rollback-1","bob")
+        assert False
+    except ValueError as exc:
+        assert "deployed" in str(exc)
+    db.execute(
+        """INSERT INTO code_change_execution_runs
+           (id,proposal_id,run_type,project_id,proposal_fingerprint,status,actor,runner_mode,created_at)
+           VALUES (?,?,?,?,?,?,?,?,?)""",
+        ("deploy-1",p["id"],"DEPLOYMENT",project["id"],fingerprint,"PASSED","deployer","isolated","now"),
+    )
+    assert svc.record_deployed(p["id"],"deploy-1","deployer")["status"]=="DEPLOYED"
+    db.execute(
+        """INSERT INTO code_change_execution_runs
+           (id,proposal_id,run_type,project_id,proposal_fingerprint,status,actor,runner_mode,created_at)
+           VALUES (?,?,?,?,?,?,?,?,?)""",
+        ("rollback-1",p["id"],"ROLLBACK",project["id"],fingerprint,"PASSED","deployer","isolated","now"),
+    )
+    assert svc.rollback(p["id"],"rollback-1","deployer")["status"]=="ROLLED_BACK"
 
 
 def test_code_change_runner_only_executes_approved_allowlisted_patch(tmp_path):
