@@ -62,10 +62,14 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         path = request.url.path
         if path.startswith("/api/"):
-            subject = request.headers.get("x-external-subject") or (request.client.host if request.client else "unknown")
+            subject = request.headers.get("x-external-subject") or "anonymous"
+            client_host = request.client.host if request.client else "unknown"
+            # The external subject is not authenticated until the dependency runs. Include the
+            # client address so callers cannot evade the limiter by rotating an unsigned subject.
+            rate_key = f"{client_host}:{subject}"
             limit = 20 if path.endswith("/chat") else (30 if "autonomous" in path or "research" in path else 120)
             api_group = path.removeprefix("/api/").split("/", 1)[0]
-            if not _rate_limiter.allow(f"{subject}:{api_group}", limit):
+            if not _rate_limiter.allow(f"{rate_key}:{api_group}", limit):
                 from fastapi.responses import JSONResponse
                 return JSONResponse({"detail":"rate limit exceeded"}, status_code=429, headers={"Retry-After":"60"})
         return await call_next(request)
