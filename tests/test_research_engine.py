@@ -165,6 +165,7 @@ def test_finding_promotion_requires_evidence_audit(tmp_path):
     evidence_ref=_verified_evidence(db,pid,source["id"])
     syn=engine.synthesize(ws["id"],"candidate","limitations","uncertain","researcher",evidence_refs=[evidence_ref])
     _accept_with_skeptic_gate(db,engine,ws["id"],syn["id"])
+    db.execute("UPDATE research_syntheses SET evidence_refs='[]' WHERE id=?",(syn["id"],))
     try:
         engine.promote_to_candidate_finding(syn["id"],"knowledge-manager")
         assert False
