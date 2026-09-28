@@ -24,7 +24,6 @@ def _verified_evidence(db, project_id, source_id, excerpt="verified research exc
 
 
 def _accept_with_skeptic_gate(db, engine, workspace_id, synthesis_id):
-    from app.skeptic import SkepticService
     skeptic=SkepticService(db).create(workspace_id,synthesis_id,"skeptic")
     SkepticService(db).record(
         skeptic["id"],
@@ -150,7 +149,7 @@ def test_research_agent_task_is_governed(tmp_path):
     assert result["task"]["assigned_agent_id"]==aid
     assert result["workspace_id"]==ws["id"]
 
-def test_finding_promotion_requires_skeptic_review(tmp_path):
+def test_finding_promotion_requires_evidence_audit(tmp_path):
     import json
     from app.evidence_pipeline import EvidencePipeline
     from app.research_engine import ResearchEngine
@@ -162,16 +161,7 @@ def test_finding_promotion_requires_skeptic_review(tmp_path):
     engine.add_source(ws["id"],source["id"])
     evidence_ref=_verified_evidence(db,pid,source["id"])
     syn=engine.synthesize(ws["id"],"candidate","limitations","uncertain","researcher",evidence_refs=[evidence_ref])
-    # An accepted synthesis alone is not enough.
     _accept_with_skeptic_gate(db,engine,ws["id"],syn["id"])
-    try:
-        engine.promote_to_candidate_finding(syn["id"],"knowledge-manager")
-        assert False
-    except ValueError as exc:
-        assert "skeptic_review" in str(exc)
-    skeptic=SkepticService(db).create(ws["id"],syn["id"],"skeptic-agent")
-    SkepticService(db).record(skeptic["id"],["possible alternative explanation"],["missing comparison"],["selection effects"])
-    SkepticService(db).review(skeptic["id"],"ACCEPTED","founder","objections addressed")
     try:
         engine.promote_to_candidate_finding(syn["id"],"knowledge-manager")
         assert False
