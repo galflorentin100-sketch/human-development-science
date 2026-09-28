@@ -130,9 +130,23 @@ class ResearchEngine:
             if updated.rowcount != 1: raise ValueError("synthesis review was already resolved")
             workspace_updated=con.execute("UPDATE research_workspaces SET status=?,updated_at=? WHERE id=? AND status='SYNTHESIS_READY'",(new_status,ts,workspace["id"]))
             if workspace_updated.rowcount != 1: raise ValueError("workspace review state changed concurrently")
+            queue_completed=False
+            if decision=="ACCEPTED":
+                # A founder-approved queue item represents the research question being worked.
+                # It is complete once the governed synthesis itself is accepted; downstream
+                # finding/knowledge promotion remains separately gated and auditable.
+                queue_updated=con.execute(
+                    "UPDATE hds_research_queue SET status='DONE',updated_at=? WHERE project_id=? AND question=? AND status='IN_PROGRESS'",
+                    (ts,workspace["project_id"],workspace["question"]))
+                queue_completed=queue_updated.rowcount == 1
+                if queue_completed:
+                    con.execute(
+                        "INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                        (str(uuid4()),"research_queue.completed","research_queue",workspace["id"],reviewer,
+                         json.dumps({"workspace_id":workspace["id"],"synthesis_id":synthesis_id},sort_keys=True),ts))
             con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
                         (str(uuid4()),"research_synthesis.reviewed","research_synthesis",synthesis_id,reviewer,
-                         json.dumps({"decision":decision,"rationale":rationale},sort_keys=True),ts))
+                         json.dumps({"decision":decision,"rationale":rationale,"research_queue_completed":queue_completed},sort_keys=True),ts))
         return self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
 
     def readiness(self,synthesis_id):
