@@ -3,3 +3,10 @@ __pycache__/
 .pytest_cache/
 *.py[cod]
 *.db
+
+# Local secrets and private key material
+.env
+.env.*
+!.env.example
+*.pem
+*.key
