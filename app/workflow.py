@@ -22,11 +22,19 @@ class ResearchCycle:
             if agent_id in {"coo","cto","engineer","qa","experiment-designer","researcher","skeptic","evidence-auditor","research-synthesizer","data-scientist","red-team"} or role in {"operations","engineering","quality","experiments","research","critique","evidence","synthesis","measurement","adversarial-review"}: base.add(Permission.EXECUTE)
             for p in base:
                 self.db.execute("INSERT OR IGNORE INTO agent_permissions(agent_id,permission) VALUES (?,?)",(a.id,p.value))
-    def run(self,question,max_iterations=10):
+    def run(self,question,max_iterations=10,project_id=None):
         if not question.strip(): raise ValueError("question is required")
         if max_iterations>10: raise ValueError("must enforce autonomous-loop limit")
-        pid=str(uuid4()); ts=now()
-        self.db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,goal_id,updated_at) VALUES (?,?,?,?,?,?,?,?)",(pid,"hds",question,"RUNNING","chief-scientist",ts,None,ts))
+        ts=now()
+        if project_id is not None:
+            project=self.db.one("SELECT id,company_id,status FROM projects WHERE id=?",(project_id,))
+            if not project: raise ValueError("project does not exist")
+            if str(project["company_id"])!="hds": raise ValueError("project does not belong to HDS")
+            if project["status"] not in {"PLANNED","RUNNING"}: raise ValueError("project is not executable")
+            pid=project_id
+        else:
+            pid=str(uuid4())
+            self.db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,goal_id,updated_at) VALUES (?,?,?,?,?,?,?,?)",(pid,"hds",question,"RUNNING","chief-scientist",ts,None,ts))
         steps=[("ceo","Define question"),("researcher","Gather evidence"),("skeptic","Challenge evidence"),("evidence-auditor","Audit claims"),("research-synthesizer","Synthesize")]
         tasks=[]
         for agent,title in steps:
