@@ -2005,6 +2005,18 @@ def stop_hds_challenge(execution_id: str, body: dict, principal: Principal = Dep
     try: return ChallengeExecutionService(db).stop(execution_id,body.get("reason"))
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
 
+@app.post("/api/hds/projects/{project_id}/challenge-executions/emergency-stop")
+def emergency_stop_hds_challenges(project_id: str, body: dict, challenge_id: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    require_project(principal, project_id, "WRITE")
+    from app.adaptive_training import ChallengeExecutionService
+    try:
+        return ChallengeExecutionService(db).emergency_stop(
+            project_id, body.get("reason"), principal.user_id, challenge_id
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
 @app.post("/api/hds/challenge-executions/{execution_id}/complete")
 def complete_hds_challenge(execution_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
