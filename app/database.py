@@ -53,6 +53,17 @@ CREATE TABLE IF NOT EXISTS code_change_proposals (
  updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_code_change_proposals_work ON code_change_proposals(maintenance_work_id,status);
+CREATE TABLE IF NOT EXISTS code_change_verifications (
+ id TEXT PRIMARY KEY,
+ proposal_id TEXT NOT NULL REFERENCES code_change_proposals(id),
+ verification_run_id TEXT NOT NULL UNIQUE,
+ passed INTEGER NOT NULL,
+ return_code INTEGER,
+ timed_out INTEGER NOT NULL DEFAULT 0,
+ output_digest TEXT NOT NULL,
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_code_change_verifications_proposal ON code_change_verifications(proposal_id,created_at);
 CREATE TABLE IF NOT EXISTS maintenance_task_links (task_id TEXT PRIMARY KEY REFERENCES tasks(id), kind TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(kind,entity_type,entity_id));
 CREATE INDEX IF NOT EXISTS idx_maintenance_task_links_entity ON maintenance_task_links(entity_type,entity_id);
 CREATE TABLE IF NOT EXISTS knowledge_freshness (
