@@ -32,7 +32,7 @@ from app.approvals import ApprovalRequired
 settings = Settings.load()
 db = database_from_settings(settings)
 db.migrate()
-auth = AuthService(db)
+auth = AuthService(db, settings.owner_external_subject if settings.environment == "production" else None)
 cycle = ResearchCycle(db)
 
 @asynccontextmanager
