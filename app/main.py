@@ -226,8 +226,7 @@ def founder_projects(principal: Principal = Depends(principal_from_header)):
     else:
         rows = db.all("""SELECT p.* FROM projects p
                          JOIN project_memberships pm ON pm.project_id=p.id
-                         JOIN users u ON u.id=pm.user_id
-                         WHERE u.external_subject=? AND pm.status='ACTIVE'
+                         WHERE pm.user_id=? AND pm.status='ACTIVE'
                          ORDER BY p.created_at DESC""", (principal.user_id,))
     return {"items": rows}
 
