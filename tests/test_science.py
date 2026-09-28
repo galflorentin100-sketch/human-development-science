@@ -207,7 +207,7 @@ def test_scientific_system_health_is_read_only_and_flags_gaps(tmp_path):
 def test_autonomous_maintenance_materializes_only_auditable_work(tmp_path):
     from app.autonomous_scientific_maintenance import AutonomousScientificMaintenance
     db=Database(str(tmp_path/"maintenance.db")); ResearchCycle(db)
-    result=AutonomousScientificMaintenance(db).materialize()
+    result=AutonomousScientificMaintenance(db).materialize(project_id=p["id"])
     assert result["policy"].startswith("materialization creates")
     for wid in result["created"]:
         row=db.one("SELECT status FROM maintenance_work WHERE id=?",(wid,))
