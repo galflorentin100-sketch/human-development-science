@@ -48,7 +48,7 @@ class AuthService:
         return self.project_authorize(target_external_subject,project_id)
 
     def project_authorize(self, external_subject, project_id, required_permission=None):
-        user=self.db.one("SELECT * FROM users WHERE external_subject=?",(external_subject,))
+        user=self.db.one("SELECT * FROM users WHERE id=? OR external_subject=? LIMIT 1",(external_subject,external_subject))
         if not user: raise PermissionError("unknown principal")
         company=self.db.one(
             "SELECT r.permissions FROM company_memberships m JOIN roles r ON r.id=m.role_id "
