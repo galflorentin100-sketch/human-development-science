@@ -86,6 +86,9 @@ class ClaimStateService:
         with self.db.transaction() as con:
             claim=con.execute("SELECT * FROM claims WHERE id=?",(claim_id,)).fetchone()
             if not claim: raise ValueError("claim not found")
+            # Serialize version creation per claim. SQLite already serializes the
+            # transaction, while PostgreSQL needs a row lock before MAX(version)+1.
+            con.execute("UPDATE claims SET updated_at=updated_at WHERE id=?",(claim_id,))
             rows=con.execute(
                 "SELECT e.id,e.stance,er.verdict FROM evidence e LEFT JOIN evidence_reviews er ON er.evidence_id=e.id WHERE e.claim_id=?",
                 (claim_id,)).fetchall()
