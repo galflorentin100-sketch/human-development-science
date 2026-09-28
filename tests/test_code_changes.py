@@ -60,6 +60,45 @@ def test_code_change_runner_rejects_unapproved_and_dynamic_commands(tmp_path):
     try: runner.verify(p["id"],str(tmp_path),30); assert False
     except ValueError as exc: assert "dynamic code execution" in str(exc)
 
+def test_code_change_runner_rejects_workspace_escape_paths(tmp_path):
+    from app.code_change_runner import CodeChangeRunner
+    import json
+    db=Database(str(tmp_path/"runner-path.db"))
+    project=ResearchCycle(db).run("runner path")["project"]
+    db.execute("""INSERT INTO maintenance_work
+        (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        ("mw-path","ENGINEERING","project",project["id"],"Fix","reason","tests","PROPOSED",None,"now","now"))
+    svc=CodeChangeService(db)
+    p=svc.propose(project["id"],"mw-path","runner patch","FILE_REPLACEMENT",'{"x.py":"x=1"}',"python ../escape.py","LOW","alice")
+    svc.approve(p["id"],"bob")
+    try:
+        CodeChangeRunner(db).verify(p["id"],str(tmp_path),30)
+        assert False
+    except ValueError as exc:
+        assert "outside the workspace" in str(exc)
+
+def test_code_change_runner_rejects_symlink_patch_target(tmp_path):
+    from app.code_change_runner import CodeChangeRunner
+    import json
+    workspace=tmp_path/"workspace"; workspace.mkdir()
+    outside=tmp_path/"outside.py"; outside.write_text("safe")
+    (workspace/"link.py").symlink_to(outside)
+    db=Database(str(tmp_path/"runner-link.db"))
+    project=ResearchCycle(db).run("runner link")["project"]
+    db.execute("""INSERT INTO maintenance_work
+        (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        ("mw-link","ENGINEERING","project",project["id"],"Fix","reason","tests","PROPOSED",None,"now","now"))
+    svc=CodeChangeService(db)
+    p=svc.propose(project["id"],"mw-link","runner patch","FILE_REPLACEMENT",
+                  json.dumps({"link.py":"tampered"}),"python link.py","LOW","alice")
+    svc.approve(p["id"],"bob")
+    try:
+        CodeChangeRunner(db).verify(p["id"],str(workspace),30)
+        assert False
+    except ValueError as exc:
+        assert "symlink" in str(exc)
 
 def test_code_change_cannot_cross_project_maintenance_work(tmp_path):
     db=Database(str(tmp_path/"cross-project.db"))
