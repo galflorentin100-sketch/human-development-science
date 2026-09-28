@@ -321,3 +321,36 @@ def test_research_synthesis_acceptance_requires_evidence_and_skeptic_gates(tmp_p
     )
     accepted=engine.review(synthesis["id"],"approver","ACCEPTED","accept")
     assert accepted["status"]=="ACCEPTED"
+
+
+def test_agent_executor_enforces_task_agent_and_project_binding(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.tasks import TaskEngine
+    from app.execution import AgentExecutor
+    from app.permissions import PermissionService
+    from app.models import now
+    import uuid
+
+    db=Database(str(tmp_path/"executor-binding.db")); cycle=ResearchCycle(db)
+    project=cycle.run("executor binding")["project"]
+    researcher="researcher"
+    other="executor-test-agent-"+str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        (other,"other","test","test","[]","[]","1","ACTIVE",now()),
+    )
+    PermissionService(db).grant(other,"EXECUTE")
+    task=TaskEngine(db).create_task("bound task","test",project["id"],owner=researcher,required_permissions=["EXECUTE"])
+
+    try:
+        AgentExecutor(db).execute(other,task["id"],{"input":"x"},{"project_id":project["id"]})
+        assert False, "an unassigned agent must not execute the task"
+    except PermissionError as exc:
+        assert "not assigned" in str(exc)
+
+    try:
+        AgentExecutor(db).execute(researcher,task["id"],{"input":"x"},{"project_id":"wrong-project"})
+        assert False, "execution must remain bound to the task project"
+    except PermissionError as exc:
+        assert "project" in str(exc)
