@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS code_change_proposals (
  approved_by TEXT,
  verification_run_id TEXT,
  rollback_payload TEXT,
- approval_id TEXT REFERENCES approvals(id),
+ approval_id TEXT,
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL
 );
@@ -330,11 +330,11 @@ CREATE TABLE IF NOT EXISTS hds_competition_measure_bindings (
 OPTIONAL_SCIENCE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS hds_experiments (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, research_question TEXT NOT NULL, hypothesis TEXT NOT NULL, design TEXT NOT NULL, population TEXT NOT NULL, intervention TEXT NOT NULL, comparison TEXT NOT NULL, outcomes TEXT NOT NULL, analysis_plan TEXT NOT NULL, status TEXT NOT NULL, preregistered INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS hds_experiment_results (id TEXT PRIMARY KEY, experiment_id TEXT NOT NULL, outcome TEXT NOT NULL, interpretation TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS research_workspaces (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, question TEXT NOT NULL, scope TEXT NOT NULL, inclusion_rules TEXT NOT NULL, exclusion_rules TEXT NOT NULL, status TEXT NOT NULL, owner TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS research_workspaces (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, question TEXT NOT NULL, scope TEXT NOT NULL, inclusion_rules TEXT NOT NULL, exclusion_rules TEXT NOT NULL, status TEXT NOT NULL, owner TEXT NOT NULL, research_queue_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS research_syntheses (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, synthesis TEXT NOT NULL, limitations TEXT NOT NULL, uncertainty TEXT NOT NULL, provenance_hash TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS research_skeptic_reviews (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, synthesis_id TEXT, project_id TEXT NOT NULL, reviewer_agent_id TEXT, status TEXT NOT NULL, objections TEXT NOT NULL, missing_evidence TEXT NOT NULL, alternative_explanations TEXT NOT NULL, created_at TEXT NOT NULL, reviewed_at TEXT);
 CREATE TABLE IF NOT EXISTS organizational_decisions (id TEXT PRIMARY KEY, project_id TEXT, decision_type TEXT NOT NULL, decision TEXT NOT NULL, evidence TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL, created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS hds_research_queue (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, question TEXT NOT NULL, rationale TEXT NOT NULL, trigger_type TEXT NOT NULL, priority TEXT NOT NULL, status TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS hds_research_queue (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, research_queue_workspace_id TEXT, question TEXT NOT NULL, rationale TEXT NOT NULL, trigger_type TEXT NOT NULL, priority TEXT NOT NULL, status TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS experiment_safety_reviews (id TEXT PRIMARY KEY, experiment_id TEXT NOT NULL UNIQUE, reviewer TEXT NOT NULL, decision TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS knowledge_impact_reviews (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, impact_type TEXT NOT NULL DEFAULT 'DEPENDENCY', affected_type TEXT NOT NULL, affected_id TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_impact_proposed_identity ON knowledge_impact_reviews(project_id,source_type,source_id,impact_type,affected_type,affected_id) WHERE status='PROPOSED';
@@ -704,6 +704,12 @@ def _migrate_phase4(self):
         existing_code_change={row[1] for row in con.execute("PRAGMA table_info(code_change_proposals)")}
         if "approval_id" not in existing_code_change:
             con.execute("ALTER TABLE code_change_proposals ADD COLUMN approval_id TEXT REFERENCES approvals(id)")
+        existing_research_workspace={row[1] for row in con.execute("PRAGMA table_info(research_workspaces)")}
+        if "research_queue_id" not in existing_research_workspace:
+            con.execute("ALTER TABLE research_workspaces ADD COLUMN research_queue_id TEXT")
+        existing_research_queue={row[1] for row in con.execute("PRAGMA table_info(hds_research_queue)")}
+        if "research_queue_workspace_id" not in existing_research_queue:
+            con.execute("ALTER TABLE hds_research_queue ADD COLUMN research_queue_workspace_id TEXT")
         existing={row[1] for row in con.execute("PRAGMA table_info(study_outcomes)")}
         if "observation_type" not in existing:
             con.execute("ALTER TABLE study_outcomes ADD COLUMN observation_type TEXT NOT NULL DEFAULT 'TRAINING'")
@@ -859,7 +865,7 @@ class PostgreSQLDatabase:
             statements.extend(s.strip() for s in schema.split(";") if s.strip() and not s.strip().startswith("PRAGMA"))
         with self.connect() as con:
             for statement in statements: con.execute(self._sql(statement))
-            for table,columns in {**_PHASE2_COLUMNS,**_PHASE3_COLUMNS,**{'study_outcomes':{'observation_type':"TEXT NOT NULL DEFAULT 'TRAINING'","timepoint":"TEXT"},"idempotency_keys":{"status":"TEXT NOT NULL DEFAULT 'COMPLETED'","claim_token":"TEXT","lease_expires_at":"TEXT"},"code_change_proposals":{"approval_id":"TEXT REFERENCES approvals(id)"}}}.items():
+            for table,columns in {**_PHASE2_COLUMNS,**_PHASE3_COLUMNS,**{'study_outcomes':{'observation_type':"TEXT NOT NULL DEFAULT 'TRAINING'","timepoint":"TEXT"},"idempotency_keys":{"status":"TEXT NOT NULL DEFAULT 'COMPLETED'","claim_token":"TEXT","lease_expires_at":"TEXT"},"code_change_proposals":{"approval_id":"TEXT"}}}.items():
                 existing={row["column_name"] for row in con.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=%s",(table,)).fetchall()}
                 for name,definition in columns.items():
                     if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
