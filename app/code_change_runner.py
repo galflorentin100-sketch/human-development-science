@@ -112,6 +112,19 @@ class CodeChangeRunner:
         result=self.verify(proposal_id,workspace,timeout_seconds)
         if not result["passed"]: return result
         from app.code_changes import CodeChangeService
-        CodeChangeService(self.db).mark_verified(proposal_id,result["verification_run_id"],
-            rollback_payload="verified runner result; deployment layer owns production rollback")
+        svc=CodeChangeService(self.db)
+        svc.record_verification(
+            proposal_id,
+            result["verification_run_id"],
+            result["passed"],
+            result.get("return_code"),
+            result.get("timed_out",False),
+            result.get("output",""),
+        )
+        if result["passed"]:
+            svc.mark_verified(
+                proposal_id,
+                result["verification_run_id"],
+                rollback_payload="rollback execution is not implemented; request rollback and execute through the deployment layer",
+            )
         return result
