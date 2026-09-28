@@ -94,6 +94,7 @@ class CodeChangeService:
         with self.db.transaction() as con:
             row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
             if not row or row["status"]!="APPROVAL_PENDING": raise ValueError("proposal is not awaiting approval")
+            if str(row["proposed_by"])==str(actor): raise ValueError("separation of duties required")
             if not row["approval_id"]: raise ValueError("proposal approval is missing")
             from app.approvals import ApprovalService
             ApprovalService(self.db)._resolve_in_transaction(con,row["approval_id"],"APPROVED",actor)
