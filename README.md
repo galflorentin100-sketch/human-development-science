@@ -19,7 +19,7 @@ Do not fabricate evidence or data. Separate established findings, preliminary ev
 ## Production status
 The repository includes PostgreSQL support, production identity-signing enforcement, governed code-change proposals with approval/verification/rollback, HDS safety governance, production Docker/Compose definitions, API readiness healthchecks, structured observability, rate limiting, and CI container/Compose validation. PostgreSQL backup and disposable restore-verification tooling is available under `scripts/` with the operational runbook in `docs/BACKUP_AND_DR.md`.
 
-A real deployment still requires an operator-managed IdP/proxy, secret manager, external encrypted backup storage/retention policy, distributed infrastructure for horizontally scaled rate limiting and observability, and a separately isolated worker/VM for autonomous code execution.
+A real deployment still requires an operator-managed IdP/proxy that authenticates exactly one configured owner, a secret manager, external encrypted backup storage/retention policy, distributed infrastructure for horizontally scaled rate limiting and observability, and a separately isolated worker/VM for autonomous code execution. Production requires `HDS_OWNER_EXTERNAL_SUBJECT`; every API identity must match that value.
 
 ## Operating loop
 Founder goals are orchestrated into projects and tasks. Tasks execute through permission checks, model-call audit logging, evaluation, failure capture, lessons, replanning, and decision gates. High-risk or low-confidence decisions can create pending human approvals.
