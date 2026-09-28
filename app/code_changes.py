@@ -4,6 +4,7 @@ This service stores proposed patches as data. It never executes arbitrary code.
 Execution must happen in an external isolated runner after approval.
 """
 from uuid import uuid4
+import hashlib
 from app.models import now
 
 
@@ -71,11 +72,30 @@ class CodeChangeService:
             if updated.rowcount!=1: raise ValueError("proposal changed concurrently")
         return self.get(proposal_id)
 
+    def record_verification(self, proposal_id, verification_run_id, passed, return_code=None, timed_out=False, output=""):
+        if not str(verification_run_id or "").strip(): raise ValueError("verification run is required")
+        with self.db.transaction() as con:
+            row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
+            if not row or row["status"]!="APPROVED": raise ValueError("proposal is not approved")
+            if con.execute("SELECT 1 FROM code_change_verifications WHERE verification_run_id=?",(verification_run_id,)).fetchone():
+                raise ValueError("verification run already recorded")
+            digest=hashlib.sha256(str(output or "").encode("utf-8")).hexdigest()
+            con.execute("""INSERT INTO code_change_verifications
+                (id,proposal_id,verification_run_id,passed,return_code,timed_out,output_digest,created_at)
+                VALUES (?,?,?,?,?,?,?,?)""",
+                (str(uuid4()),proposal_id,verification_run_id,1 if passed else 0,return_code,1 if timed_out else 0,digest,now()))
+        return self.db.one("SELECT * FROM code_change_verifications WHERE verification_run_id=?",(verification_run_id,))
+
     def mark_verified(self, proposal_id, verification_run_id, rollback_payload=None):
         if not str(verification_run_id or "").strip(): raise ValueError("verification run is required")
         with self.db.transaction() as con:
             row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
             if not row or row["status"]!="APPROVED": raise ValueError("proposal is not approved")
+            verification=con.execute(
+                "SELECT * FROM code_change_verifications WHERE verification_run_id=? AND proposal_id=? AND passed=1",
+                (verification_run_id,proposal_id)).fetchone()
+            if not verification:
+                raise ValueError("verified result is not bound to this proposal")
             updated=con.execute("""UPDATE code_change_proposals
                 SET status='VERIFIED',verification_run_id=?,rollback_payload=?,updated_at=?
                 WHERE id=? AND status='APPROVED'""",
@@ -84,12 +104,13 @@ class CodeChangeService:
         return self.get(proposal_id)
 
     def rollback(self, proposal_id, actor):
+        if not str(actor or "").strip(): raise ValueError("actor is required")
         with self.db.transaction() as con:
             row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
-            if not row or row["status"]!="VERIFIED": raise ValueError("only verified changes can be rolled back")
+            if not row or row["status"]!="VERIFIED": raise ValueError("only verified changes can request rollback")
             if not row["rollback_payload"]: raise ValueError("rollback payload is missing")
             updated=con.execute("""UPDATE code_change_proposals
-                SET status='ROLLED_BACK',updated_at=? WHERE id=? AND status='VERIFIED'""",(now(),proposal_id))
+                SET status='ROLLBACK_REQUESTED',updated_at=? WHERE id=? AND status='VERIFIED'""",(now(),proposal_id))
             if updated.rowcount!=1: raise ValueError("proposal changed concurrently")
         return self.get(proposal_id)
 
