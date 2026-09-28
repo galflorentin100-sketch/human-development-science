@@ -17,6 +17,12 @@ class AgentExecutor:
         self.permissions.check(agent_id,required_permission,"task:"+task_id)
         task=self.db.one("SELECT * FROM tasks WHERE id=?",(task_id,))
         if task is None: raise ValueError("task does not exist")
+        if str(task["assigned_agent_id"]) != str(agent_id):
+            raise PermissionError("agent is not assigned to this task")
+        task_project_id=str(task["project_id"])
+        context_project_id=str((context or {}).get("project_id") or "")
+        if context_project_id != task_project_id:
+            raise PermissionError("execution project does not match task project")
         high_risk={"PUBLISH","SPEND","DEPLOY","DELETE","CONTACT_EXTERNAL_PARTY"}
         action=task_input.get("action") if isinstance(task_input,dict) else None
         approval_id=task_input.get("approval_id") if isinstance(task_input,dict) else None
