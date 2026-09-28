@@ -1,8 +1,9 @@
 """Governed verification runner for approved code changes."""
 from __future__ import annotations
-import json, os, shlex, shutil, subprocess, tempfile, time
+import json, os, shlex, shutil, subprocess, tempfile, time, hashlib
 from pathlib import Path
 from uuid import uuid4
+from app.models import now
 
 ALLOWED_TEST_PROGRAMS={"pytest","python","python3"}
 MAX_TIMEOUT_SECONDS=900
@@ -83,6 +84,28 @@ class CodeChangeRunner:
                     time.sleep(0.25)
                 return {'verification_run_id':run_id,'proposal_id':proposal_id,'passed':False,'return_code':None,'timed_out':True,'output':'isolated worker did not return a result before timeout'}
             finally: shutil.rmtree(job_dir, ignore_errors=True)
+    def _start_run(self, proposal, run_id, actor="code-runner"):
+        from app.code_changes import CodeChangeService
+        self.db.execute(
+            """INSERT INTO code_change_execution_runs
+               (id,proposal_id,run_type,project_id,proposal_fingerprint,status,actor,runner_mode,created_at)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (run_id,proposal["id"],"VERIFICATION",proposal["project_id"],
+             CodeChangeService.fingerprint(proposal),"RUNNING",actor,
+             self.settings.code_runner_mode,now()),
+        )
+
+    def _finish_run(self, run_id, result):
+        output=str(result.get("output",""))
+        result_hash=hashlib.sha256(output.encode("utf-8",errors="replace")).hexdigest()
+        self.db.execute(
+            """UPDATE code_change_execution_runs
+               SET status=?,result_hash=?,return_code=?,timed_out=?,completed_at=?
+               WHERE id=? AND run_type='VERIFICATION' AND status='RUNNING'""",
+            ("PASSED" if result.get("passed") else "FAILED",result_hash,
+             result.get("return_code"),1 if result.get("timed_out") else 0,now(),run_id),
+        )
+
     def verify(self,proposal_id,workspace,timeout_seconds=300):
         proposal=self._proposal(proposal_id)
         root=Path(workspace).resolve()
@@ -90,8 +113,11 @@ class CodeChangeRunner:
         self._assert_no_symlinks(root)
         timeout=min(max(int(timeout_seconds),1),MAX_TIMEOUT_SECONDS)
         command=self._command(proposal["test_command"]); run_id=str(uuid4())
+        self._start_run(proposal,run_id)
         if self.settings.code_runner_mode=="isolated":
-            return self._verify_isolated(proposal,proposal_id,root,command,timeout,run_id)
+            result=self._verify_isolated(proposal,proposal_id,root,command,timeout,run_id)
+            self._finish_run(run_id,result)
+            return result
         with tempfile.TemporaryDirectory(prefix="hds-verify-") as temp:
             target=Path(temp)/"workspace"
             shutil.copytree(root,target,ignore=shutil.ignore_patterns(".git","__pycache__",".pytest_cache"))
@@ -100,13 +126,17 @@ class CodeChangeRunner:
             try:
                 result=subprocess.run(command,cwd=target,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
                     text=True,timeout=timeout,check=False,env=env)
-                return {"verification_run_id":run_id,"proposal_id":proposal_id,"passed":result.returncode==0,
+                result_payload={"verification_run_id":run_id,"proposal_id":proposal_id,"passed":result.returncode==0,
                         "return_code":result.returncode,"timed_out":False,"output":result.stdout[-MAX_OUTPUT_BYTES:]}
+                self._finish_run(run_id,result_payload)
+                return result_payload
             except subprocess.TimeoutExpired as exc:
                 output=exc.stdout or ""
                 if isinstance(output,bytes): output=output.decode("utf-8",errors="replace")
-                return {"verification_run_id":run_id,"proposal_id":proposal_id,"passed":False,
+                result_payload={"verification_run_id":run_id,"proposal_id":proposal_id,"passed":False,
                         "return_code":None,"timed_out":True,"output":output[-MAX_OUTPUT_BYTES:]}
+                self._finish_run(run_id,result_payload)
+                return result_payload
 
     def verify_and_record(self,proposal_id,workspace,timeout_seconds=300):
         result=self.verify(proposal_id,workspace,timeout_seconds)
