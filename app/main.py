@@ -909,14 +909,22 @@ def organization_self_audit_actions(principal: Principal = Depends(principal_fro
 @app.post("/api/science/knowledge-freshness/register")
 def register_knowledge_freshness(body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    entity_map={"CLAIM":"claim","INTERVENTION":"intervention","TRAINING_PROTOCOL":"training_protocol"}
+    resource=entity_map.get(body.get("entity_type"))
+    if not resource: raise HTTPException(400,"invalid entity_type")
+    project_id=require_resource_project(principal,resource,body["entity_id"],"WRITE")
     from app.knowledge_freshness import KnowledgeFreshness
-    return KnowledgeFreshness(db).register(body["entity_type"],body["entity_id"],body.get("review_interval_days",90),principal.user_id)
+    return KnowledgeFreshness(db).register(body["entity_type"],body["entity_id"],body.get("review_interval_days",90),principal.user_id,project_id)
 
 @app.post("/api/science/knowledge-freshness/validate")
 def validate_knowledge_freshness(body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
+    entity_map={"CLAIM":"claim","INTERVENTION":"intervention","TRAINING_PROTOCOL":"training_protocol"}
+    resource=entity_map.get(body.get("entity_type"))
+    if not resource: raise HTTPException(400,"invalid entity_type")
+    project_id=require_resource_project(principal,resource,body["entity_id"],"WRITE")
     from app.knowledge_freshness import KnowledgeFreshness
-    return KnowledgeFreshness(db).validate(body["entity_type"],body["entity_id"],principal.user_id,body["rationale"])
+    return KnowledgeFreshness(db).validate(body["entity_type"],body["entity_id"],principal.user_id,body["rationale"],project_id)
 
 @app.post("/api/science/maintenance/discover")
 def discover_scientific_maintenance(principal: Principal = Depends(principal_from_header)):
