@@ -84,6 +84,7 @@ def test_code_change_runner_isolated_mode_uses_worker_job_transport(tmp_path, mo
     (workspace/"test_generated.py").write_text("assert 5 * 5 == 25\n")
     shared=tmp_path/"worker"; monkeypatch.setenv("HDS_CODE_RUNNER_MODE","isolated")
     monkeypatch.setenv("HDS_WORKER_SHARED_DIR",str(shared))
+    monkeypatch.setenv("HDS_WORKER_RESULT_DIR",str(tmp_path/"results"))
     from worker import runner as worker_module
     monkeypatch.setattr(worker_module.os, "geteuid", lambda: 10001)
     worker_main=worker_module.main
