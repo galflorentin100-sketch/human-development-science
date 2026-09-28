@@ -26,3 +26,12 @@ def test_founder_role_must_be_explicit(tmp_path):
     principal=auth.authorize("founder-subject")
     assert principal.role=="founder"
     assert principal.can("APPROVE")
+
+
+def test_authorize_principal_uses_database_user_id(tmp_path):
+    db=Database(str(tmp_path/"principal-id.db")); ResearchCycle(db)
+    auth=AuthService(db)
+    user=auth.create_user("subject-1","a@example.com","operator")
+    principal=auth.authorize("subject-1")
+    assert principal.user_id == user["id"]
+    assert principal.user_id != user["external_subject"]
