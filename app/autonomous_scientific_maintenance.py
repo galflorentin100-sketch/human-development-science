@@ -60,11 +60,13 @@ class AutonomousScientificMaintenance:
                     con.execute("DELETE FROM tasks WHERE id=?",(task_id,))
         return created
 
-    def materialize(self,actor="system"):
-        proposals=self.propose()["proposals"]
+    def materialize(self,actor="system",project_id=None):
+        if not project_id:
+            raise ValueError("project_id is required")
+        proposals=self.propose(project_id=project_id)["proposals"]
         created=[]
         for p in proposals:
-            if self._entity_project(p["entity_type"],p["entity_id"]) is None:
+            if self._entity_project(p["entity_type"],p["entity_id"]) != project_id:
                 continue
             wid=str(uuid4())
             with self.db.transaction() as con:
