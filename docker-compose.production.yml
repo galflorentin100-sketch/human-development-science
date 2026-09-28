@@ -43,7 +43,7 @@ services:
       HDS_CODE_RUNNER_MODE: isolated
       COMPANY_OS_LOG_LEVEL: INFO
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - code_worker_jobs:/var/lib/hds-code-worker
       - code_worker_results:/var/lib/hds-code-worker-results
