@@ -228,6 +228,8 @@ class StudyExecution:
     def outcome(self,study_id,participant_id,outcome_name,value=None,unit=None,session_id=None,missing_reason=None,observation_type="TRAINING",measure_id=None,timepoint=None):
         if value is None and not missing_reason: raise ValueError("missing outcome requires missing_reason")
         if observation_type not in {"TRAINING","NEAR_TRANSFER","FAR_TRANSFER","REAL_WORLD","RETENTION"}: raise ValueError("invalid observation type")
+        if self.db.one("SELECT 1 FROM study_analysis_audit WHERE study_id=? AND analysis_result_id IS NOT NULL LIMIT 1",(study_id,)):
+            raise ValueError("study outcome dataset is frozen after analysis; create a new frozen analysis dataset")
         if measure_id is None:
             raise ValueError("scientific outcome requires a preregistered measure")
         if timepoint is None:
