@@ -222,6 +222,21 @@ def principal_from_header(
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
+
+@app.get("/api/intelligence")
+def company_intelligence(principal: Principal = Depends(principal_from_header)):
+    """Founder-only company intelligence snapshot across projects and agents."""
+    require_read(principal)
+    require_founder(principal)
+    intelligence = IntelligenceService(db)
+    return {
+        "health": intelligence.health(),
+        "findings": intelligence.findings(),
+        "workforce": intelligence.workforce(),
+        "timeline": intelligence.timeline(),
+        "brief": FounderBriefService(db).build(),
+    }
+
 @app.get("/api/founder/projects")
 def founder_projects(principal: Principal = Depends(principal_from_header)):
     require_read(principal)
@@ -243,6 +258,12 @@ def require_permission(principal: Principal, permission: str) -> None:
 
 def require_read(principal: Principal) -> None:
     require_permission(principal, "READ")
+
+
+def require_founder(principal: Principal) -> None:
+    """Company-wide intelligence is founder-only; project-level access is unchanged."""
+    if principal.role != "founder":
+        raise HTTPException(status_code=403, detail="founder permission required")
 
 def require_write(principal: Principal) -> None:
     require_permission(principal, "WRITE")

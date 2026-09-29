@@ -11,7 +11,7 @@ REQUIRED_TABLES={
 "hds_constructs","hds_assessment_measures","hds_assessment_sessions","hds_assessment_observations",
 "hds_experiments","hds_experiment_results","research_workspaces","research_syntheses","study_outcomes","research_loop_runs","hds_challenge_executions","hds_training_adjustments"
 }
-REQUIRED_ROUTES={"/ready","/api/hds/programs","/api/hds/competitions","/api/hds/assessments/constructs","/api/hds/assessments/measures","/api/hds/research-loops","/api/hds/company/{project_id}/analytics","/api/hds/training/{protocol_id}/participants/{participant_ref}/adaptive"}
+REQUIRED_ROUTES={"/ready","/api/intelligence","/api/hds/programs","/api/hds/competitions","/api/hds/assessments/constructs","/api/hds/assessments/measures","/api/hds/research-loops","/api/hds/company/{project_id}/analytics","/api/hds/training/{protocol_id}/participants/{participant_ref}/adaptive"}
 
 def main():
     with TemporaryDirectory() as d:
