@@ -303,3 +303,26 @@ def test_code_change_rejects_mismatched_approval_context(tmp_path):
         assert False
     except ValueError as exc:
         assert "approval" in str(exc)
+
+
+def test_mark_verified_requires_successful_verification_record(tmp_path):
+    db=Database(str(tmp_path/"verification-record.db"))
+    project=ResearchCycle(db).run("verification record")["project"]
+    db.execute("""INSERT INTO maintenance_work
+        (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        ("mw-verification","ENGINEERING","project",project["id"],"Fix","reason","tests","PROPOSED",None,"now","now"))
+    svc=CodeChangeService(db)
+    p=svc.propose(project["id"],"mw-verification","safe patch","UNIFIED_DIFF","diff --git","pytest tests/test_x.py","LOW","alice")
+    svc.approve(p["id"],"bob")
+    fp=svc.fingerprint(p)
+    db.execute("""INSERT INTO code_change_execution_runs
+       (id,proposal_id,run_type,project_id,proposal_fingerprint,status,actor,runner_mode,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?)""",
+       ("v-false",p["id"],"VERIFICATION",project["id"],fp,"PASSED","runner","isolated","now"))
+    svc.record_verification(p["id"],"v-false",False,1,False,"failed")
+    try:
+        svc.mark_verified(p["id"],"v-false","rollback")
+        assert False
+    except ValueError as exc:
+        assert "successful verification" in str(exc)
