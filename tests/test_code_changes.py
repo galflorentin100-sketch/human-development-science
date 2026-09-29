@@ -271,8 +271,9 @@ def test_deployment_and_rollback_require_attestation_in_production(tmp_path, mon
        (id,proposal_id,run_type,project_id,proposal_fingerprint,status,actor,runner_mode,created_at)
        VALUES (?,?,?,?,?,?,?,?,?)""",
        ("v-att",p["id"],"VERIFICATION",project["id"],fingerprint,"PASSED","runner","isolated","now"))
-    svc.record_verification(p["id"],"v-att",True,0,False,"passed")
-    svc.mark_verified(p["id"],"v-att","rollback")
+    att=svc.execution_attestation(p, "v-att", "VERIFICATION", "PASSED")
+    svc.record_verification(p["id"],"v-att",True,0,False,"passed",attestation=att)
+    svc.mark_verified(p["id"],"v-att","rollback",attestation=att)
     db.execute("""INSERT INTO code_change_execution_runs
        (id,proposal_id,run_type,project_id,proposal_fingerprint,status,actor,runner_mode,created_at)
        VALUES (?,?,?,?,?,?,?,?,?)""",
