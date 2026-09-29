@@ -124,7 +124,7 @@ class CodeChangeService:
             if updated.rowcount!=1: raise ValueError("proposal changed concurrently")
         return self.get(proposal_id)
 
-    def record_verification(self, proposal_id, verification_run_id, passed, return_code=None, timed_out=False, output=""):
+    def record_verification(self, proposal_id, verification_run_id, passed, return_code=None, timed_out=False, output="", attestation=None):
         if not str(verification_run_id or "").strip(): raise ValueError("verification run is required")
         with self.db.transaction() as con:
             row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
@@ -137,6 +137,7 @@ class CodeChangeService:
                 raise ValueError("verification run is not bound to this proposal")
             if str(execution["proposal_fingerprint"])!=self.fingerprint(dict(row)):
                 raise ValueError("verification run does not match the current proposal")
+            self._require_execution_attestation(dict(row),execution,attestation)
             if con.execute("SELECT 1 FROM code_change_verifications WHERE verification_run_id=?",(verification_run_id,)).fetchone():
                 raise ValueError("verification run already recorded")
             digest=hashlib.sha256(str(output or "").encode("utf-8")).hexdigest()
@@ -146,7 +147,7 @@ class CodeChangeService:
                 (str(uuid4()),proposal_id,verification_run_id,1 if passed else 0,return_code,1 if timed_out else 0,digest,now()))
         return self.db.one("SELECT * FROM code_change_verifications WHERE verification_run_id=?",(verification_run_id,))
 
-    def mark_verified(self, proposal_id, verification_run_id, rollback_payload=None):
+    def mark_verified(self, proposal_id, verification_run_id, rollback_payload=None, attestation=None):
         if not str(verification_run_id or "").strip(): raise ValueError("verification run is required")
         with self.db.transaction() as con:
             row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
@@ -159,6 +160,7 @@ class CodeChangeService:
                 raise ValueError("verification run is not a recorded successful runner result")
             if str(run["proposal_fingerprint"])!=self.fingerprint(dict(row)):
                 raise ValueError("verification result does not match the current proposal")
+            self._require_execution_attestation(dict(row),run,attestation)
             updated=con.execute("""UPDATE code_change_proposals
                 SET status='VERIFIED',verification_run_id=?,rollback_payload=?,updated_at=?
                 WHERE id=? AND status='APPROVED'""",
