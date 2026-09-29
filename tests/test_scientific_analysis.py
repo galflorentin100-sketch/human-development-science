@@ -7,7 +7,7 @@ def setup(tmp_path):
     db.execute("INSERT INTO companies VALUES ('c','HDS','m','v','p','2026')")
     db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES ('a','Researcher','researcher','m','[]','[]','1','IDLE','2026')")
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES ('p','c','test','RUNNING','a','2026')")
-    db.execute("INSERT INTO studies(id,title,design,population,findings,created_at) VALUES ('s','study','RCT','adults','', '2026')")
+    db.execute("INSERT INTO studies(id,title,design,population,findings,created_at,protocol_hash) VALUES ('s','study','RCT','adults','', '2026','protocol-test-hash')")
     analysis_spec=json.dumps({"outcome_name":"score","registered_outcome_name":"score","estimand":"between-arm change difference","population":"randomized participants","estimator":"unadjusted","ci_method":"normal_approximation_95","missing_data_policy":"complete cases","multiplicity_policy":"primary only","subgroup_policy":"none","stopping_rule":"fixed","allowed_methods":["RANDOMIZED_ARM","INFERENTIAL_RANDOMIZED_ARM","LONGITUDINAL_RETENTION","DESCRIPTIVE"]})
     db.execute("INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES (?,?,?,?,?,?,?)",("plan","s",1,analysis_spec,1,"2026","2026"))
     for pid,arm in [('i','INTERVENTION'),('c1','CONTROL')]:
@@ -58,3 +58,17 @@ def test_analysis_rejects_tampered_frozen_plan_hash(tmp_path):
         assert False
     except ValueError as exc:
         assert "integrity hash" in str(exc)
+
+
+def test_randomized_analysis_records_protocol_plan_and_dataset_audit(tmp_path):
+    db=setup(tmp_path)
+    for pid,base,post in [('i',10,16),('c1',10,12)]:
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?)",(pid+'b','s',pid,'score',base,'TRAINING','2026-01'))
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?)",(pid+'p','s',pid,'score',post,'TRAINING','2026-02'))
+    out=ScientificAnalysisEngine(db).randomized_arm_analysis('s','plan','score')
+    audit=ScientificAnalysisEngine(db).analysis_audit('s','plan','score')
+    assert len(audit)==1
+    assert audit[0]["method"]=="RANDOMIZED_ARM"
+    assert audit[0]["protocol_hash"]=="protocol-test-hash"
+    assert audit[0]["dataset_hash"]
+    assert audit[0]["analysis_plan_hash"]
