@@ -1366,7 +1366,8 @@ def science_propose_claim_revision(claim_id: str, body: dict, principal: Princip
     try:
         return ClaimRevisionService(db).propose(
             claim_id, body["new_statement"], body["new_status"],
-            body["rationale"], body.get("evidence_refs", ()), principal.user_id)
+            body["rationale"], body.get("evidence_refs", ()), principal.user_id,
+            body.get("source_finding_id"), body.get("causal_basis"), body.get("causal_basis_type"))
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
