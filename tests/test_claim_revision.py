@@ -51,3 +51,29 @@ def test_descriptive_finding_cannot_be_promoted_to_causal_claim(tmp_path):
         assert False
     except ValueError as exc:
         assert "causal claim" in str(exc)
+
+
+def test_supported_causal_claim_requires_explicit_causal_basis(tmp_path):
+    db,cid,sid=setup(tmp_path)
+    ep=EvidencePipeline(db)
+    ep.ingest_text(sid,"seeded source content")
+    ev=ep.attach(cid,sid,"seeded source content","SUPPORTS")
+    ep.review(ev["id"],"auditor","VERIFIED","checked")
+    service=ClaimRevisionService(db)
+    revision=service.propose(cid,"The intervention causes improvement","SUPPORTED","causal claim",(ev["id"],),actor="author")
+    try:
+        service.approve(revision["id"],"reviewer")
+        assert False
+    except ValueError as exc:
+        assert "causal basis" in str(exc)
+
+def test_supported_causal_claim_records_explicit_basis(tmp_path):
+    db,cid,sid=setup(tmp_path)
+    ep=EvidencePipeline(db)
+    ep.ingest_text(sid,"seeded source content")
+    ev=ep.attach(cid,sid,"seeded source content","SUPPORTS")
+    ep.review(ev["id"],"auditor","VERIFIED","checked")
+    service=ClaimRevisionService(db)
+    revision=service.propose(cid,"The intervention causes improvement","SUPPORTED","causal claim",(ev["id"],),actor="author",causal_basis="Randomized controlled evidence supports a causal interpretation",causal_basis_type="RANDOMIZED_TRIAL")
+    updated=service.approve(revision["id"],"reviewer")
+    assert updated["status"]=="SUPPORTED"
