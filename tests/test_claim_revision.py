@@ -33,3 +33,21 @@ def test_revision_approval_accepts_supported_claim_only_with_verified_support(tm
     updated=service.approve(revision["id"],"reviewer")
     assert updated["status"]=="SUPPORTED"
     assert updated["statement"]=="A verified supported statement"
+
+
+def test_descriptive_finding_cannot_be_promoted_to_causal_claim(tmp_path):
+    import json
+    from uuid import uuid4
+    from app.models import now
+    from app.finding_claim_bridge import FindingClaimBridge
+    db,cid,sid=setup(tmp_path)
+    eid=str(uuid4()); fid=str(uuid4())
+    db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(eid,cid,sid,"SUPPORTS","observed excerpt",1,"system","hash-causal",now()))
+    db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES (?,?,?,?,?,?)",(str(uuid4()),eid,"auditor","VERIFIED","checked",now()))
+    db.execute("INSERT INTO research_findings(id,project_id,source_type,source_id,statement,classification,status,evidence_refs,interpretation,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+               (fid,db.one("SELECT project_id FROM claims WHERE id=?",(cid,))["project_id"],"EVIDENCE",eid,"The intervention causes improvement","DESCRIPTIVE","ACCEPTED",json.dumps([eid]),"descriptive only","reviewer",now()))
+    try:
+        FindingClaimBridge(db).propose_claim(fid,"reviewer")
+        assert False
+    except ValueError as exc:
+        assert "causal claim" in str(exc)
