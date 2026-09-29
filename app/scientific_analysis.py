@@ -56,6 +56,13 @@ class ScientificAnalysisEngine:
             raise ValueError("analysis_spec.allowed_methods must be a non-empty list")
         if spec["outcome_name"] != spec.get("registered_outcome_name",spec["outcome_name"]):
             raise ValueError("analysis_spec outcome does not match registered outcome")
+        methods=set(allowed)
+        if methods & {"RANDOMIZED_ARM","INFERENTIAL_RANDOMIZED_ARM"}:
+            if not spec.get("baseline_timepoint") or not spec.get("post_timepoint"):
+                raise ValueError("analysis_spec requires baseline_timepoint and post_timepoint")
+        if "LONGITUDINAL_RETENTION" in methods:
+            if not spec.get("post_timepoint") or not spec.get("retention_timepoint"):
+                raise ValueError("analysis_spec requires post_timepoint and retention_timepoint")
         return {"valid":True,"allowed_methods":allowed,"spec":spec}
 
     def _require_method(self, plan, method, outcome_name=None):
@@ -128,18 +135,18 @@ class ScientificAnalysisEngine:
     def longitudinal_retention_analysis(self, study_id, analysis_plan_id, outcome_name):
         """Describe post-to-retention trajectories without fitting an unregistered repeated-measures model."""
         plan=self._plan(study_id,analysis_plan_id)
-        self._require_method(plan,"LONGITUDINAL_RETENTION",outcome_name)
+        spec=self._require_method(plan,"LONGITUDINAL_RETENTION",outcome_name)
         rows=self.db.all(
-            "SELECT participant_id,observation_type,value,recorded_at FROM study_outcomes "
+            "SELECT participant_id,observation_type,timepoint,value,recorded_at FROM study_outcomes "
             "WHERE study_id=? AND outcome_name=? AND value IS NOT NULL "
             "ORDER BY participant_id,recorded_at",(study_id,outcome_name))
         grouped={}
         for r in rows:
-            grouped.setdefault(r["participant_id"],{}).setdefault(r["observation_type"],[]).append(r["value"])
+            grouped.setdefault(r["participant_id"],{}).setdefault(r["observation_type"],[]).append(r)
         trajectories=[]
         for pid,v in grouped.items():
-            post=(v.get("TRAINING") or [None])[-1]
-            retention=(v.get("RETENTION") or [None])[-1]
+            post=next((r["value"] for r in grouped.get(pid,{}).get("TRAINING",[]) if r["timepoint"]==spec["post_timepoint"]),None)
+            retention=next((r["value"] for r in grouped.get(pid,{}).get("RETENTION",[]) if r["timepoint"]==spec["retention_timepoint"]),None)
             if post is not None and retention is not None:
                 trajectories.append(retention-post)
         summary=self._mean_ci95(trajectories)
@@ -156,19 +163,22 @@ class ScientificAnalysisEngine:
         outcome distribution, sample size, missingness mechanism, or repeated measures.
         """
         plan=self._plan(study_id,analysis_plan_id)
-        self._require_method(plan,"INFERENTIAL_RANDOMIZED_ARM",outcome_name)
+        spec=self._require_method(plan,"INFERENTIAL_RANDOMIZED_ARM",outcome_name)
         rows=self.db.all(
-            "SELECT p.id participant_id,a.arm,o.observation_type,o.value,o.recorded_at "
+            "SELECT p.id participant_id,a.arm,o.observation_type,o.timepoint,o.value,o.recorded_at "
             "FROM study_participants p JOIN study_assignments a ON a.participant_id=p.id AND a.study_id=p.study_id "
             "LEFT JOIN study_outcomes o ON o.participant_id=p.id AND o.study_id=? AND o.outcome_name=? "
             "WHERE p.study_id=? ORDER BY p.id,o.recorded_at",(study_id,outcome_name,study_id))
         grouped={}
         for r in rows:
             p=grouped.setdefault(r["participant_id"],{"arm":r["arm"],"values":[]})
-            if r["observation_type"]=="TRAINING" and r["value"] is not None: p["values"].append(r["value"])
+            if r["observation_type"]=="TRAINING" and r["value"] is not None: p.setdefault("by_timepoint",{}).setdefault(r["timepoint"],[]).append(r["value"])
         changes={"INTERVENTION":[],"CONTROL":[]}
         for p in grouped.values():
-            if len(p["values"])>=2 and p["arm"] in changes: changes[p["arm"]].append(p["values"][-1]-p["values"][0])
+            if p["arm"] in changes:
+                base=p.get("by_timepoint",{}).get(spec["baseline_timepoint"],[])
+                post=p.get("by_timepoint",{}).get(spec["post_timepoint"],[])
+                if base and post: changes[p["arm"]].append(post[-1]-base[-1])
         i=self._mean_ci95(changes["INTERVENTION"]); c=self._mean_ci95(changes["CONTROL"])
         d=self._cohens_d_independent(changes["INTERVENTION"],changes["CONTROL"])
         diff=i["mean"]-c["mean"] if i["mean"] is not None and c["mean"] is not None else None
@@ -207,9 +217,9 @@ class ScientificAnalysisEngine:
         inferential model and does not establish population-level causality.
         """
         plan=self._plan(study_id, analysis_plan_id)
-        self._require_method(plan,"RANDOMIZED_ARM",outcome_name)
+        spec=self._require_method(plan,"RANDOMIZED_ARM",outcome_name)
         rows=self.db.all(
-            "SELECT p.id AS participant_id,a.arm,o.observation_type,o.value,o.recorded_at "
+            "SELECT p.id AS participant_id,a.arm,o.observation_type,o.timepoint,o.value,o.recorded_at "
             "FROM study_participants p "
             "JOIN study_assignments a ON a.participant_id=p.id AND a.study_id=p.study_id "
             "LEFT JOIN study_outcomes o ON o.participant_id=p.id AND o.study_id=? AND o.outcome_name=? "
@@ -221,9 +231,10 @@ class ScientificAnalysisEngine:
             participants.setdefault(r["participant_id"],{"arm":r["arm"],"baseline":None,"post":None})
             if r["observation_type"]=="TRAINING" and r["value"] is not None:
                 # Preserve the first and last training observations as baseline/post.
-                if participants[r["participant_id"]]["baseline"] is None:
+                if r["timepoint"]==spec["baseline_timepoint"]:
                     participants[r["participant_id"]]["baseline"]=r["value"]
-                participants[r["participant_id"]]["post"]=r["value"]
+                elif r["timepoint"]==spec["post_timepoint"]:
+                    participants[r["participant_id"]]["post"]=r["value"]
 
         changes={"INTERVENTION":[],"CONTROL":[]}
         for p in participants.values():
