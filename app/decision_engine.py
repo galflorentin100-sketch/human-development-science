@@ -18,8 +18,10 @@ class DecisionEngine:
         if decision in self.HIGH_RISK: action_required=True
         did=str(uuid4()); ts=now()
         with self.db.transaction() as con:
-            con.execute("INSERT INTO decisions(id,company_id,decision,alternatives,evidence,assumptions,confidence,expected_outcome,actual_outcome,owner,follow_up,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                        (did,"hds",decision,json.dumps(alternatives),json.dumps(evidence),json.dumps(assumptions),confidence,expected_outcome,None,owner,"Resolve approval or gather missing evidence." if action_required else "Execute and measure outcome.",ts))
+            project=self.db.one("SELECT id FROM projects WHERE id=?",(project_id,))
+        if not project: raise ValueError("project not found")
+        con.execute("INSERT INTO decisions(id,company_id,project_id,decision,alternatives,evidence,assumptions,confidence,expected_outcome,actual_outcome,owner,follow_up,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (did,"hds",project_id,decision,json.dumps(alternatives),json.dumps(evidence),json.dumps(assumptions),confidence,expected_outcome,None,owner,"Resolve approval or gather missing evidence." if action_required else "Execute and measure outcome.",ts))
             approval=None
             if action_required:
                 approval=ApprovalService(self.db)._request_in_transaction(
@@ -35,7 +37,11 @@ class DecisionEngine:
                          json.dumps({"confidence":confidence,"action_required":action_required,"missing":missing},sort_keys=True),ts))
         return {"decision":self.db.one("SELECT * FROM decisions WHERE id=?",(did,)),"approval":approval,"action_required":action_required,"missing":missing}
 
-    def record_outcome(self,decision_id,actual_outcome):
+    def record_outcome(self,decision_id,actual_outcome,project_id=None):
+        decision=self.db.one("SELECT * FROM decisions WHERE id=?",(decision_id,))
+        if not decision: raise ValueError("decision not found")
+        if project_id is not None and str(decision["project_id"])!=str(project_id):
+            raise ValueError("decision belongs to another project")
         self.db.execute("UPDATE decisions SET actual_outcome=? WHERE id=?",(actual_outcome,decision_id))
         self.db.audit("decision.outcome","decision",decision_id,"system",{"actual_outcome":actual_outcome},now(),str(uuid4()))
         return self.db.one("SELECT * FROM decisions WHERE id=?",(decision_id,))
