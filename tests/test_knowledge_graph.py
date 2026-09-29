@@ -109,6 +109,8 @@ def test_sync_materializes_full_explicit_scientific_provenance_chain(tmp_path):
                (claim,pid,"claim","INFERENCE","VERIFIED",0.8,"SUPPORTED",now()))
     db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                (evidence,claim,source,"SUPPORTS","excerpt",1,"system","hash",now()))
+    db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES (?,?,?,?,?,?)",
+               (str(uuid.uuid4()),evidence,"auditor","VERIFIED","checked",now()))
     db.execute("INSERT INTO interventions(id,project_id,name,target_construct_id,rationale,mechanism,evidence_level,dosage,population,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                (intervention,pid,"intervention",None,"rationale","mechanism","PRELIMINARY","dose","population","EXPERIMENTAL",now()))
     db.execute("INSERT INTO training_protocols(id,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
