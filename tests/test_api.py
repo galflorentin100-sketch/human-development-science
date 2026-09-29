@@ -152,8 +152,6 @@ def test_sc001_registers_hypothesis_and_experiment(tmp_path):
     assert out["experiment"]["status"]=="PLANNED"
 
 def test_sc001_study_execution_records_missing_data_and_analysis(tmp_path):
-    m=MeasurementRegistry(db).define("s","goal_execution_rate","goal execution","structured log","PROPORTION")
-    MeasurementRegistry(db).bind("s",m["id"],"TRAINING","baseline")
     from app.database import Database
     from app.workflow import ResearchCycle
     from app.research import StudyExecution
@@ -162,11 +160,15 @@ def test_sc001_study_execution_records_missing_data_and_analysis(tmp_path):
     registered=__import__("app.sc001",fromlist=["SC001Protocol"]).SC001Protocol().register(db,p["id"])
     study=registered["study"]
     db.execute("UPDATE studies SET status='APPROVED' WHERE id=?",(study["id"],))
+    from app.measurement import MeasurementRegistry
+    m=MeasurementRegistry(db).define(study["id"],"goal_execution_rate","goal execution","structured log","PROPORTION")
+    MeasurementRegistry(db).bind(study["id"],m["id"],"TRAINING","baseline")
+    MeasurementRegistry(db).bind(study["id"],m["id"],"TRAINING","post")
     sx=StudyExecution(db)
     participant=sx.participant(study["id"],"p1")
     sx.randomize(study["id"],participant["id"],seed=1)
-    sx.outcome(study["id"],participant["id"],"goal_execution_rate",0.4)
-    sx.outcome(study["id"],participant["id"],"goal_execution_rate",0.6)
+        sx.outcome(study["id"],participant["id"],"goal_execution_rate",0.4,measure_id=m["id"],timepoint="baseline")
+    sx.outcome(study["id"],participant["id"],"goal_execution_rate",0.6,measure_id=m["id"],timepoint="post")
     plan=sx.freeze_analysis_plan(study["id"],'{"outcome_name":"goal_execution_rate","estimand":"mean_change","population":"registered participants","estimator":"mean change","ci_method":"none","missing_data_policy":"complete cases","multiplicity_policy":"none","subgroup_policy":"none","stopping_rule":"fixed","baseline_timepoint":"baseline","post_timepoint":"post","allowed_methods":["DESCRIPTIVE"]}')
     result=sx.analyze_mean_change(study["id"],plan["id"],"goal_execution_rate")
     assert result["n_total"]==1
