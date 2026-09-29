@@ -184,6 +184,10 @@ class CodeChangeService:
             if not run or run["status"]!="PASSED":
                 raise ValueError("deployment run is not a recorded successful deployment")
             self._require_execution_attestation(dict(row),run,attestation)
+            if str(run["project_id"])!=str(row["project_id"]):
+                raise ValueError("deployment run belongs to another project")
+            if str(run["actor"])!=str(actor):
+                raise ValueError("deployment actor does not match the recorded runner actor")
             if str(run["proposal_fingerprint"])!=self.fingerprint(dict(row)):
                 raise ValueError("deployment result does not match the current proposal")
             updated=con.execute(
@@ -206,6 +210,10 @@ class CodeChangeService:
             if not run or run["status"]!="PASSED":
                 raise ValueError("rollback run is not a recorded successful rollback")
             self._require_execution_attestation(dict(row),run,attestation)
+            if str(run["project_id"])!=str(row["project_id"]):
+                raise ValueError("rollback run belongs to another project")
+            if str(run["actor"])!=str(actor):
+                raise ValueError("rollback actor does not match the recorded runner actor")
             if str(run["proposal_fingerprint"])!=self.fingerprint(dict(row)):
                 raise ValueError("rollback result does not match the deployed proposal")
             updated=con.execute(
