@@ -86,3 +86,30 @@ def test_randomized_analysis_records_protocol_plan_and_dataset_audit(tmp_path):
     assert audit[0]["protocol_hash"]=="protocol-test-hash"
     assert audit[0]["dataset_hash"]
     assert audit[0]["analysis_plan_hash"]
+
+
+def test_analysis_plan_blocks_unplanned_multiplicity_and_requires_explicit_controls(tmp_path):
+    db=setup(tmp_path)
+    engine=ScientificAnalysisEngine(db)
+    plan=db.one("SELECT * FROM study_analysis_plans WHERE id='plan'")
+    assert engine.validate_analysis_spec(plan)["valid"]
+    db.execute("INSERT INTO study_analysis_results(id,study_id,analysis_plan_id,outcome_name,n_total,n_observed,estimate,uncertainty,missing_data_note,interpretation,created_at) VALUES ('existing','s','plan','score',2,2,1,NULL,NULL,'primary','2026')")
+    try:
+        engine.randomized_arm_analysis("s","plan","score")
+        assert False
+    except ValueError as exc:
+        assert "primary-only" in str(exc)
+
+    adjusted=dict(json.loads(plan["analysis_spec"]))
+    adjusted["multiplicity_policy"]="adjusted"
+    adjusted["multiplicity_method"]="holm"
+    adjusted["subgroup_policy"]="none"
+    assert engine.validate_analysis_spec(dict(plan,analysis_spec=json.dumps(adjusted)))["valid"]
+
+    subgroup=dict(json.loads(plan["analysis_spec"]))
+    subgroup["subgroup_policy"]="pre_specified"
+    try:
+        engine.validate_analysis_spec(dict(plan,analysis_spec=json.dumps(subgroup)))
+        assert False
+    except ValueError as exc:
+        assert "subgroups" in str(exc)
