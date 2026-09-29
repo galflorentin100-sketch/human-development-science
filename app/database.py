@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS failures (id TEXT PRIMARY KEY, project_id TEXT REFERE
 """
 
 
-_HDS_LEGACY_COLUMNS = {"studies": {"project_id": "TEXT"}, "hds_competition_participants": {"eligibility_status": "TEXT NOT NULL DEFAULT 'ELIGIBILITY_PENDING'", "supervision_status": "TEXT NOT NULL DEFAULT 'UNASSIGNED'", "medical_review_status": "TEXT NOT NULL DEFAULT 'NOT_REQUIRED'"}}
+_HDS_LEGACY_COLUMNS = {"decisions": {"project_id": "TEXT"}, "studies": {"project_id": "TEXT"}, "hds_competition_participants": {"eligibility_status": "TEXT NOT NULL DEFAULT 'ELIGIBILITY_PENDING'", "supervision_status": "TEXT NOT NULL DEFAULT 'UNASSIGNED'", "medical_review_status": "TEXT NOT NULL DEFAULT 'NOT_REQUIRED'"}}
 
 PROJECT_INDEX_SCHEMA = """CREATE INDEX IF NOT EXISTS idx_claims_project_created ON claims(project_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_studies_project_created ON studies(project_id,created_at);
