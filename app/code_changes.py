@@ -179,6 +179,12 @@ class CodeChangeService:
             if self.settings.environment=="production" and run["runner_mode"]!="isolated":
                 raise ValueError("production verification must come from the isolated runner")
             self._require_execution_attestation(dict(row),run,attestation)
+            verification=con.execute(
+                "SELECT passed,return_code,timed_out FROM code_change_verifications WHERE proposal_id=? AND verification_run_id=?",
+                (proposal_id,verification_run_id),
+            ).fetchone()
+            if not verification or int(verification["passed"]) != 1 or int(verification["timed_out"] or 0) != 0:
+                raise ValueError("verification result has not been recorded as a successful verification")
             updated=con.execute("""UPDATE code_change_proposals
                 SET status='VERIFIED',verification_run_id=?,rollback_payload=?,updated_at=?
                 WHERE id=? AND status='APPROVED'""",
