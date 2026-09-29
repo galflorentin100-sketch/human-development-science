@@ -234,6 +234,7 @@ def company_intelligence(principal: Principal = Depends(principal_from_header)):
         "findings": intelligence.findings(),
         "workforce": intelligence.workforce(),
         "timeline": intelligence.timeline(),
+        "brief": FounderBriefService(db).build(),
     }
 
 @app.get("/api/founder/projects")
