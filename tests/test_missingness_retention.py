@@ -7,7 +7,7 @@ def test_missingness_report_separates_missing_from_observed(tmp_path):
     for pid in ('p1','p2'):
         db.execute("INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",(pid,'s',pid,'CONSENTED','2026'))
     db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?)",('o1','s','p1','x',10,'REAL_WORLD','baseline','2026'))
-    db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at,missing_reason) VALUES (?,?,?,?,?,?,?,?)",('o2','s','p2','x',None,'REAL_WORLD','2026','DROPOUT'))
+    db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at,missing_reason) VALUES (?,?,?,?,?,?,?,?,?)",('o2','s','p2','x',None,'REAL_WORLD','baseline','2026','DROPOUT'))
     out=ScientificAnalysisEngine(db).missingness_report('s','x')
     assert out['REAL_WORLD']['n_observed']==1
     assert out['REAL_WORLD']['n_missing']==1
@@ -42,7 +42,8 @@ def test_freeze_analysis_plan_rejects_incomplete_spec(tmp_path):
 def test_analysis_plan_cannot_change_after_outcome_collection(tmp_path):
     db=Database(str(tmp_path/"amend.db")); db.migrate()
     db.execute("INSERT INTO studies(id,title,design,population,findings,created_at) VALUES ('s','s','RCT','adults','','2026')")
-    db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES ('o','s','p','x',1,'TRAINING','2026')")
+    db.execute("INSERT INTO study_participants(id,study_id,consent_status) VALUES ('p','s','CONSENTED')")
+    db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES ('o','s','p','x',1,'TRAINING','baseline','2026')")
     from app.research import ResearchRepository
     import json
     spec=json.dumps({"outcome_name":"x","estimand":"change","population":"study participants","estimator":"complete cases","ci_method":"none","missing_data_policy":"complete cases","multiplicity_policy":"primary only","subgroup_policy":"none","stopping_rule":"fixed","allowed_methods":["DESCRIPTIVE"]})
