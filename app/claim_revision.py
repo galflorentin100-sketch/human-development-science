@@ -18,17 +18,23 @@ class ClaimRevisionService:
             created_at TEXT NOT NULL
         )""")
         existing=set(self.db.table_columns("claim_revisions"))
-        additions={"prior_classification":"TEXT NOT NULL DEFAULT ''","prior_confidence":"REAL NOT NULL DEFAULT 0","new_classification":"TEXT NOT NULL DEFAULT ''","new_confidence":"REAL NOT NULL DEFAULT 0","reason":"TEXT NOT NULL DEFAULT ''","evidence_id":"TEXT","review_required":"INTEGER NOT NULL DEFAULT 1","previous_statement":"TEXT NOT NULL DEFAULT ''","new_statement":"TEXT NOT NULL DEFAULT ''","previous_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","new_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","rationale":"TEXT NOT NULL DEFAULT ''","evidence_refs":"TEXT NOT NULL DEFAULT '[]'","revised_by":"TEXT NOT NULL DEFAULT 'system'","status":"TEXT NOT NULL DEFAULT 'PROPOSED'","source_finding_id":"TEXT"}
+        additions={"prior_classification":"TEXT NOT NULL DEFAULT ''","prior_confidence":"REAL NOT NULL DEFAULT 0","new_classification":"TEXT NOT NULL DEFAULT ''","new_confidence":"REAL NOT NULL DEFAULT 0","reason":"TEXT NOT NULL DEFAULT ''","evidence_id":"TEXT","review_required":"INTEGER NOT NULL DEFAULT 1","previous_statement":"TEXT NOT NULL DEFAULT ''","new_statement":"TEXT NOT NULL DEFAULT ''","previous_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","new_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","rationale":"TEXT NOT NULL DEFAULT ''","evidence_refs":"TEXT NOT NULL DEFAULT '[]'","revised_by":"TEXT NOT NULL DEFAULT 'system'","status":"TEXT NOT NULL DEFAULT 'PROPOSED'","source_finding_id":"TEXT","causal_basis":"TEXT NOT NULL DEFAULT ''","causal_basis_type":"TEXT NOT NULL DEFAULT ''}
         for name,definition in additions.items():
             if name not in existing: self.db.execute(f"ALTER TABLE claim_revisions ADD COLUMN {name} {definition}")
 
-    def propose(self, claim_id, new_statement, new_status, rationale, evidence_refs=(), actor="system", source_finding_id=None):
+    def propose(self, claim_id, new_statement, new_status, rationale, evidence_refs=(), actor="system", source_finding_id=None, causal_basis=None, causal_basis_type=None):
         claim=self.db.one("SELECT * FROM claims WHERE id=?",(claim_id,))
         if not claim: raise ValueError("claim not found")
         if not str(new_statement or "").strip() or not str(rationale or "").strip():
             raise ValueError("new statement and rationale are required")
         if new_status not in {"PROPOSED","UNCERTAIN","SUPPORTED","CONTRADICTED","RETIRED"}:
             raise ValueError("invalid claim status")
+        causal_markers=("causes ","caused ","causal ","leads to ","results in ","effect of ","effect on ")
+        is_causal=any(marker in str(new_statement or "").lower() for marker in causal_markers)
+        allowed_causal_basis={"RANDOMIZED_TRIAL","QUASI_EXPERIMENTAL","LONGITUDINAL_CAUSAL_DESIGN","MECHANISTIC_EVIDENCE"}
+        if is_causal and new_status in {"SUPPORTED","CONTRADICTED"}:
+            if not str(causal_basis or "").strip() or causal_basis_type not in allowed_causal_basis:
+                raise ValueError("causal claim requires an explicit causal basis type and rationale")
         i=str(uuid4())
         refs=list(evidence_refs or ()); evidence_id=str(refs[0]) if refs else None
         for ref in refs:
@@ -38,12 +44,13 @@ class ClaimRevisionService:
         self.db.execute("""INSERT INTO claim_revisions
             (id,claim_id,prior_classification,prior_confidence,new_classification,new_confidence,
              reason,evidence_id,review_required,previous_statement,new_statement,previous_status,
-             new_status,rationale,evidence_refs,revised_by,status,source_finding_id,created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+             new_status,rationale,evidence_refs,revised_by,status,source_finding_id,causal_basis,causal_basis_type,created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (i,claim_id,claim.get("classification",""),claim.get("confidence",0.0),
              claim.get("classification",""),claim.get("confidence",0.0),rationale,evidence_id,1,
              claim["statement"],new_statement,claim["status"],new_status,rationale,
-             json.dumps(refs,sort_keys=True),actor,"PROPOSED",source_finding_id,now()))
+             json.dumps(refs,sort_keys=True),actor,"PROPOSED",source_finding_id,
+             str(causal_basis or ""),str(causal_basis_type or ""),now()))
         return self.db.one("SELECT * FROM claim_revisions WHERE id=?",(i,))
 
     def approve(self, revision_id, reviewer):
@@ -87,6 +94,10 @@ class ClaimRevisionService:
             if new_status not in allowed.get(old_status,set()):
                 raise ValueError(f"invalid claim transition: {old_status} -> {new_status}")
             if new_status in {"SUPPORTED","CONTRADICTED"}:
+                causal_markers=("causes ","caused ","causal ","leads to ","results in ","effect of ","effect on ")
+                is_causal=any(marker in str(rev["new_statement"] or "").lower() for marker in causal_markers)
+                if is_causal and (not str(rev.get("causal_basis") or "").strip() or not str(rev.get("causal_basis_type") or "").strip()):
+                    raise ValueError("causal claim requires an explicit causal basis before approval")
                 if not refs:
                     raise ValueError(f"{new_status} requires verified evidence")
                 states={}
