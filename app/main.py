@@ -2025,7 +2025,7 @@ def start_hds_challenge(challenge_id: str, participant_id: str, body: dict, prin
     project_id=body.get("project_id")
     if not project_id: raise HTTPException(400,"project_id is required")
     require_project(principal,project_id,"WRITE")
-    try: return ChallengeExecutionService(db).start(project_id,challenge_id,participant_id)
+    try: return ChallengeExecutionService(db).start(project_id,challenge_id,participant_id,principal.user_id)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
 
 @app.post("/api/hds/challenge-executions/{execution_id}/stop")
@@ -2035,7 +2035,7 @@ def stop_hds_challenge(execution_id: str, body: dict, principal: Principal = Dep
     if not row: raise HTTPException(404,"challenge execution not found")
     require_project(principal,row["project_id"],"WRITE")
     from app.adaptive_training import ChallengeExecutionService
-    try: return ChallengeExecutionService(db).stop(execution_id,body.get("reason"))
+    try: return ChallengeExecutionService(db).stop(execution_id,body.get("reason"),principal.user_id)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
 
 @app.post("/api/hds/projects/{project_id}/challenge-executions/emergency-stop")
