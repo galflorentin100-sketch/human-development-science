@@ -1,10 +1,18 @@
 """Isolated verification worker. Polls a shared job volume; never needs network access."""
-import json, os, subprocess, time
+import json, os, subprocess, time, hashlib, hmac
 from pathlib import Path
 
 ROOT=Path(os.getenv("HDS_WORKER_SHARED_DIR","/var/lib/hds-code-worker"))
 RESULTS=Path(os.getenv("HDS_WORKER_RESULT_DIR","/var/lib/hds-code-worker-results"))
 ALLOWED={"pytest","python","python3"}
+
+
+def attestation(request, status, output):
+    secret=os.getenv("HDS_AUTH_HMAC_SECRET","")
+    if not secret:
+        return None
+    payload="|".join((str(request["proposal_id"]),str(request["project_id"]),str(request["proposal_fingerprint"]),str(request["run_id"]),str(request["run_type"]),str(status)))
+    return hmac.new(secret.encode("utf-8"),payload.encode("utf-8"),hashlib.sha256).hexdigest()
 
 def run_job(job):
     req=json.loads((job/"request.json").read_text(encoding="utf-8"))
@@ -25,6 +33,7 @@ def run_job(job):
         out=exc.stdout or ""
         if isinstance(out,bytes): out=out.decode("utf-8",errors="replace")
         result={"passed":False,"return_code":None,"timed_out":True,"output":out[-200000:]}
+    result["attestation"]=attestation(req, "PASSED" if result["passed"] else "FAILED", result["output"])
     RESULTS.mkdir(parents=True,exist_ok=True)
     out=RESULTS/(job.name+".json"); tmp=RESULTS/(job.name+".json.tmp")
     tmp.write_text(json.dumps(result),encoding="utf-8"); tmp.replace(out)
