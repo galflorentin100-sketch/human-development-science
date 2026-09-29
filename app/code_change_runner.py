@@ -61,6 +61,7 @@ class CodeChangeRunner:
         raise ValueError("unsupported patch format")
 
     def _verify_isolated(self, proposal, proposal_id, workspace, command, timeout, run_id):
+        from app.code_changes import CodeChangeService
         shared = Path(os.getenv('HDS_WORKER_SHARED_DIR', '/var/lib/hds-code-worker')).resolve()
         results_dir = Path(os.getenv('HDS_WORKER_RESULT_DIR', '/var/lib/hds-code-worker-results')).resolve()
         jobs = shared / 'jobs'; jobs.mkdir(parents=True, exist_ok=True)
