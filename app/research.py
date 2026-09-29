@@ -39,6 +39,8 @@ class ResearchRepository:
         if missing: raise ValueError("analysis_spec missing required fields: "+", ".join(missing))
         if not isinstance(parsed["allowed_methods"],list) or not parsed["allowed_methods"]: raise ValueError("analysis_spec.allowed_methods must be a non-empty list")
         if not self.db.one("SELECT id FROM studies WHERE id=?",(study_id,)): raise ValueError("study does not exist")
+        if self.db.one("SELECT 1 FROM study_outcomes WHERE study_id=? LIMIT 1",(study_id,)):
+            raise ValueError("analysis plan cannot be amended after outcome data collection has started; create a new study/frozen analysis dataset")
         raw=json.dumps(parsed,sort_keys=True,separators=(",",":"))
         payload=json.dumps({"spec":raw,"sha256":hashlib.sha256(raw.encode()).hexdigest()},sort_keys=True)
         i=str(uuid4()); ts=now()
