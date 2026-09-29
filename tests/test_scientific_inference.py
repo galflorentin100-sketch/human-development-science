@@ -17,8 +17,8 @@ def test_inferential_analysis_reports_ci_and_effect_size(tmp_path):
     db=setup(tmp_path)
     values={'i':(10,16),'c1':(10,12)}
     for pid,(base,post) in values.items():
-        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?)",(pid+'b','s',pid,'score',base,'TRAINING','2026-01'))
-        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?)",(pid+'p','s',pid,'score',post,'TRAINING','2026-02'))
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?)",(pid+'b','s',pid,'score',base,'TRAINING','baseline','2026-01'))
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?)",(pid+'p','s',pid,'score',post,'TRAINING','post','2026-02'))
     out=ScientificAnalysisEngine(db).inferential_randomized_arm_analysis('s','plan','score')
     assert out['between_arm_difference']==4
     assert 'cohens_d' in out
