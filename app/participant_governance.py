@@ -67,6 +67,12 @@ class ParticipantGovernance:
         row=self.get(participant_ref)
         if not row or row["consent_status"]!="CONSENTED" or row["withdrawn_at"]:
             raise ValueError("participant is not actively consented")
+        adverse=self.db.one(
+            "SELECT id,severity FROM training_adverse_events WHERE participant_ref=? AND resolved=0 ORDER BY created_at DESC LIMIT 1",
+            (str(participant_ref),),
+        )
+        if adverse:
+            raise ValueError("participant has an unresolved adverse event; training is blocked pending review")
         return row
 
     def withdraw(self, participant_ref, reason=""):
@@ -85,6 +91,26 @@ class ParticipantGovernance:
             (id,participant_ref,protocol_id,severity,description,action,created_at)
             VALUES (?,?,?,?,?,?,?)""",(i,str(participant_ref),protocol_id,severity,description,action,ts))
         return self.db.one("SELECT * FROM training_adverse_events WHERE id=?",(i,))
+
+    def resolve_adverse_event(self, event_id, actor, resolution_note=""):
+        event=self.db.one("SELECT * FROM training_adverse_events WHERE id=?",(event_id,))
+        if not event: raise ValueError("adverse event not found")
+        if not str(actor or "").strip() or not str(resolution_note or "").strip():
+            raise ValueError("actor and resolution note are required")
+        ts=now()
+        self.db.execute(
+            "UPDATE training_adverse_events SET resolved=1, action=? WHERE id=? AND resolved=0",
+            (f"RESOLVED_BY:{actor}; {resolution_note}",event_id),
+        )
+        updated=self.db.one("SELECT * FROM training_adverse_events WHERE id=?",(event_id,))
+        if not updated or not updated["resolved"]:
+            raise ValueError("adverse event was already resolved")
+        self.db.execute(
+            "INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+            (str(uuid4()),"training.adverse_event_resolved","training_adverse_event",event_id,actor,
+             __import__("json").dumps({"resolution_note":resolution_note},sort_keys=True),ts),
+        )
+        return updated
 
     def record_deviation(self, participant_ref, protocol_id, deviation, impact, session_id=None):
         self.assert_active(participant_ref)
