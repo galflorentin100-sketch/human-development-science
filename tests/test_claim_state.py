@@ -94,3 +94,27 @@ def test_claim_transition_requires_selected_evidence_direction(tmp_path):
         assert False
     except ValueError as exc:
         assert "UNCERTAIN" in str(exc)
+
+
+def test_knowledge_version_rejects_unreviewed_claim(tmp_path):
+    db,cid,sid=setup(tmp_path)
+    try:
+        ClaimStateService(db).knowledge_version(cid,"reviewer","must not admit draft")
+        assert False
+    except ValueError as exc:
+        assert "reviewed claim state" in str(exc)
+
+
+def test_knowledge_version_rejects_conflicted_evidence(tmp_path):
+    db,cid,sid=setup(tmp_path); ep=EvidencePipeline(db)
+    ep.ingest_text(sid,"supporting excerpt; contradicting excerpt")
+    support=ep.attach(cid,sid,"supporting excerpt","SUPPORTS")
+    contradict=ep.attach(cid,sid,"contradicting excerpt","CONTRADICTS")
+    ep.review(support["id"],"auditor-a","VERIFIED","checked")
+    ep.review(contradict["id"],"auditor-b","VERIFIED","checked")
+    ClaimStateService(db).transition(cid,"UNCERTAIN","reviewer","conflicting evidence requires uncertainty")
+    try:
+        ClaimStateService(db).knowledge_version(cid,"reviewer","do not admit conflict")
+        assert False
+    except ValueError as exc:
+        assert "conflicted" in str(exc)
