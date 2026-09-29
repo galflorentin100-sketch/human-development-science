@@ -68,3 +68,20 @@ def test_study_completion_uses_preregistered_observation_types(tmp_path):
     StudyExecution(db).freeze_analysis_plan("s",'{"outcome_name":"goal_execution_rate","estimand":"descriptive","population":"all","estimator":"mean","ci_method":"none","missing_data_policy":"report","multiplicity_policy":"none","subgroup_policy":"none","stopping_rule":"fixed","allowed_methods":["DESCRIPTIVE"]}')
     completed=StudyExecution(db).complete("s")
     assert completed["status"]=="COMPLETED"
+
+
+def test_outcome_requires_measure_binding_and_matching_unit(tmp_path):
+    db=make_db(tmp_path)
+    m=MeasurementRegistry(db).define("s","score","Numeric score","Validated scoring procedure","CONTINUOUS","points")
+    MeasurementRegistry(db).bind("s",m["id"],"TRAINING","baseline")
+    p=StudyExecution(db).participant("s","p")
+    try:
+        StudyExecution(db).outcome("s",p["id"],"score",10,observation_type="TRAINING",timepoint="baseline")
+        assert False
+    except ValueError as exc:
+        assert "preregistered measure" in str(exc)
+    try:
+        StudyExecution(db).outcome("s",p["id"],"score",10,unit="seconds",observation_type="TRAINING",measure_id=m["id"],timepoint="baseline")
+        assert False
+    except ValueError as exc:
+        assert "unit" in str(exc)
