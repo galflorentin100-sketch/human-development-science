@@ -1,7 +1,6 @@
 """Deterministic release gate for HDS application invariants."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from collections import Counter
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.database import Database
@@ -21,12 +20,17 @@ def main():
         missing=REQUIRED_TABLES-tables
         if missing: raise SystemExit("missing required tables: "+", ".join(sorted(missing)))
     from app.main import app
-    route_paths=[r.path for r in app.routes if getattr(r,"path",None)]
-    routes=set(route_paths)
+    route_keys=[(r.path, method) for r in app.routes if getattr(r,"path",None) for method in (getattr(r,"methods",None) or {"*"})]
+    routes={path for path,_ in route_keys}
     missing_routes=REQUIRED_ROUTES-routes
     if missing_routes: raise SystemExit("missing required routes: "+", ".join(sorted(missing_routes)))
-    duplicates=sorted(path for path,count in Counter(route_paths).items() if count > 1)
-    if duplicates: raise SystemExit("duplicate application routes: "+", ".join(duplicates))
+    seen=set()
+    duplicates=[]
+    for key in route_keys:
+        if key in seen and key not in duplicates:
+            duplicates.append(key)
+        seen.add(key)
+    if duplicates: raise SystemExit("duplicate application route methods: "+", ".join(f"{method} {path}" for path,method in duplicates))
     print("HDS release gate: PASS")
 
 if __name__=="__main__": main()
