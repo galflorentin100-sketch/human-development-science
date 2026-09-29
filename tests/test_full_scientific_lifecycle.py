@@ -47,7 +47,7 @@ def test_full_scientific_lifecycle_requires_governed_transitions(tmp_path):
         source_type="LITERATURE",
         source_id=None,
         evidence_refs=[evidence["id"]],
-        interpretation="Descriptive evidence-grounded inference; no causal claim is made.",
+        interpretation="Descriptive evidence-grounded interpretation only.",
         created_by="researcher",
     )
     accepted = ResearchFindingService(db).review(
