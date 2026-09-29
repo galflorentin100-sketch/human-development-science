@@ -85,3 +85,18 @@ def test_outcome_requires_measure_binding_and_matching_unit(tmp_path):
         assert False
     except ValueError as exc:
         assert "unit" in str(exc)
+
+
+def test_outcome_dataset_freezes_after_analysis(tmp_path):
+    db=make_db(tmp_path)
+    m=MeasurementRegistry(db).define("s","score","Validated score","Validated procedure","CONTINUOUS","points")
+    MeasurementRegistry(db).bind("s",m["id"],"TRAINING","baseline")
+    p=StudyExecution(db).participant("s","p")
+    db.execute("INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES ('plan','s',1,'{}',1,'2026','2026')")
+    db.execute("INSERT INTO study_analysis_results(id,study_id,analysis_plan_id,outcome_name,n_total,n_observed,estimate,uncertainty,missing_data_note,interpretation,created_at) VALUES ('result','s','plan','score',1,1,1,NULL,NULL,'test','2026')")
+    db.execute("INSERT INTO study_analysis_audit(id,study_id,analysis_plan_id,analysis_result_id,protocol_hash,analysis_plan_hash,dataset_hash,method,population_note,created_at) VALUES ('audit','s','plan','result','p','a','d','DESCRIPTIVE','test','2026')")
+    try:
+        StudyExecution(db).outcome("s",p["id"],"score",1,observation_type="TRAINING",measure_id=m["id"],timepoint="baseline")
+        assert False
+    except ValueError as exc:
+        assert "frozen" in str(exc)
