@@ -31,3 +31,24 @@ def test_decision_center_has_delegateable_method(tmp_path):
     db=Database(str(tmp_path/"x.db"))
     pid=str(uuid.uuid4())
     assert DecisionCenter(db).delegateable(pid)==[]
+
+def test_governance_sensitive_delegation_requires_and_consumes_founder_approval(tmp_path):
+    from app.agent_delegation import AgentDelegation
+    from app.approvals import ApprovalService
+    from app.workflow import ResearchCycle
+    db=Database(str(tmp_path/"approval.db"))
+    ResearchCycle(db)
+    pid=ResearchCycle(db).run("approval gate")["project"]["id"]
+    decision={"type":"FINDING","id":"finding-1","title":"Candidate finding","reason":"Review evidence","priority":"HIGH","requires_founder_approval":True}
+    delegation=AgentDelegation(db)
+
+    first=delegation.delegate(pid,decision)
+    assert first["status"]=="WAITING_FOR_APPROVAL"
+    approval=first["approval"]
+    assert approval["action"]=="FOUNDER_DECISION:FINDING:finding-1"
+
+    ApprovalService(db).resolve(approval["id"],"APPROVED","founder")
+    task=delegation.delegate(pid,decision)
+    assert task["status"]=="PLANNED"
+    consumed=db.one("SELECT action FROM approval_events WHERE approval_id=? AND action='CONSUMED'",(approval["id"],))
+    assert consumed is not None
