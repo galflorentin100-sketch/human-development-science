@@ -77,7 +77,7 @@ def test_randomized_analysis_records_protocol_plan_and_dataset_audit(tmp_path):
 def test_randomized_analysis_records_protocol_plan_and_dataset_audit(tmp_path):
     db=setup(tmp_path)
     for pid,base,post in [('i',10,16),('c1',10,12)]:
-        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?)",(pid+'b','s',pid,'score',base,'TRAINING','2026-01'))
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?)",(pid+'b','s',pid,'score',base,'TRAINING','2026-01','2026-01-01'))
         db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?)",(pid+'p','s',pid,'score',post,'TRAINING','2026-02'))
     ScientificAnalysisEngine(db).randomized_arm_analysis('s','plan','score')
     audit=ScientificAnalysisEngine(db).analysis_audit('s','plan','score')
