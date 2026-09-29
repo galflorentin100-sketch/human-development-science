@@ -46,3 +46,23 @@ def test_emergency_stop_stops_all_running_project_executions(tmp_path):
     rows=db.all("SELECT status,stop_reason FROM hds_challenge_executions WHERE project_id=?",(project["id"],))
     assert all(r["status"]=="STOPPED" and r["stop_reason"]=="unsafe environment" for r in rows)
     assert db.one("SELECT COUNT(*) AS n FROM audit_logs WHERE event_type='hds.challenge.emergency_stopped'")["n"]==2
+
+
+def test_adaptive_training_change_requires_project_scope_consent_and_safety_checks(tmp_path):
+    db=Database(str(tmp_path/"adaptive-gate.db"))
+    project=ResearchCycle(db).run("adaptive gate")["project"]
+    other=ResearchCycle(db).run("other")["project"]
+    from app.training import TrainingProtocolService
+    from app.participant_governance import ParticipantGovernance
+    protocol=TrainingProtocolService(db).create(project["id"],"P","hypothesis","domain","dose","increase when ready","transfer","retention","safety")
+    ParticipantGovernance(db).register("person","v1")
+    try:
+        AdaptiveTrainingService(db).apply(other["id"],protocol["id"],"person",2,"test",{"clear":True})
+        assert False
+    except ValueError as exc:
+        assert "another project" in str(exc)
+    try:
+        AdaptiveTrainingService(db).apply(project["id"],protocol["id"],"person",2,"test")
+        assert False
+    except ValueError as exc:
+        assert "safety checks" in str(exc)
