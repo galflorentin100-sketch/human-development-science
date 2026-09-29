@@ -42,7 +42,7 @@ def test_freeze_analysis_plan_rejects_incomplete_spec(tmp_path):
 def test_analysis_plan_cannot_change_after_outcome_collection(tmp_path):
     db=Database(str(tmp_path/"amend.db")); db.migrate()
     db.execute("INSERT INTO studies(id,title,design,population,findings,created_at) VALUES ('s','s','RCT','adults','','2026')")
-    db.execute("INSERT INTO study_participants(id,study_id,consent_status) VALUES ('p','s','CONSENTED')")
+    db.execute("INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES ('p','s','p','CONSENTED','2026')")
     db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES ('o','s','p','x',1,'TRAINING','baseline','2026')")
     from app.research import ResearchRepository
     import json
