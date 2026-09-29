@@ -196,6 +196,9 @@ class StudyExecution:
         if not arms or any(a not in self.VALID_ARMS for a in arms): raise ValueError("invalid study arms")
         participant=self.db.one("SELECT * FROM study_participants WHERE id=? AND study_id=?",(participant_id,study_id))
         if not participant: raise ValueError("participant does not belong to study")
+        if participant["consent_status"]!="CONSENTED": raise ValueError("participant consent is not active")
+        study=self.db.one("SELECT status FROM studies WHERE id=?",(study_id,))
+        if not study or study["status"] not in {"APPROVED","RUNNING"}: raise ValueError("study is not executable")
         rng=random.Random(seed) if seed is not None else random.SystemRandom()
         arm=rng.choice(tuple(arms))
         i=str(uuid4())
@@ -207,10 +210,15 @@ class StudyExecution:
     def session(self,study_id,participant_id,phase,session_number,status="COMPLETED"):
         if phase not in self.VALID_PHASES: raise ValueError("invalid study phase")
         if int(session_number) < 0: raise ValueError("session_number must be non-negative")
+        study=self.db.one("SELECT status FROM studies WHERE id=?",(study_id,))
+        if not study or study["status"]!="RUNNING": raise ValueError("study session requires a running study")
         i=str(uuid4()); ts=now()
         with self.db.transaction() as con:
-            if not con.execute("SELECT 1 FROM study_participants WHERE id=? AND study_id=?",(participant_id,study_id)).fetchone():
+            participant=con.execute("SELECT * FROM study_participants WHERE id=? AND study_id=?",(participant_id,study_id)).fetchone()
+            if not participant:
                 raise ValueError("participant does not belong to study")
+            if participant["consent_status"]!="CONSENTED":
+                raise ValueError("participant consent is not active")
             if con.execute("SELECT 1 FROM study_sessions WHERE study_id=? AND participant_id=? AND phase=? AND session_number=?",
                            (study_id,participant_id,phase,int(session_number))).fetchone():
                 raise ValueError("session already exists")
