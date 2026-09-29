@@ -12,10 +12,10 @@ ROLE_MAP={
     "RESEARCH":"researcher",
     "SKEPTIC":"skeptic",
     "CONTRADICTION":"skeptic",
-    "IMPACT":"knowledge-manager",
+    "IMPACT":"chief-scientist",
     "EXPERIMENT":"experiment-designer",
     "INTEGRITY":"evidence-auditor",
-    "AGENT_OUTPUT":"knowledge-manager",
+    "AGENT_OUTPUT":"chief-scientist",
 }
 
 class AgentDelegation:
@@ -25,7 +25,7 @@ class AgentDelegation:
 
     def delegate(self,project_id,decision):
         kind=decision.get("type","RESEARCH").upper()
-        agent=ROLE_MAP.get(kind,"founder-advisor")
+        agent=ROLE_MAP.get(kind,"ceo")
         title=f"[{kind}] {decision.get('title','Scientific review')}"
         criteria=decision.get("reason","Produce a traceable, reviewable output.")
 
