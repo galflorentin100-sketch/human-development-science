@@ -18,9 +18,9 @@ def setup(tmp_path):
 def test_randomized_arm_analysis_is_unadjusted_between_arm_change(tmp_path):
     db=setup(tmp_path)
     for pid,base,post,ret in [('i',10,16,15),('c1',10,12,11)]:
-        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?)",(pid+'b','s',pid,'score',base,'TRAINING','2026-01'))
-        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?)",(pid+'p','s',pid,'score',post,'TRAINING','2026-02'))
-        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?)",(pid+'r','s',pid,'score',ret,'RETENTION','2026-03'))
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?)",(pid+'b','s',pid,'score',base,'TRAINING','baseline','2026-01'))
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?)",(pid+'p','s',pid,'score',post,'TRAINING','post','2026-02'))
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?)",(pid+'r','s',pid,'score',ret,'RETENTION','retention','2026-03'))
     out=ScientificAnalysisEngine(db).randomized_arm_analysis('s','plan','score')
     metrics={x['metric_name']:x['metric_value'] for x in out['metrics']}
     assert metrics['intervention_mean_change']==6
