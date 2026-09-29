@@ -69,7 +69,20 @@ class AdaptiveTrainingService:
         elif successes and successes[0]>=0.8 and adherence>=0.8: decision="INCREASE"
         else: decision="HOLD"
         return {"decision":decision,"adherence":adherence,"recent_sessions":len(rows),"fatigue_flags":fatigue,"task_success_mean":sum(successes)/len(successes) if successes else None,"evidence_basis":"descriptive participant training data; not a causal efficacy claim"}
-    def apply(self,project_id,protocol_id,participant_ref,new_difficulty,rationale):
+    def apply(self,project_id,protocol_id,participant_ref,new_difficulty,rationale,safety_checks=None):
+        protocol=self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
+        if not protocol:
+            raise ValueError("training protocol not found")
+        if str(protocol["project_id"])!=str(project_id):
+            raise ValueError("training protocol belongs to another project")
+        from app.participant_governance import ParticipantGovernance
+        ParticipantGovernance(self.db).assert_active(str(participant_ref))
+        if not isinstance(safety_checks,dict) or not safety_checks:
+            raise ValueError("current safety checks are required before adaptive training changes")
+        from app.safety import SafetyGate
+        safety=SafetyGate(self.db).assess(protocol_id,str(participant_ref),safety_checks)
+        if safety["status"]!="CLEAR":
+            raise ValueError(f"adaptive training change blocked by safety gate: {safety['status']}")
         recommendation=self.recommend(protocol_id,participant_ref)
         if not str(rationale or "").strip(): raise ValueError("rationale is required")
         if recommendation["decision"]=="HOLD": raise ValueError("adaptive change is not justified by available data")
