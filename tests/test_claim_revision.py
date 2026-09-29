@@ -60,9 +60,8 @@ def test_supported_causal_claim_requires_explicit_causal_basis(tmp_path):
     ev=ep.attach(cid,sid,"seeded source content","SUPPORTS")
     ep.review(ev["id"],"auditor","VERIFIED","checked")
     service=ClaimRevisionService(db)
-    revision=service.propose(cid,"The intervention causes improvement","SUPPORTED","causal claim",(ev["id"],),actor="author")
     try:
-        service.approve(revision["id"],"reviewer")
+        service.propose(cid,"The intervention causes improvement","SUPPORTED","causal claim",(ev["id"],),actor="author")
         assert False
     except ValueError as exc:
         assert "causal basis" in str(exc)
