@@ -56,7 +56,9 @@ class AuthService:
         return self.project_authorize(target_external_subject,project_id)
 
     def project_authorize(self, external_subject, project_id, required_permission=None):
-        self._require_owner(external_subject)
+        # Project authorization is governed by company membership + project membership.
+        # The configured system owner is required only for company-level privileged actions,
+        # not for ordinary access to a project explicitly granted to the principal.
         user=self.db.one("SELECT * FROM users WHERE id=? OR external_subject=? LIMIT 1",(external_subject,external_subject))
         if not user: raise PermissionError("unknown principal")
         company=self.db.one(
