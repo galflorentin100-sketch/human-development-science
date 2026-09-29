@@ -8,8 +8,12 @@ class SafetyGate:
     def assess(self,protocol_id,participant_ref,checks):
         protocol=self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
         if not protocol: raise ValueError("training protocol not found")
+        from app.participant_governance import ParticipantGovernance
+        participant=ParticipantGovernance(self.db).get(str(participant_ref))
+        if not participant or participant["consent_status"]!="CONSENTED" or participant["withdrawn_at"]:
+            raise ValueError("participant is not actively consented")
         if not str(protocol["safety_constraints"]).strip(): raise ValueError("protocol has no safety constraints")
-        if not isinstance(checks,dict): raise ValueError("checks must be an object")
+        if not isinstance(checks,dict) or not checks: raise ValueError("non-empty safety checks are required")
         status="CLEAR"
         for k,v in checks.items():
             if str(v).upper() in {"STOP","UNSAFE","ADVERSE_EVENT"}: status="STOP"
