@@ -72,3 +72,17 @@ def test_randomized_analysis_records_protocol_plan_and_dataset_audit(tmp_path):
     assert audit[0]["protocol_hash"]=="protocol-test-hash"
     assert audit[0]["dataset_hash"]
     assert audit[0]["analysis_plan_hash"]
+
+
+def test_randomized_analysis_records_protocol_plan_and_dataset_audit(tmp_path):
+    db=setup(tmp_path)
+    for pid,base,post in [('i',10,16),('c1',10,12)]:
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?)",(pid+'b','s',pid,'score',base,'TRAINING','2026-01'))
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES (?,?,?,?,?,?,?)",(pid+'p','s',pid,'score',post,'TRAINING','2026-02'))
+    ScientificAnalysisEngine(db).randomized_arm_analysis('s','plan','score')
+    audit=ScientificAnalysisEngine(db).analysis_audit('s','plan','score')
+    assert len(audit)==1
+    assert audit[0]["method"]=="RANDOMIZED_ARM"
+    assert audit[0]["protocol_hash"]=="protocol-test-hash"
+    assert audit[0]["dataset_hash"]
+    assert audit[0]["analysis_plan_hash"]
