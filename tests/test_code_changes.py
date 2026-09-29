@@ -52,6 +52,55 @@ def test_code_change_requires_separation_of_duties_and_verification(tmp_path):
     assert svc.rollback(p["id"],"rollback-1","deployer")["status"]=="ROLLED_BACK"
 
 
+def test_deployment_and_rollback_bind_project_and_actor(tmp_path):
+    db=Database(str(tmp_path/"binding.db"))
+    project=ResearchCycle(db).run("binding")["project"]
+    other=ResearchCycle(db).run("other")["project"]
+    db.execute("""INSERT INTO maintenance_work
+        (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        ("mw-binding","ENGINEERING","project",project["id"],"Fix","reason","tests","PROPOSED",None,"now","now"))
+    svc=CodeChangeService(db)
+    p=svc.propose(project["id"],"mw-binding","safe patch","UNIFIED_DIFF","diff --git","pytest tests/test_x.py","LOW","alice")
+    svc.approve(p["id"],"bob")
+    fp=svc.fingerprint(p)
+    db.execute("""INSERT INTO code_change_execution_runs
+       (id,proposal_id,run_type,project_id,proposal_fingerprint,status,actor,runner_mode,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?)""",
+       ("v-bind",p["id"],"VERIFICATION",project["id"],fp,"PASSED","runner","isolated","now"))
+    svc.record_verification(p["id"],"v-bind",True,0,False,"passed")
+    svc.mark_verified(p["id"],"v-bind","rollback")
+    db.execute("""INSERT INTO code_change_execution_runs
+       (id,proposal_id,run_type,project_id,proposal_fingerprint,status,actor,runner_mode,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?)""",
+       ("d-cross",p["id"],"DEPLOYMENT",other["id"],fp,"PASSED","deployer","isolated","now"))
+    try:
+        svc.record_deployed(p["id"],"d-cross","deployer")
+        assert False
+    except ValueError as exc:
+        assert "another project" in str(exc)
+    db.execute("""INSERT INTO code_change_execution_runs
+       (id,proposal_id,run_type,project_id,proposal_fingerprint,status,actor,runner_mode,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?)""",
+       ("d-actor",p["id"],"DEPLOYMENT",project["id"],fp,"PASSED","runner-a","isolated","now"))
+    try:
+        svc.record_deployed(p["id"],"d-actor","runner-b")
+        assert False
+    except ValueError as exc:
+        assert "actor" in str(exc)
+    assert svc.record_deployed(p["id"],"d-actor","runner-a")["status"]=="DEPLOYED"
+    db.execute("""INSERT INTO code_change_execution_runs
+       (id,proposal_id,run_type,project_id,proposal_fingerprint,status,actor,runner_mode,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?)""",
+       ("r-actor",p["id"],"ROLLBACK",project["id"],fp,"PASSED","rollback-a","isolated","now"))
+    try:
+        svc.rollback(p["id"],"r-actor","rollback-b")
+        assert False
+    except ValueError as exc:
+        assert "actor" in str(exc)
+    assert svc.rollback(p["id"],"r-actor","rollback-a")["status"]=="ROLLED_BACK"
+
+
 def test_code_change_runner_only_executes_approved_allowlisted_patch(tmp_path):
     from app.code_change_runner import CodeChangeRunner
     import json
