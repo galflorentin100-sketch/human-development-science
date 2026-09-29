@@ -732,6 +732,12 @@ def _migrate_phase4(self):
         existing_studies={row[1] for row in con.execute("PRAGMA table_info(studies)")}
         if "project_id" not in existing_studies:
             con.execute("ALTER TABLE studies ADD COLUMN project_id TEXT")
+        # Legacy databases may have created decisions before project scoping was introduced.
+        for table,columns in _HDS_LEGACY_COLUMNS.items():
+            existing={row[1] for row in con.execute(f"PRAGMA table_info({table})").fetchall()}
+            for name,definition in columns.items():
+                if name not in existing:
+                    con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
         existing_decisions={row[1] for row in con.execute("PRAGMA table_info(organizational_decisions)")}
         if "evidence" not in existing_decisions: con.execute("ALTER TABLE organizational_decisions ADD COLUMN evidence TEXT NOT NULL DEFAULT '[]'")
         existing={row[1] for row in con.execute("PRAGMA table_info(training_protocols)")}
