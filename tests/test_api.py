@@ -152,6 +152,8 @@ def test_sc001_registers_hypothesis_and_experiment(tmp_path):
     assert out["experiment"]["status"]=="PLANNED"
 
 def test_sc001_study_execution_records_missing_data_and_analysis(tmp_path):
+    m=MeasurementRegistry(db).define("s","goal_execution_rate","goal execution","structured log","PROPORTION")
+    MeasurementRegistry(db).bind("s",m["id"],"TRAINING","baseline")
     from app.database import Database
     from app.workflow import ResearchCycle
     from app.research import StudyExecution
