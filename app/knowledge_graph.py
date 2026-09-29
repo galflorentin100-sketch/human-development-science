@@ -34,7 +34,9 @@ class KnowledgeDependencyGraph:
             "TRAINING_SESSION":"SELECT p.project_id FROM training_sessions s JOIN training_protocols p ON p.id=s.protocol_id WHERE s.id=?",
             "EXPERIMENT_RESULT":"SELECT e.project_id FROM hds_experiment_results r JOIN hds_experiments e ON e.id=r.experiment_id WHERE r.id=? UNION ALL SELECT e.project_id FROM experiment_results r JOIN experiments e ON e.id=r.experiment_id WHERE r.id=?",
             "PROJECT":"SELECT id AS project_id FROM projects WHERE id=?",
-            "SOURCE":"SELECT c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id JOIN sources s ON s.id=e.source_id WHERE s.id=? LIMIT 1",
+            # Sources are globally reusable provenance records. Project isolation is
+            # enforced by the EVIDENCE/CLAIM nodes that connect a source into a project graph.
+            "SOURCE":"SELECT id AS source_id FROM sources WHERE id=?",
             "HYPOTHESIS":"SELECT project_id FROM hypotheses WHERE id=?",
         }
         for typ,nid in ((from_type,from_id),(to_type,to_id)):
