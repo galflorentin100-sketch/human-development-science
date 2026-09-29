@@ -96,12 +96,18 @@ class TrainingProtocolService:
     def session(self,protocol_id,participant_ref,session_number,load_note,adherence,
                 task_success=None,transfer_score=None,retention_score=None,
                 decision_accuracy=None,initiation_latency=None,recovery_score=None,
-                fatigue_note=""):
+                fatigue_note="",safety_checks=None):
         protocol=self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
         if not protocol:
             raise ValueError("training protocol not found")
         from app.participant_governance import ParticipantGovernance
         ParticipantGovernance(self.db).assert_active(str(participant_ref))
+        if not isinstance(safety_checks,dict) or not safety_checks:
+            raise ValueError("current safety checks are required before recording a training session")
+        from app.safety import SafetyGate
+        safety=SafetyGate(self.db).assess(protocol_id,str(participant_ref),safety_checks)
+        if safety["status"]!="CLEAR":
+            raise ValueError(f"training session blocked by safety gate: {safety['status']}")
         if protocol["status"]=="RETIRED":
             raise ValueError("retired training protocols cannot accept new sessions")
         if int(session_number)<1:
