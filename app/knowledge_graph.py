@@ -49,7 +49,9 @@ class KnowledgeDependencyGraph:
                 rows=self.db.all(query,params)
                 row=rows[0] if rows else None
                 if not row: raise ValueError(f"{typ} node not found")
-                if str(row["project_id"])!=str(project_id): raise ValueError(f"{typ} node belongs to another project")
+                # SOURCE records are global provenance entities; project-scoped EVIDENCE enforces isolation.
+                if typ != "SOURCE" and str(row["project_id"])!=str(project_id):
+                    raise ValueError(f"{typ} node belongs to another project")
         refs=[str(x) for x in provenance_refs]
         for ref in refs:
             ev=self.db.one("SELECT c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(ref,))
