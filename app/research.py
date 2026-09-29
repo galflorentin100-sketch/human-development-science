@@ -333,6 +333,8 @@ class StudyExecution:
         if missing: raise ValueError("analysis_spec missing required fields: "+", ".join(missing))
         if not isinstance(parsed["allowed_methods"],list) or not parsed["allowed_methods"]:
             raise ValueError("analysis_spec.allowed_methods must be a non-empty list")
+        if self.db.one("SELECT 1 FROM study_outcomes WHERE study_id=? LIMIT 1",(study_id,)):
+            raise ValueError("analysis plan cannot be amended after outcome data collection has started; create a new study/frozen analysis dataset")
         digest=hashlib.sha256(analysis_spec.encode("utf-8")).hexdigest()
         payload=json.dumps({"spec":analysis_spec,"sha256":digest},sort_keys=True)
         i=str(uuid4()); ts=now()
