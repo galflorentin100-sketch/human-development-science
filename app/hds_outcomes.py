@@ -32,6 +32,8 @@ class HDSOutcomeService:
         )
         if not measure:
             raise ValueError("outcome is not preregistered for this study")
+        if unit and measure["unit"] and unit != measure["unit"]:
+            raise ValueError("outcome unit does not match preregistered measure")
         ident=str(uuid4())
         self.db.execute(
             """INSERT INTO study_outcomes
