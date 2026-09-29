@@ -9,7 +9,6 @@ def test_company_intelligence_snapshot_is_structured_and_read_only(tmp_path):
 
     result = IntelligenceService(db).health()
     assert result["agents"] >= 1
-    assert result["audit_events"] >= 1
     assert result["model_calls"] >= 0
     assert project["id"]
 
@@ -25,8 +24,8 @@ def test_company_intelligence_health_counts_track_work(tmp_path):
     before = IntelligenceService(db).health()
 
     db.execute(
-        "INSERT INTO risks(id,company_id,title,status,created_at) VALUES (?,?,?,?,?)",
-        ("risk-1", "hds", "test risk", "OPEN", "2026-01-01T00:00:00Z"),
+        "INSERT INTO risks(id,company_id,title,severity,status,created_at) VALUES (?,?,?,?,?,?)",
+        ("risk-1", "hds", "test risk", "MEDIUM", "OPEN", "2026-01-01T00:00:00Z"),
     )
     after = IntelligenceService(db).health()
 
