@@ -1,3 +1,5 @@
+import pytest
+
 from app.database import Database
 from app.workflow import ResearchCycle
 from app.evidence_pipeline import EvidencePipeline
@@ -146,10 +148,7 @@ def test_full_scientific_lifecycle_requires_governed_transitions(tmp_path):
 
     # Training outcome feedback is never silently promoted to accepted science:
     # it has no evidence references and therefore cannot pass the acceptance gate.
-    try:
+    with pytest.raises(ValueError, match="evidence reference"):
         ResearchFindingService(db).review(
             candidate["id"], "independent-reviewer-4", "ACCEPTED", "accept"
         )
-        assert False, "candidate without evidence must not be accepted"
-    except ValueError as exc:
-        assert "evidence reference" in str(exc)
