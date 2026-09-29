@@ -173,6 +173,33 @@ def test_code_change_runner_isolated_mode_uses_worker_job_transport(tmp_path, mo
     assert db.one("SELECT status FROM code_change_proposals WHERE id=?",(p["id"],))["status"]=="VERIFIED"
 
 
+def test_production_verification_requires_isolated_runner(tmp_path, monkeypatch):
+    monkeypatch.setenv("COMPANY_OS_ENV","production")
+    monkeypatch.setenv("DATABASE_URL","postgresql://example")
+    monkeypatch.setenv("HDS_AUTH_HMAC_SECRET","test-secret")
+    monkeypatch.setenv("HDS_OWNER_EXTERNAL_SUBJECT","owner")
+    monkeypatch.setenv("HDS_CODE_RUNNER_MODE","isolated")
+    db=Database(str(tmp_path/"prod-runner.db"))
+    project=ResearchCycle(db).run("production runner")["project"]
+    db.execute("""INSERT INTO maintenance_work
+        (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        ("mw-prod","ENGINEERING","project",project["id"],"Fix","reason","tests","PROPOSED",None,"now","now"))
+    svc=CodeChangeService(db)
+    p=svc.propose(project["id"],"mw-prod","safe patch","UNIFIED_DIFF","diff --git","pytest tests/test_x.py","LOW","alice")
+    svc.approve(p["id"],"bob")
+    fingerprint=svc.fingerprint(p)
+    db.execute("""INSERT INTO code_change_execution_runs
+       (id,proposal_id,run_type,project_id,proposal_fingerprint,status,actor,runner_mode,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?)""",
+       ("v-external",p["id"],"VERIFICATION",project["id"],fingerprint,"PASSED","runner","external","now"))
+    try:
+        svc.mark_verified(p["id"],"v-external","rollback")
+        assert False, "production verification must require isolated runner"
+    except ValueError as exc:
+        assert "isolated runner" in str(exc)
+
+
 def test_deployment_and_rollback_require_attestation_in_production(tmp_path, monkeypatch):
     import os
     from app.config import Settings
