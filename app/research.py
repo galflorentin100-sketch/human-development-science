@@ -107,15 +107,6 @@ class ResearchFindingService:
         if finding["created_by"]==reviewer and reviewer!="system": raise ValueError("reviewer must be independent")
         refs=json.loads(finding["evidence_refs"] or "[]")
         if not isinstance(refs,list): raise ValueError("finding evidence_refs must be a list")
-        if finding["interpretation"]:
-            from app.scientific_ai import ScientificAIGuard
-            ScientificAIGuard().validate_interpretation(
-                finding["interpretation"],
-                evidence_refs=tuple(str(x) for x in refs),
-                causal_design=False,
-                retention_observed=False,
-                transfer_observed=False,
-            )
         status=decision
         ts=now()
         with self.db.transaction() as con:
@@ -156,6 +147,17 @@ class ResearchFindingService:
                         "excerpt_hash":evidence["excerpt_hash"],
                         "state_at_review":state,
                     })
+            # Validate scientific prose only after acceptance evidence prerequisites
+            # have passed, so missing evidence cannot be masked by wording checks.
+            if decision=="ACCEPTED" and finding["interpretation"]:
+                from app.scientific_ai import ScientificAIGuard
+                ScientificAIGuard().validate_interpretation(
+                    finding["interpretation"],
+                    evidence_refs=tuple(str(x) for x in refs),
+                    causal_design=False,
+                    retention_observed=False,
+                    transfer_observed=False,
+                )
             updated=con.execute(
                 "UPDATE research_findings SET status=?,reviewed_by=?,reviewed_at=? WHERE id=? AND status IN ('CANDIDATE','UNDER_REVIEW')",
                 (status,reviewer,ts,finding_id))
