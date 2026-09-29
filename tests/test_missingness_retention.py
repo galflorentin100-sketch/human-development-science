@@ -3,7 +3,7 @@ from app.scientific_analysis import ScientificAnalysisEngine
 
 def test_missingness_report_separates_missing_from_observed(tmp_path):
     db=Database(str(tmp_path/"m.db")); db.migrate()
-    db.execute("INSERT INTO studies(id,title,design,population,findings,created_at) VALUES ('s','s','RCT','adults','','2026')")
+    db.execute("INSERT INTO studies(id,title,design,population,findings,created_at,status) VALUES ('s','s','RCT','adults','','2026','COMPLETED')")
     for pid in ('p1','p2'):
         db.execute("INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",(pid,'s',pid,'CONSENTED','2026'))
     db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?)",('o1','s','p1','x',10,'REAL_WORLD','2026'))
@@ -37,3 +37,17 @@ def test_freeze_analysis_plan_rejects_incomplete_spec(tmp_path):
         assert False
     except ValueError as exc:
         assert 'missing required fields' in str(exc)
+
+
+def test_analysis_plan_cannot_change_after_outcome_collection(tmp_path):
+    db=Database(str(tmp_path/"amend.db")); db.migrate()
+    db.execute("INSERT INTO studies(id,title,design,population,findings,created_at) VALUES ('s','s','RCT','adults','','2026')")
+    db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,recorded_at) VALUES ('o','s','p','x',1,'TRAINING','2026')")
+    from app.research import ResearchRepository
+    import json
+    spec=json.dumps({"outcome_name":"x","estimand":"change","population":"study participants","estimator":"complete cases","ci_method":"none","missing_data_policy":"complete cases","multiplicity_policy":"primary only","subgroup_policy":"none","stopping_rule":"fixed","allowed_methods":["DESCRIPTIVE"]})
+    try:
+        ResearchRepository(db).freeze_analysis_plan("s",spec,version=1)
+        assert False
+    except ValueError as exc:
+        assert "outcome data collection" in str(exc)
