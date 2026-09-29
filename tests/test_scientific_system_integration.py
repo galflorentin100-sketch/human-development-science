@@ -124,7 +124,8 @@ def test_training_provenance_trace_reaches_protocol_evidence_and_sessions(tmp_pa
     ParticipantGovernance(db).register("participant-1","CONSENTED","v1")
     TrainingProtocolService(db).session(
         protocol["id"],"participant-1",1,"load","1",
-        task_success=1.0,transfer_score=0.7,retention_score=0.6
+        task_success=1.0,transfer_score=0.7,retention_score=0.6,
+        safety_checks={"clearance":"CLEAR"}
     )
 
     graph=ScientificTrainingPipeline(db).trace(protocol["id"])
