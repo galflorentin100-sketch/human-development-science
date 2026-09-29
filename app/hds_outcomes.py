@@ -15,6 +15,8 @@ class HDSOutcomeService:
     def record(self, study_id, participant_id, outcome_name, value, unit, observation_type, timepoint, session_id=None):
         if observation_type not in self.VALID_TYPES:
             raise ValueError("invalid observation type")
+        if self.db.one("SELECT 1 FROM study_analysis_audit WHERE study_id=? AND analysis_result_id IS NOT NULL LIMIT 1",(study_id,)):
+            raise ValueError("study outcome dataset is frozen after analysis; create a new frozen analysis dataset")
         participant=self.db.one("SELECT * FROM study_participants WHERE id=? AND study_id=?", (participant_id,study_id))
         if not participant:
             raise ValueError("participant does not belong to study")
