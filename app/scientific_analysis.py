@@ -63,6 +63,10 @@ class ScientificAnalysisEngine:
         if "LONGITUDINAL_RETENTION" in methods:
             if not spec.get("post_timepoint") or not spec.get("retention_timepoint"):
                 raise ValueError("analysis_spec requires post_timepoint and retention_timepoint")
+        if spec["missing_data_policy"] != "complete cases":
+            raise ValueError("unsupported missing-data policy: only preregistered complete-case analysis is implemented")
+        if spec["stopping_rule"] != "fixed":
+            raise ValueError("unsupported stopping rule: only fixed stopping is implemented")
         if spec["multiplicity_policy"] not in {"primary only","adjusted","pre_specified"}:
             raise ValueError("unsupported multiplicity policy")
         if spec["subgroup_policy"] not in {"none","pre_specified"}:
@@ -78,6 +82,9 @@ class ScientificAnalysisEngine:
         spec=validation["spec"]
         if outcome_name is not None and spec.get("outcome_name") != outcome_name:
             raise ValueError("analysis outcome does not match preregistered outcome")
+        study=self.db.one("SELECT status FROM studies WHERE id=?",(plan["study_id"],))
+        if spec["stopping_rule"] == "fixed" and (not study or study["status"] != "COMPLETED"):
+            raise ValueError("fixed stopping rule requires the study to be completed before primary analysis")
         methods=spec.get("allowed_methods", spec.get("methods", []))
         if isinstance(methods,str): methods=[methods]
         if method not in methods:
@@ -324,6 +331,7 @@ class ScientificAnalysisEngine:
         for r in rows:
             by.setdefault(r["participant_id"],[]).append(r)
 
+        spec=self._analysis_spec(plan)
         training_changes=[]
         retention_values=[]
         real_world_values=[]
@@ -331,8 +339,10 @@ class ScientificAnalysisEngine:
             vals=by.get(pid,[])
             numeric=[r for r in vals if r["value"] is not None]
             training=[r for r in numeric if r["observation_type"]=="TRAINING"]
-            if len(training)>=2:
-                training_changes.append(training[-1]["value"]-training[0]["value"])
+            baseline=[r["value"] for r in training if r.get("timepoint")==spec.get("baseline_timepoint")]
+            post=[r["value"] for r in training if r.get("timepoint")==spec.get("post_timepoint")]
+            if baseline and post:
+                training_changes.append(post[-1]-baseline[-1])
             retention=[r["value"] for r in numeric if r["observation_type"]=="RETENTION"]
             if retention: retention_values.append(retention[-1])
             real=[r["value"] for r in numeric if r["observation_type"]=="REAL_WORLD"]
