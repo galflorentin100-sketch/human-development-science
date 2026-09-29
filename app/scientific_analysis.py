@@ -59,7 +59,8 @@ class ScientificAnalysisEngine:
         return {"valid":True,"allowed_methods":allowed,"spec":spec}
 
     def _require_method(self, plan, method, outcome_name=None):
-        spec=self._analysis_spec(plan)
+        validation=self.validate_analysis_spec(plan)
+        spec=validation["spec"]
         if outcome_name is not None and spec.get("outcome_name") != outcome_name:
             raise ValueError("analysis outcome does not match preregistered outcome")
         methods=spec.get("allowed_methods", spec.get("methods", []))
@@ -266,6 +267,7 @@ class ScientificAnalysisEngine:
             for name,(value,denom) in metrics.items():
                 con.execute("INSERT INTO study_analysis_metrics(id,study_id,analysis_plan_id,outcome_name,metric_name,metric_value,denominator,note,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                             (str(uuid4()),study_id,analysis_plan_id,outcome_name,name,value,denom,None,now()))
+        self._record_analysis_audit(study_id, plan, result_id, outcome_name, "RANDOMIZED_ARM", "Observed paired TRAINING cases by randomized arm")
         return {"result":self.db.one("SELECT * FROM study_analysis_results WHERE id=?",(result_id,)),
                 "metrics":self.db.all("SELECT metric_name,metric_value,denominator,note FROM study_analysis_metrics WHERE study_id=? AND analysis_plan_id=? AND outcome_name=?",(study_id,analysis_plan_id,outcome_name)),
                 "retention":retention}
@@ -342,6 +344,7 @@ class ScientificAnalysisEngine:
                     "INSERT INTO study_analysis_metrics(id,study_id,analysis_plan_id,outcome_name,metric_name,metric_value,denominator,note,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                     (str(uuid4()),study_id,analysis_plan_id,outcome_name,name,value,denom,None,now())
                 )
+        self._record_analysis_audit(study_id, plan, result_id, outcome_name, "DESCRIPTIVE", "Observed study participants with available outcome records")
         return {
             "result":self.db.one("SELECT * FROM study_analysis_results WHERE id=?",(result_id,)),
             "metrics":self.db.all("SELECT metric_name,metric_value,denominator,note FROM study_analysis_metrics WHERE study_id=? AND analysis_plan_id=? AND outcome_name=?",(study_id,analysis_plan_id,outcome_name))
