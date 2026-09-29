@@ -6,6 +6,7 @@ Execution must happen in an external isolated runner after approval.
 from uuid import uuid4
 import hashlib
 import json
+import hmac
 from app.models import now
 
 
@@ -18,6 +19,25 @@ RUN_TYPES={"VERIFICATION","DEPLOYMENT","ROLLBACK"}
 class CodeChangeService:
     def __init__(self,db):
         self.db=db
+        from app.config import Settings
+        self.settings=Settings.load()
+
+    def execution_attestation(self, proposal, run_id, run_type, status="PASSED"):
+        secret=self.settings.auth_hmac_secret
+        if not secret:
+            if self.settings.environment=="production":
+                raise ValueError("production execution attestation secret is required")
+            return None
+        payload="|".join((str(proposal["id"]),str(proposal["project_id"]),self.fingerprint(proposal),
+                         str(run_id),str(run_type),str(status)))
+        return hmac.new(secret.encode("utf-8"),payload.encode("utf-8"),hashlib.sha256).hexdigest()
+
+    def _require_execution_attestation(self, proposal, run, supplied):
+        expected=self.execution_attestation(proposal,run["id"],run["run_type"],run["status"])
+        if expected is None:
+            return
+        if not supplied or not hmac.compare_digest(str(supplied),expected):
+            raise ValueError("execution run lacks a valid attestation")
 
     @staticmethod
     def fingerprint(proposal):
@@ -146,7 +166,7 @@ class CodeChangeService:
             if updated.rowcount!=1: raise ValueError("proposal changed concurrently")
         return self.get(proposal_id)
 
-    def record_deployed(self, proposal_id, deployment_run_id, actor):
+    def record_deployed(self, proposal_id, deployment_run_id, actor, attestation=None):
         if not str(actor or "").strip(): raise ValueError("actor is required")
         with self.db.transaction() as con:
             row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
@@ -157,6 +177,7 @@ class CodeChangeService:
             ).fetchone()
             if not run or run["status"]!="PASSED":
                 raise ValueError("deployment run is not a recorded successful deployment")
+            self._require_execution_attestation(dict(row),run,attestation)
             if str(run["proposal_fingerprint"])!=self.fingerprint(dict(row)):
                 raise ValueError("deployment result does not match the current proposal")
             updated=con.execute(
@@ -166,7 +187,7 @@ class CodeChangeService:
             if updated.rowcount!=1: raise ValueError("proposal changed concurrently")
         return self.get(proposal_id)
 
-    def rollback(self, proposal_id, rollback_run_id, actor):
+    def rollback(self, proposal_id, rollback_run_id, actor, attestation=None):
         if not str(actor or "").strip(): raise ValueError("actor is required")
         with self.db.transaction() as con:
             row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
@@ -178,6 +199,7 @@ class CodeChangeService:
             ).fetchone()
             if not run or run["status"]!="PASSED":
                 raise ValueError("rollback run is not a recorded successful rollback")
+            self._require_execution_attestation(dict(row),run,attestation)
             if str(run["proposal_fingerprint"])!=self.fingerprint(dict(row)):
                 raise ValueError("rollback result does not match the deployed proposal")
             updated=con.execute(
