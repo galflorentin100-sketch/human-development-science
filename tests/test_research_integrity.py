@@ -20,7 +20,7 @@ def test_participant_conflicting_consent_is_not_silently_reused(tmp_path):
 def test_randomization_and_session_enforce_study_membership(tmp_path):
     db=make_db(tmp_path)
     for sid in ("s1","s2"):
-        db.execute("INSERT INTO studies(id,title,design,population,findings,created_at,status) VALUES (?,?,?,?,?,?,?)",(sid,sid,"RCT","adults","","2026-01-01","APPROVED"))
+        db.execute("INSERT INTO studies(id,title,design,population,findings,created_at,status) VALUES (?,?,?,?,?,?,?)",(sid,sid,"RCT","adults","","2026-01-01","RUNNING"))
     study=StudyExecution(db); p=study.participant("s1","p")
     try: study.randomize("s2",p["id"]); assert False
     except ValueError as exc: assert "does not belong" in str(exc)
@@ -107,3 +107,16 @@ def test_research_cycle_can_run_inside_existing_project_without_completing_it(tm
     result=ResearchCycle(db).run("question",project_id=pid)
     assert result["project"]["id"]==pid
     assert db.one("SELECT status FROM projects WHERE id=?",(pid,))["status"]=="RUNNING"
+
+
+def test_study_session_requires_active_consent(tmp_path):
+    db=make_db(tmp_path)
+    db.execute("INSERT INTO studies(id,title,design,population,findings,created_at,status) VALUES (?,?,?,?,?,?,?)",
+               ("s-consent","S","RCT","adults","","2026-01-01","RUNNING"))
+    study=StudyExecution(db)
+    participant=study.participant("s-consent","p-pending","PENDING")
+    try:
+        study.session("s-consent",participant["id"],"BASELINE",1)
+        assert False
+    except ValueError as exc:
+        assert "consent" in str(exc)
