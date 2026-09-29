@@ -284,3 +284,21 @@ def test_deployment_and_rollback_require_attestation_in_production(tmp_path, mon
         assert "attestation" in str(exc)
     att=svc.execution_attestation(svc.get(p["id"]), "d-att", "DEPLOYMENT")
     assert svc.record_deployed(p["id"],"d-att","deployer",att)["status"]=="DEPLOYED"
+
+
+def test_code_change_rejects_mismatched_approval_context(tmp_path):
+    db=Database(str(tmp_path/"approval-binding.db"))
+    project=ResearchCycle(db).run("approval binding")["project"]
+    db.execute("""INSERT INTO maintenance_work
+        (id,kind,entity_type,entity_id,title,reason,success_criteria,status,approval_id,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        ("mw-approval","ENGINEERING","project",project["id"],"Fix","reason","tests","PROPOSED",None,"now","now"))
+    svc=CodeChangeService(db)
+    p=svc.propose(project["id"],"mw-approval","safe patch","UNIFIED_DIFF","diff --git","pytest tests/test_x.py","LOW","alice")
+    db.execute("UPDATE approvals SET action=?, context=? WHERE id=?",
+               ("OTHER_ACTION",'{"proposal_id":"other","project_id":"other","maintenance_work_id":"other"}',p["approval_id"]))
+    try:
+        svc.approve(p["id"],"bob")
+        assert False
+    except ValueError as exc:
+        assert "approval" in str(exc)
