@@ -228,11 +228,15 @@ class StudyExecution:
     def outcome(self,study_id,participant_id,outcome_name,value=None,unit=None,session_id=None,missing_reason=None,observation_type="TRAINING",measure_id=None,timepoint=None):
         if value is None and not missing_reason: raise ValueError("missing outcome requires missing_reason")
         if observation_type not in {"TRAINING","NEAR_TRANSFER","FAR_TRANSFER","REAL_WORLD","RETENTION"}: raise ValueError("invalid observation type")
-        if measure_id is not None:
-            if timepoint is None: raise ValueError("timepoint is required when measure_id is supplied")
-            from app.measurement import MeasurementRegistry
-            binding=MeasurementRegistry(self.db).validate_observation(study_id,measure_id,observation_type,timepoint)
-            if outcome_name != binding["name"]: raise ValueError("outcome name does not match preregistered measure")
+        if measure_id is None:
+            raise ValueError("scientific outcome requires a preregistered measure")
+        if timepoint is None:
+            raise ValueError("timepoint is required for preregistered outcome")
+        from app.measurement import MeasurementRegistry
+        binding=MeasurementRegistry(self.db).validate_observation(study_id,measure_id,observation_type,timepoint)
+        if outcome_name != binding["name"]: raise ValueError("outcome name does not match preregistered measure")
+        if unit and binding["unit"] and unit != binding["unit"]:
+            raise ValueError("outcome unit does not match preregistered measure")
         participant=self.db.one("SELECT * FROM study_participants WHERE id=? AND study_id=?",(participant_id,study_id))
         if not participant: raise ValueError("participant does not belong to study")
         study=self.db.one("SELECT status FROM studies WHERE id=?",(study_id,))
