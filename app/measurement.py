@@ -22,8 +22,17 @@ class MeasurementRegistry:
         if observation_type not in self.VALID_OBSERVATIONS: raise ValueError("invalid observation type")
         if not self.db.one("SELECT 1 FROM study_measure_definitions WHERE id=? AND study_id=?",(measure_id,study_id)): raise ValueError("measure does not belong to study")
         i=str(uuid4())
-        self.db.execute("INSERT INTO study_measure_bindings(id,study_id,measure_id,observation_type,timepoint,required) VALUES (?,?,?,?,?,?)",(i,study_id,measure_id,observation_type,timepoint,1 if required else 0))
-        return self.db.one("SELECT * FROM study_measure_bindings WHERE id=?",(i,))
+        self.db.execute(
+            "INSERT INTO study_measure_bindings(id,study_id,measure_id,observation_type,timepoint,required) VALUES (?,?,?,?,?,?) ON CONFLICT(study_id,measure_id,observation_type,timepoint) DO NOTHING",
+            (i,study_id,measure_id,observation_type,timepoint,1 if required else 0),
+        )
+        row=self.db.one(
+            "SELECT * FROM study_measure_bindings WHERE study_id=? AND measure_id=? AND observation_type=? AND timepoint=?",
+            (study_id,measure_id,observation_type,timepoint),
+        )
+        if not row:
+            raise RuntimeError("study measure binding could not be persisted")
+        return row
 
     def validate_observation(self,study_id,measure_id,observation_type,timepoint):
         row=self.db.one("SELECT b.*,m.name,m.scale_type,m.unit FROM study_measure_bindings b JOIN study_measure_definitions m ON m.id=b.measure_id WHERE b.study_id=? AND b.measure_id=? AND b.observation_type=? AND b.timepoint=?",(study_id,measure_id,observation_type,timepoint))
