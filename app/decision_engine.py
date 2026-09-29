@@ -18,9 +18,10 @@ class DecisionEngine:
         if decision in self.HIGH_RISK: action_required=True
         did=str(uuid4()); ts=now()
         with self.db.transaction() as con:
-            project=self.db.one("SELECT id FROM projects WHERE id=?",(project_id,))
-        if not project: raise ValueError("project not found")
-        con.execute("INSERT INTO decisions(id,company_id,project_id,decision,alternatives,evidence,assumptions,confidence,expected_outcome,actual_outcome,owner,follow_up,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            project=con.execute("SELECT id FROM projects WHERE id=?",(project_id,)).fetchone()
+            if not project:
+                raise ValueError("project not found")
+            con.execute("INSERT INTO decisions(id,company_id,project_id,decision,alternatives,evidence,assumptions,confidence,expected_outcome,actual_outcome,owner,follow_up,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         (did,"hds",project_id,decision,json.dumps(alternatives),json.dumps(evidence),json.dumps(assumptions),confidence,expected_outcome,None,owner,"Resolve approval or gather missing evidence." if action_required else "Execute and measure outcome.",ts))
             approval=None
             if action_required:
@@ -30,7 +31,7 @@ class DecisionEngine:
                     requested_by=owner,
                     reason="Decision requires approval because evidence/confidence/risk gates were not satisfied.",
                     risk_level=risk_level,
-                    context={"decision_id":did,"missing":missing},
+                    context={"decision_id":did,"project_id":str(project_id),"missing":missing},
                 )
             con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
                         (str(uuid4()),"decision.assessed","decision",did,owner,
