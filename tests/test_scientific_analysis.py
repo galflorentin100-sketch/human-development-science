@@ -104,12 +104,14 @@ def test_analysis_plan_blocks_unplanned_multiplicity_and_requires_explicit_contr
     adjusted["multiplicity_policy"]="adjusted"
     adjusted["multiplicity_method"]="holm"
     adjusted["subgroup_policy"]="none"
-    assert engine.validate_analysis_spec(dict(plan,analysis_spec=json.dumps(adjusted)))["valid"]
+    adjusted_plan=dict(plan); adjusted_plan["analysis_spec"]=json.dumps(adjusted)
+    assert engine.validate_analysis_spec(adjusted_plan)["valid"]
 
     subgroup=dict(json.loads(plan["analysis_spec"]))
     subgroup["subgroup_policy"]="pre_specified"
     try:
-        engine.validate_analysis_spec(dict(plan,analysis_spec=json.dumps(subgroup)))
+        subgroup_plan=dict(plan); subgroup_plan["analysis_spec"]=json.dumps(subgroup)
+        engine.validate_analysis_spec(subgroup_plan)
         assert False
     except ValueError as exc:
         assert "subgroups" in str(exc)
