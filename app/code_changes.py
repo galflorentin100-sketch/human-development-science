@@ -137,6 +137,8 @@ class CodeChangeService:
                 raise ValueError("verification run is not bound to this proposal")
             if str(execution["proposal_fingerprint"])!=self.fingerprint(dict(row)):
                 raise ValueError("verification run does not match the current proposal")
+            if self.settings.environment=="production" and execution["runner_mode"]!="isolated":
+                raise ValueError("production verification must come from the isolated runner")
             self._require_execution_attestation(dict(row),execution,attestation)
             if con.execute("SELECT 1 FROM code_change_verifications WHERE verification_run_id=?",(verification_run_id,)).fetchone():
                 raise ValueError("verification run already recorded")
@@ -160,6 +162,8 @@ class CodeChangeService:
                 raise ValueError("verification run is not a recorded successful runner result")
             if str(run["proposal_fingerprint"])!=self.fingerprint(dict(row)):
                 raise ValueError("verification result does not match the current proposal")
+            if self.settings.environment=="production" and run["runner_mode"]!="isolated":
+                raise ValueError("production verification must come from the isolated runner")
             self._require_execution_attestation(dict(row),run,attestation)
             updated=con.execute("""UPDATE code_change_proposals
                 SET status='VERIFIED',verification_run_id=?,rollback_payload=?,updated_at=?
