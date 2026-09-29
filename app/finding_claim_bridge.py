@@ -15,6 +15,10 @@ class FindingClaimBridge:
             if finding["status"]!="ACCEPTED": raise ValueError("only accepted findings can propose claims")
             refs=json.loads(finding["evidence_refs"] or "[]")
             if not refs: raise ValueError("accepted finding must have evidence references")
+            statement=(finding["statement"] or "").lower()
+            causal_markers=("causes ","caused ","causal ","leads to ","results in ","effect of ","effect on ")
+            if finding["classification"] in {"OBSERVATION","DESCRIPTIVE","INFERENCE"} and any(marker in statement for marker in causal_markers):
+                raise ValueError("causal claim requires an explicitly approved causal basis; descriptive findings cannot be promoted directly")
             for ref in refs:
                 evidence=con.execute(
                     "SELECT e.id,e.claim_id,c.project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",
