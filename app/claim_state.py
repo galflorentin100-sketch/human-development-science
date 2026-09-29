@@ -86,6 +86,12 @@ class ClaimStateService:
         with self.db.transaction() as con:
             claim=con.execute("SELECT * FROM claims WHERE id=?",(claim_id,)).fetchone()
             if not claim: raise ValueError("claim not found")
+            # A knowledge version is an admitted scientific snapshot, not merely
+            # an audit copy of a draft. It must have a resolved, non-conflicted
+            # evidence state before it can enter the knowledge history.
+            claim_status=str(claim["status"] or "").upper()
+            if claim_status not in {"SUPPORTED","CONTRADICTED","UNCERTAIN"}:
+                raise ValueError("knowledge version requires a reviewed claim state")
             # Serialize version creation per claim. SQLite already serializes the
             # transaction, while PostgreSQL needs a row lock before MAX(version)+1.
             con.execute("UPDATE claims SET updated_at=updated_at WHERE id=?",(claim_id,))
@@ -104,6 +110,14 @@ class ClaimStateService:
             state={"verified_support":verified_support,"verified_contradict":verified_contradict,"conflicted":conflicted}
             snapshot=__import__("hashlib").sha256(__import__("json").dumps(state,sort_keys=True,separators=(",",":")).encode()).hexdigest()
             evidence_state=conflicted and "CONFLICTED" or verified_support and "SUPPORTED" or verified_contradict and "CONTRADICTED" or "UNVERIFIED"
+            if conflicted:
+                raise ValueError("knowledge version is blocked while evidence is conflicted")
+            if claim_status=="SUPPORTED" and verified_support < 1:
+                raise ValueError("SUPPORTED knowledge version requires verified supporting evidence")
+            if claim_status=="CONTRADICTED" and verified_contradict < 1:
+                raise ValueError("CONTRADICTED knowledge version requires verified contradicting evidence")
+            if claim_status=="UNCERTAIN" and verified_support == 0 and verified_contradict == 0:
+                raise ValueError("UNCERTAIN knowledge version requires reviewed evidence")
             latest=con.execute("SELECT MAX(version) AS v FROM scientific_knowledge_versions WHERE claim_id=?",(claim_id,)).fetchone()
             version=int(latest["v"] or 0)+1
             con.execute("INSERT INTO scientific_knowledge_versions(id,claim_id,version,statement,classification,status,confidence,evidence_state,evidence_snapshot_hash,change_reason,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
