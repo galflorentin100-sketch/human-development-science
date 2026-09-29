@@ -67,6 +67,11 @@ def test_claim_changes_fact_blocks_contradictory_verified_evidence(tmp_path):
 def test_knowledge_versions_increment_without_collision(tmp_path):
     import concurrent.futures
     db,cid,sid=setup(tmp_path)
+    ep=EvidencePipeline(db)
+    ep.ingest_text(sid,"supporting evidence")
+    ev=ep.attach(cid,sid,"supporting evidence","SUPPORTS")
+    ep.review(ev["id"],"auditor","VERIFIED","checked")
+    ClaimStateService(db).transition(cid,"SUPPORTED","reviewer","verified support",ev["id"])
     svc=ClaimStateService(db)
 
     def create_version(actor):
