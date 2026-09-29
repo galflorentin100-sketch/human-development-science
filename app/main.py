@@ -837,7 +837,7 @@ def record_training_session(protocol_id: str, body: dict, principal: Principal =
         protocol_id,body["participant_ref"],body["session_number"],body["load_note"],body["adherence"],
         body.get("task_success"),body.get("transfer_score"),body.get("retention_score"),
         body.get("decision_accuracy"),body.get("initiation_latency"),body.get("recovery_score"),
-        body.get("fatigue_note",""))
+        body.get("fatigue_note",""),body.get("safety_checks"))
 
 @app.get("/api/science/projects/{project_id}/training-protocols")
 def list_training_protocols(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
@@ -1004,6 +1004,16 @@ def scientific_system_status(principal: Principal = Depends(principal_from_heade
     require_read(principal)
     from app.scientific_system_status import ScientificSystemStatus
     return ScientificSystemStatus(db).snapshot()
+
+@app.post("/api/science/training/{protocol_id}/adverse-events/{event_id}/resolve")
+def resolve_training_adverse_event(protocol_id: str, event_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    require_resource_project(principal, "training_protocol", protocol_id, "WRITE")
+    from app.participant_governance import ParticipantGovernance
+    event=db.one("SELECT protocol_id FROM training_adverse_events WHERE id=?",(event_id,))
+    if not event or str(event["protocol_id"])!=str(protocol_id):
+        raise HTTPException(404,"adverse event not found for protocol")
+    return ParticipantGovernance(db).resolve_adverse_event(event_id,principal.user_id,body.get("resolution_note",""))
 
 @app.post("/api/science/training/{protocol_id}/safety")
 def training_safety(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
