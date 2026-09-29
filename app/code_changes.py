@@ -109,13 +109,27 @@ class CodeChangeService:
                  risk_level,"APPROVAL_PENDING",actor,None,None,None,approval["id"],now(),now()))
         return self.get(i)
 
+    def _assert_proposal_approval(self, con, row):
+        if not row["approval_id"]:
+            raise ValueError("proposal approval is missing")
+        approval=con.execute("SELECT * FROM approvals WHERE id=?",(row["approval_id"],)).fetchone()
+        if not approval:
+            raise ValueError("proposal approval not found")
+        approval=dict(approval)
+        if approval["action"]!="CODE_CHANGE":
+            raise ValueError("proposal approval action is invalid")
+        context=json.loads(approval.get("context") or "{}")
+        if str(context.get("proposal_id"))!=str(row["id"]) or str(context.get("project_id"))!=str(row["project_id"]) or str(context.get("maintenance_work_id"))!=str(row["maintenance_work_id"]):
+            raise ValueError("proposal approval context does not match proposal")
+        return approval
+
     def approve(self, proposal_id, actor):
         if not str(actor or "").strip(): raise ValueError("actor is required")
         with self.db.transaction() as con:
             row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
             if not row or row["status"]!="APPROVAL_PENDING": raise ValueError("proposal is not awaiting approval")
             if str(row["proposed_by"])==str(actor): raise ValueError("separation of duties required")
-            if not row["approval_id"]: raise ValueError("proposal approval is missing")
+            self._assert_proposal_approval(con,row)
             from app.approvals import ApprovalService
             ApprovalService(self.db)._resolve_in_transaction(con,row["approval_id"],"APPROVED",actor)
             updated=con.execute("""UPDATE code_change_proposals
@@ -228,6 +242,7 @@ class CodeChangeService:
             row=con.execute("SELECT * FROM code_change_proposals WHERE id=?",(proposal_id,)).fetchone()
             if not row or row["status"]!="APPROVAL_PENDING": raise ValueError("proposal is not rejectable")
             if row["approval_id"]:
+                self._assert_proposal_approval(con,row)
                 from app.approvals import ApprovalService
                 ApprovalService(self.db)._resolve_in_transaction(con,row["approval_id"],"REJECTED",actor)
             updated=con.execute("""UPDATE code_change_proposals
