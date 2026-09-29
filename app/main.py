@@ -2077,7 +2077,7 @@ def apply_adaptive_hds_training(protocol_id: str, participant_ref: str, body: di
     if not protocol: raise HTTPException(404,"training protocol not found")
     require_project(principal,protocol["project_id"],"WRITE")
     from app.adaptive_training import AdaptiveTrainingService
-    try: return AdaptiveTrainingService(db).apply(protocol["project_id"],protocol_id,participant_ref,body["new_difficulty"],body["rationale"])
+    try: return AdaptiveTrainingService(db).apply(protocol["project_id"],protocol_id,participant_ref,body["new_difficulty"],body["rationale"],body.get("safety_checks"))
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
 
 @app.post("/api/hds/research-loops")
