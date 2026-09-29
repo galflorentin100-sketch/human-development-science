@@ -70,7 +70,7 @@ class ScientificAnalysisEngine:
         return spec
 
     def _dataset_hash(self, study_id, outcome_name):
-        rows=self.db.all("SELECT participant_id,observation_type,session_id,value,unit,missing_reason,recorded_at FROM study_outcomes WHERE study_id=? AND outcome_name=? ORDER BY participant_id,observation_type,recorded_at,id",(study_id,outcome_name))
+        rows=self.db.all("SELECT id,participant_id,observation_type,timepoint,session_id,value,unit,missing_reason,recorded_at FROM study_outcomes WHERE study_id=? AND outcome_name=? ORDER BY participant_id,observation_type,timepoint,recorded_at,id",(study_id,outcome_name))
         payload=json.dumps([dict(r) for r in rows],sort_keys=True,default=str,separators=(",",":"))
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
