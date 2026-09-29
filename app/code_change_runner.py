@@ -71,7 +71,12 @@ class CodeChangeRunner:
             self._apply_patch(proposal, target)
             job_dir = jobs / run_id; job_dir.mkdir()
             shutil.copytree(target, job_dir / 'workspace', ignore=shutil.ignore_patterns('.git','__pycache__','.pytest_cache'))
-            (job_dir / 'request.json').write_text(json.dumps({'command': command, 'timeout': timeout}), encoding='utf-8')
+            (job_dir / 'request.json').write_text(json.dumps({
+                'command': command, 'timeout': timeout, 'run_id': run_id,
+                'proposal_id': proposal_id, 'project_id': str(proposal['project_id']),
+                'proposal_fingerprint': CodeChangeService.fingerprint(proposal),
+                'run_type': 'VERIFICATION'
+            }), encoding='utf-8')
             deadline=time.monotonic()+timeout+30; result_file=results_dir/(run_id+'.json')
             try:
                 while time.monotonic() < deadline:
@@ -80,7 +85,8 @@ class CodeChangeRunner:
                             result=json.loads(result_file.read_text(encoding='utf-8'))
                         except (OSError, ValueError):
                             time.sleep(0.25); continue
-                        return {'verification_run_id':run_id,'proposal_id':proposal_id,'passed':bool(result.get('passed')),'return_code':result.get('return_code'),'timed_out':bool(result.get('timed_out')),'output':str(result.get('output',''))[-MAX_OUTPUT_BYTES:]}
+                        return {'verification_run_id':run_id,'proposal_id':proposal_id,'passed':bool(result.get('passed')),'return_code':result.get('return_code'),'timed_out':bool(result.get('timed_out')),'output':str(result.get('output',''))[-MAX_OUTPUT_BYTES:],
+                            'attestation':result.get('attestation')}
                     time.sleep(0.25)
                 return {'verification_run_id':run_id,'proposal_id':proposal_id,'passed':False,'return_code':None,'timed_out':True,'output':'isolated worker did not return a result before timeout'}
             finally: shutil.rmtree(job_dir, ignore_errors=True)
