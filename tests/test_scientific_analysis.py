@@ -7,7 +7,7 @@ def setup(tmp_path):
     db.execute("INSERT INTO companies VALUES ('c','HDS','m','v','p','2026')")
     db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES ('a','Researcher','researcher','m','[]','[]','1','IDLE','2026')")
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES ('p','c','test','RUNNING','a','2026')")
-    db.execute("INSERT INTO studies(id,title,design,population,findings,created_at,protocol_hash) VALUES ('s','study','RCT','adults','', '2026','protocol-test-hash')")
+    db.execute("INSERT INTO studies(id,title,design,population,findings,created_at,protocol_hash,status) VALUES ('s','study','RCT','adults','', '2026','protocol-test-hash','COMPLETED')")
     analysis_spec=json.dumps({"outcome_name":"score","registered_outcome_name":"score","estimand":"between-arm change difference","population":"randomized participants","estimator":"unadjusted","ci_method":"normal_approximation_95","missing_data_policy":"complete cases","multiplicity_policy":"primary only","subgroup_policy":"none","stopping_rule":"fixed","baseline_timepoint":"baseline","post_timepoint":"post","retention_timepoint":"retention","allowed_methods":["RANDOMIZED_ARM","INFERENTIAL_RANDOMIZED_ARM","LONGITUDINAL_RETENTION","DESCRIPTIVE"]})
     db.execute("INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES (?,?,?,?,?,?,?)",("plan","s",1,analysis_spec,1,"2026","2026"))
     for pid,arm in [('i','INTERVENTION'),('c1','CONTROL')]:
@@ -115,3 +115,26 @@ def test_analysis_plan_blocks_unplanned_multiplicity_and_requires_explicit_contr
         assert False
     except ValueError as exc:
         assert "subgroups" in str(exc)
+
+
+def test_fixed_stopping_requires_completed_study(tmp_path):
+    db=setup(tmp_path)
+    db.execute("UPDATE studies SET status='RUNNING' WHERE id='s'")
+    try:
+        ScientificAnalysisEngine(db).randomized_arm_analysis("s","plan","score")
+        assert False
+    except ValueError as exc:
+        assert "fixed stopping rule" in str(exc)
+
+
+def test_missing_data_policy_is_executable_not_declarative(tmp_path):
+    db=setup(tmp_path)
+    plan=db.one("SELECT * FROM study_analysis_plans WHERE id='plan'")
+    spec=json.loads(plan["analysis_spec"])
+    spec["missing_data_policy"]="last observation carried forward"
+    bad=dict(plan); bad["analysis_spec"]=json.dumps(spec)
+    try:
+        ScientificAnalysisEngine(db).validate_analysis_spec(bad)
+        assert False
+    except ValueError as exc:
+        assert "missing-data policy" in str(exc)
