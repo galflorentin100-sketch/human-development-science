@@ -20,9 +20,17 @@ def main():
         missing=REQUIRED_TABLES-tables
         if missing: raise SystemExit("missing required tables: "+", ".join(sorted(missing)))
     from app.main import app
-    routes={r.path for r in app.routes}
+    route_keys=[(r.path, method) for r in app.routes if getattr(r,"path",None) for method in (getattr(r,"methods",None) or {"*"})]
+    routes={path for path,_ in route_keys}
     missing_routes=REQUIRED_ROUTES-routes
     if missing_routes: raise SystemExit("missing required routes: "+", ".join(sorted(missing_routes)))
+    seen=set()
+    duplicates=[]
+    for key in route_keys:
+        if key in seen and key not in duplicates:
+            duplicates.append(key)
+        seen.add(key)
+    if duplicates: raise SystemExit("duplicate application route methods: "+", ".join(f"{method} {path}" for path,method in duplicates))
     print("HDS release gate: PASS")
 
 if __name__=="__main__": main()

@@ -586,10 +586,6 @@ def evidence(project_id: str, principal: Principal = Depends(principal_from_head
     require_read(principal)
     require_project(principal, project_id, "READ")
     return {"claims": db.all("SELECT * FROM claims WHERE project_id=?", (project_id,)), "evidence": db.all("SELECT e.*,s.title,s.url FROM evidence e JOIN claims c ON c.id=e.claim_id JOIN sources s ON s.id=e.source_id WHERE c.project_id=?", (project_id,)), "reviews": db.all("SELECT er.* FROM evidence_reviews er JOIN evidence e ON e.id=er.evidence_id JOIN claims c ON c.id=e.claim_id WHERE c.project_id=?", (project_id,))}
-@app.get("/api/intelligence")
-def intelligence(principal: Principal = Depends(principal_from_header)):
-    require_read(principal)
-    s = IntelligenceService(db); return {"findings": s.findings(), "timeline": s.timeline(), "workforce": s.workforce(), "health": s.health(), "brief": FounderBriefService(db).build()}
 @app.post("/api/improvement/proposals")
 def create_improvement_proposal(body: dict, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
