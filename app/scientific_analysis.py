@@ -63,6 +63,14 @@ class ScientificAnalysisEngine:
         if "LONGITUDINAL_RETENTION" in methods:
             if not spec.get("post_timepoint") or not spec.get("retention_timepoint"):
                 raise ValueError("analysis_spec requires post_timepoint and retention_timepoint")
+        if spec["multiplicity_policy"] not in {"primary only","adjusted","pre_specified"}:
+            raise ValueError("unsupported multiplicity policy")
+        if spec["subgroup_policy"] not in {"none","pre_specified"}:
+            raise ValueError("unsupported subgroup policy")
+        if spec["subgroup_policy"]=="pre_specified" and not spec.get("subgroups"):
+            raise ValueError("pre_specified subgroup policy requires explicit subgroups")
+        if spec["multiplicity_policy"] in {"adjusted","pre_specified"} and not spec.get("multiplicity_method"):
+            raise ValueError("multiplicity-controlled analysis requires explicit multiplicity_method")
         return {"valid":True,"allowed_methods":allowed,"spec":spec}
 
     def _require_method(self, plan, method, outcome_name=None):
@@ -74,6 +82,9 @@ class ScientificAnalysisEngine:
         if isinstance(methods,str): methods=[methods]
         if method not in methods:
             raise ValueError(f"analysis method '{method}' is not preregistered")
+        existing=self.db.one("SELECT id FROM study_analysis_results WHERE study_id=? AND analysis_plan_id=? LIMIT 1",(plan["study_id"],plan["id"]))
+        if existing and spec["multiplicity_policy"]=="primary only":
+            raise ValueError("primary-only analysis plan already has a result; additional analyses require preregistered multiplicity control")
         return spec
 
     def _dataset_hash(self, study_id, outcome_name):
