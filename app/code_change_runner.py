@@ -157,11 +157,13 @@ class CodeChangeRunner:
             result.get("return_code"),
             result.get("timed_out",False),
             result.get("output",""),
+            result.get("attestation"),
         )
         if result["passed"]:
             svc.mark_verified(
                 proposal_id,
                 result["verification_run_id"],
                 rollback_payload="rollback execution is not implemented; request rollback and execute through the deployment layer",
+                attestation=result.get("attestation"),
             )
         return result
