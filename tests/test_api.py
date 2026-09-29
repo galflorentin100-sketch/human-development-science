@@ -55,6 +55,23 @@ def test_decision_engine_requests_approval_when_confidence_low(tmp_path):
     assert result["action_required"] is True
     assert result["approval"]["status"]=="PENDING"
 
+
+def test_decision_outcome_cannot_cross_project_scope(tmp_path):
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.decision_engine import DecisionEngine
+    db=Database(str(tmp_path/"decision-scope.db")); ResearchCycle(db)
+    p1=ResearchCycle(db).run("decision one")["project"]
+    p2=ResearchCycle(db).run("decision two")["project"]
+    decision=DecisionEngine(db).assess(p1["id"],"Measure result",["A"],["verified evidence"],[],0.9,"expected")
+    try:
+        DecisionEngine(db).record_outcome(decision["decision"]["id"],"wrong project outcome",project_id=p2["id"])
+        assert False, "decision outcome must remain project-scoped"
+    except ValueError as exc:
+        assert "another project" in str(exc)
+    updated=DecisionEngine(db).record_outcome(decision["decision"]["id"],"correct outcome",project_id=p1["id"])
+    assert updated["actual_outcome"]=="correct outcome"
+
 def test_founder_brief_counts_only_actionable_items(tmp_path):
     from app.database import Database
     from app.workflow import ResearchCycle
