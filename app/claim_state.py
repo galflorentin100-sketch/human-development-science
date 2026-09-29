@@ -106,7 +106,10 @@ class ClaimStateService:
                     evidence_by_id[r["id"]]["verdicts"].append(str(r["verdict"]).upper())
             verified_support=sum(1 for x in evidence_by_id.values() if "VERIFIED" in x["verdicts"] and x["stance"]=="SUPPORTS")
             verified_contradict=sum(1 for x in evidence_by_id.values() if "VERIFIED" in x["verdicts"] and x["stance"]=="CONTRADICTS")
-            conflicted=any(("CONFLICTED" in x["verdicts"]) or ("VERIFIED" in x["verdicts"] and "REJECTED" in x["verdicts"]) for x in evidence_by_id.values())
+            conflicted=(
+                any(("CONFLICTED" in x["verdicts"]) or ("VERIFIED" in x["verdicts"] and "REJECTED" in x["verdicts"]) for x in evidence_by_id.values())
+                or (verified_support > 0 and verified_contradict > 0)
+            )
             state={"verified_support":verified_support,"verified_contradict":verified_contradict,"conflicted":conflicted}
             snapshot=__import__("hashlib").sha256(__import__("json").dumps(state,sort_keys=True,separators=(",",":")).encode()).hexdigest()
             evidence_state=conflicted and "CONFLICTED" or verified_support and "SUPPORTED" or verified_contradict and "CONTRADICTED" or "UNVERIFIED"
