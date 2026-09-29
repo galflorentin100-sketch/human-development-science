@@ -64,8 +64,8 @@ def test_study_completion_uses_preregistered_observation_types(tmp_path):
     m=MeasurementRegistry(db).define("s","goal_execution_rate","Completed planned target actions divided by planned target actions","Structured daily log","PROPORTION")
     MeasurementRegistry(db).bind("s",m["id"],"TRAINING","baseline")
     p=StudyExecution(db).participant("s","p")
+    StudyExecution(db).freeze_analysis_plan("s",'{"outcome_name":"goal_execution_rate","estimand":"descriptive","population":"all","estimator":"mean","ci_method":"none","missing_data_policy":"complete cases","multiplicity_policy":"primary only","subgroup_policy":"none","stopping_rule":"fixed","allowed_methods":["DESCRIPTIVE"]}')
     StudyExecution(db).outcome("s",p["id"],"goal_execution_rate",0.5,observation_type="TRAINING",measure_id=m["id"],timepoint="baseline")
-    StudyExecution(db).freeze_analysis_plan("s",'{"outcome_name":"goal_execution_rate","estimand":"descriptive","population":"all","estimator":"mean","ci_method":"none","missing_data_policy":"report","multiplicity_policy":"none","subgroup_policy":"none","stopping_rule":"fixed","allowed_methods":["DESCRIPTIVE"]}')
     completed=StudyExecution(db).complete("s")
     assert completed["status"]=="COMPLETED"
 
