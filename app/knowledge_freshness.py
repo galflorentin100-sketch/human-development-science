@@ -21,6 +21,8 @@ class KnowledgeFreshness:
         table={"CLAIM":"claims","INTERVENTION":"interventions","TRAINING_PROTOCOL":"training_protocols"}[entity_type]
         entity=self.db.one(f"SELECT * FROM {table} WHERE id=?",(entity_id,))
         if not entity: raise ValueError("entity not found")
+        if entity_type=="CLAIM" and str(entity["status"] or "").upper()!="SUPPORTED":
+            raise ValueError("only SUPPORTED claims can be marked active knowledge")
         if project_id is not None and "project_id" in entity.keys() and str(entity.get("project_id")) != str(project_id):
             raise ValueError("entity belongs to another project")
         i=str(uuid4())
@@ -42,8 +44,10 @@ class KnowledgeFreshness:
         if project_id is None: raise ValueError("project_id is required")
         table={"CLAIM":"claims","INTERVENTION":"interventions","TRAINING_PROTOCOL":"training_protocols"}.get(entity_type)
         if not table: raise ValueError("invalid entity_type")
-        entity=self.db.one("SELECT project_id FROM "+table+" WHERE id=?",(entity_id,))
+        entity=self.db.one("SELECT * FROM "+table+" WHERE id=?",(entity_id,))
         if not entity or str(entity["project_id"])!=str(project_id): raise ValueError("entity belongs to another project")
+        if entity_type=="CLAIM" and str(entity["status"] or "").upper()!="SUPPORTED":
+            raise ValueError("only SUPPORTED claims can remain active knowledge")
         if not str(rationale).strip(): raise ValueError("validation rationale is required")
         from datetime import timedelta
         t=datetime.now(timezone.utc)
