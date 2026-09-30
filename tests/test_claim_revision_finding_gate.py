@@ -5,8 +5,8 @@ import uuid
 
 def _claim(db, project_id):
     cid=str(uuid.uuid4())
-    db.execute("INSERT INTO claims(id,project_id,statement,status,created_at) VALUES (?,?,?,?,?)",
-               (cid,project_id,"Existing claim","PROPOSED","2026-01-01T00:00:00Z"))
+    db.execute("INSERT INTO claims(id,project_id,statement,status,classification,created_at) VALUES (?,?,?,?,?,?)",
+               (cid,project_id,"Existing claim","PROPOSED","INFERENCE","2026-01-01T00:00:00Z"))
     return cid
 
 
