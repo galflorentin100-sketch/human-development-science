@@ -14,6 +14,34 @@ class IntelligenceService:
             return "REJECTED_NOT_SCIENTIFIC_KNOWLEDGE"
         return f"UNRESOLVED_{status or 'UNKNOWN'}"
 
+    def scientific_knowledge(self, project_id):
+        rows=self.db.all(
+            "SELECT status, COUNT(*) AS n FROM claims WHERE project_id=? GROUP BY status",
+            (project_id,),
+        )
+        counts={str(r["status"] or "UNKNOWN"): int(r["n"]) for r in rows}
+        active=self.db.all(
+            """SELECT c.id,c.statement,c.status,c.classification,c.evidence_level,c.confidence,
+                      k.id AS knowledge_freshness_id,k.next_review_at
+               FROM claims c
+               JOIN knowledge_freshness k
+                 ON k.entity_type='CLAIM' AND k.entity_id=c.id AND k.project_id=c.project_id
+                AND k.status='ACTIVE'
+               WHERE c.project_id=? AND c.status='SUPPORTED'
+               ORDER BY c.updated_at DESC""",
+            (project_id,),
+        )
+        return {
+            "claims_by_status": counts,
+            "active_knowledge": [dict(r, scientific_state="ACTIVE_SCIENTIFIC_KNOWLEDGE") for r in active],
+            "interpretation": {
+                "supported_claims_require_scientific_admission_before_active_knowledge": True,
+                "candidate_and_proposed_claims_are_not_active_knowledge": True,
+                "uncertain_and_contradicted_claims_are_not_active_knowledge": True,
+                "accepted_findings_are_not_claims_or_active_knowledge": True,
+            },
+        }
+
     def scientific_state(self,project_id=None):
         params=() if project_id is None else (project_id,)
         scope="" if project_id is None else " WHERE c.project_id=?"
