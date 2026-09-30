@@ -91,6 +91,8 @@ def test_direct_execution_cannot_bypass_pending_decision_approval(tmp_path):
         context={"project_id":project["id"],"decision_id":decision["id"]},
     )
 
+    approvals=db.all("SELECT action,status FROM approvals ORDER BY created_at DESC")
+    assert any(str(a["action"]).startswith("DECISION:") and a["status"]=="PENDING" for a in approvals), approvals
     result=CompanyOrchestrator(db).execute_next(project["id"])
 
     assert result["status"]=="WAITING_FOR_APPROVAL"
