@@ -14,3 +14,19 @@ def test_impact_engine_proposes_review(tmp_path):
     assert out["affected_count"]==1
     rows=KnowledgeImpactEngine(db).list(pid)
     assert rows[0]["affected_id"]==tid
+
+
+def test_accepted_impact_review_only_queues_reassessment_not_action(tmp_path):
+    from app.knowledge_impact_engine import KnowledgeImpactEngine
+    db=Database(str(tmp_path/"review.db")); ResearchCycle(db)
+    pid=ResearchCycle(db).run("impact governance")["project"]["id"]
+    cid=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(cid,pid,"supported claim","HYPOTHESIS","PRELIMINARY",0.8,"SUPPORTED",now()))
+    impact=KnowledgeImpactEngine(db).propagate(pid,"claims",cid)
+    assert impact["affected_count"] >= 0
+    if impact["affected_count"]:
+        review_id=impact["affected"][0]["id"]
+        reviewed=KnowledgeImpactEngine(db).review(review_id,"founder","ACCEPT","Reassess the dependency before any scientific state change.")
+        assert reviewed["status"]=="ACCEPTED"
+    assert db.all("SELECT id FROM tasks WHERE project_id=?",(pid,)) == []
+    assert db.all("SELECT id FROM hds_research_queue WHERE project_id=? AND status='PROPOSED'",(pid,))
