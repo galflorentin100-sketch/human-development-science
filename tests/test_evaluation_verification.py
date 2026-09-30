@@ -21,7 +21,7 @@ def test_verified_output_can_remain_uncertain_without_failing_verification(tmp_p
         (company_id,"HDS","Research","Scientific development","Truth first",ts))
     db.execute(
         "INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-        (agent_id,"Researcher","researcher","Research","[]","["READ"]","1","ACTIVE",ts))
+        (agent_id,"Researcher","researcher","Research",'["Research"]','["READ"]',"1","ACTIVE",ts))
     db.execute(
         "INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",
         (project_id,company_id,"Evaluate output","RUNNING",agent_id,ts))
