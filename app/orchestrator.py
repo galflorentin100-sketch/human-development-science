@@ -31,6 +31,8 @@ class CompanyOrchestrator:
                ORDER BY a.created_at DESC LIMIT 1""",
             (str(project_id),),
         )
+        if pending_decision:
+            return {"status":"WAITING_FOR_APPROVAL","approval":pending_decision}
         with self.db.transaction() as con:
             cur=con.execute("SELECT * FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED') ORDER BY priority DESC LIMIT 1",(project_id,))
             row=cur.fetchone()
