@@ -79,3 +79,33 @@ def test_governed_delegation_rolls_back_consumed_approval_when_task_creation_fai
     restored=db.one("SELECT status FROM approvals WHERE id=?",(approval["id"],))
     assert restored["status"]=="APPROVED"
     assert db.one("SELECT 1 FROM approval_events WHERE approval_id=? AND action='CONSUMED'",(approval["id"],)) is None
+
+
+def test_sensitive_decision_cannot_disable_founder_approval_via_metadata(tmp_path):
+    db = Database(str(tmp_path / "governance.db"))
+    project = ResearchCycle(db).run("server governance")["project"]
+    decision = {
+        "type": "IMPACT",
+        "id": "impact-1",
+        "title": "Sensitive impact action",
+        "reason": "Requires founder review.",
+        "priority": "HIGH",
+        "requires_founder_approval": False,
+    }
+    result = AgentDelegation(db).delegate(project["id"], decision)
+    assert result["status"] == "WAITING_FOR_APPROVAL"
+    assert result["approval"]["action"] == "FOUNDER_DECISION:IMPACT:impact-1"
+
+
+def test_non_governed_research_decision_can_delegate_without_founder_gate(tmp_path):
+    db = Database(str(tmp_path / "research.db"))
+    project = ResearchCycle(db).run("server research governance")["project"]
+    decision = {
+        "type": "RESEARCH",
+        "id": "research-1",
+        "title": "Research question",
+        "reason": "Investigate evidence.",
+        "requires_founder_approval": False,
+    }
+    result = AgentDelegation(db).delegate(project["id"], decision)
+    assert result["status"] == "PLANNED"
