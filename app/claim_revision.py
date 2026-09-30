@@ -35,6 +35,14 @@ class ClaimRevisionService:
         if is_causal and new_status in {"SUPPORTED","CONTRADICTED"}:
             if not str(causal_basis or "").strip() or causal_basis_type not in allowed_causal_basis:
                 raise ValueError("causal claim requires an explicit causal basis type and rationale")
+        if source_finding_id:
+            finding=self.db.one("SELECT id,project_id,status FROM research_findings WHERE id=?",(str(source_finding_id),))
+            if not finding:
+                raise ValueError("source finding not found")
+            if str(finding["project_id"])!=str(claim["project_id"]):
+                raise ValueError("source finding belongs to another project")
+            if finding["status"]!="ACCEPTED":
+                raise ValueError("source finding must be ACCEPTED before it can inform a claim revision")
         i=str(uuid4())
         refs=list(evidence_refs or ()); evidence_id=str(refs[0]) if refs else None
         for ref in refs:
