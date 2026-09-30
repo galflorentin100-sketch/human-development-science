@@ -232,6 +232,7 @@ def company_intelligence(principal: Principal = Depends(principal_from_header)):
     return {
         "health": intelligence.health(),
         "findings": intelligence.findings(),
+        "scientific_state": intelligence.scientific_state(),
         "workforce": intelligence.workforce(),
         "timeline": intelligence.timeline(),
         "brief": FounderBriefService(db).build(),
