@@ -32,14 +32,26 @@ def test_company_intelligence_health_counts_track_work(tmp_path):
     assert after["open_risks"] == before["open_risks"] + 1
 
 
-def test_scientific_knowledge_state_distinguishes_claim_status_and_freshness(tmp_path):
-    db = Database(str(tmp_path / "knowledge_state.db"))
-    project = ResearchCycle(db).run("knowledge state")["project"]
+def test_intelligence_labels_nonaccepted_scientific_state(tmp_path):
+    db = Database(str(tmp_path / "intelligence_state.db"))
+    project = ResearchCycle(db).run("intelligence state")["project"]
     db.execute(
-        "INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
-        ("candidate-claim", project["id"], "Candidate statement", "HYPOTHESIS", "PRELIMINARY", 0.2, "CANDIDATE", "2026-01-01T00:00:00Z"),
+        "UPDATE claims SET status='PROPOSED' WHERE project_id=?",
+        (project["id"],),
     )
-    result = IntelligenceService(db).scientific_knowledge(project["id"])
-    assert result["claims_by_status"]["CANDIDATE"] == 1
-    assert "CANDIDATE:ACTIVE" not in result["knowledge_freshness_by_type_and_status"]
-    assert result["interpretation"]["candidate_and_proposed_claims_are_not_active_knowledge"] is True
+    state = IntelligenceService(db).scientific_state(project["id"])
+    assert state["accepted_claims"] == []
+    assert all(x["scientific_state"] == "NOT_ACTIVE_KNOWLEDGE" for x in state["claims_requiring_review"])
+    assert "Only scientifically admitted SUPPORTED claims" in state["policy"]
+
+
+def test_intelligence_labels_candidate_and_accepted_findings(tmp_path):
+    db = Database(str(tmp_path / "intelligence_findings.db"))
+    project = ResearchCycle(db).run("intelligence findings")["project"]
+    from app.research import ResearchFindingService
+    ResearchFindingService(db).create(
+        project["id"], "Candidate scientific observation", classification="HYPOTHESIS"
+    )
+    rows = IntelligenceService(db).findings()
+    assert rows
+    assert rows[0]["scientific_state"] == "CANDIDATE_REQUIRES_INDEPENDENT_REVIEW"
