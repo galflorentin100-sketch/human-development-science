@@ -5,6 +5,7 @@ from app.models import now
 
 def test_delegation_maps_research_to_agent(tmp_path):
     from app.agent_delegation import AgentDelegation
+from app.workflow import ResearchCycle
     db=Database(str(tmp_path/"x.db"))
     from app.workflow import ResearchCycle
     ResearchCycle(db)
