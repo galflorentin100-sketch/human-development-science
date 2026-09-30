@@ -22,11 +22,16 @@ def test_accepted_impact_review_only_queues_reassessment_not_action(tmp_path):
     pid=ResearchCycle(db).run("impact governance")["project"]["id"]
     cid=str(uuid.uuid4())
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(cid,pid,"supported claim","HYPOTHESIS","PRELIMINARY",0.8,"SUPPORTED",now()))
-    impact=KnowledgeImpactEngine(db).propagate(pid,"claims",cid)
-    assert impact["affected_count"] >= 0
-    if impact["affected_count"]:
-        review_id=impact["affected"][0]["id"]
-        reviewed=KnowledgeImpactEngine(db).review(review_id,"founder","ACCEPT","Reassess the dependency before any scientific state change.")
-        assert reviewed["status"]=="ACCEPTED"
+    review_id=str(uuid.uuid4())
+    db.execute("""INSERT INTO knowledge_impact_reviews
+        (id,project_id,source_type,source_id,impact_type,affected_type,affected_id,reason,status,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        (review_id,pid,"claims",cid,"GRAPH_DEPENDENCY","TRAINING_PROTOCOL","protocol-1",
+         "Potential downstream impact","PROPOSED",now()))
+    reviewed=KnowledgeImpactEngine(db).review(
+        review_id,"founder","ACCEPT",
+        "Reassess the dependency before any scientific state change.",
+    )
+    assert reviewed["status"]=="ACCEPTED"
     assert db.all("SELECT id FROM tasks WHERE project_id=?",(pid,)) == []
-    assert db.all("SELECT id FROM hds_research_queue WHERE project_id=? AND status='PROPOSED'",(pid,))
+    assert len(db.all("SELECT id FROM hds_research_queue WHERE project_id=? AND status='PROPOSED'",(pid,))) == 1
