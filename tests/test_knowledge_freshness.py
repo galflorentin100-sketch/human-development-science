@@ -20,6 +20,7 @@ def test_freshness_rejects_unaccepted_claim_as_active_knowledge(tmp_path):
 
 def test_freshness_allows_supported_claim(tmp_path):
     db, claim_id, source_id, project_id = setup(tmp_path)
+    EvidencePipeline(db).ingest_text(source_id, "seeded excerpt")
     evidence = EvidencePipeline(db).attach(claim_id, source_id, "seeded excerpt", "SUPPORTS")
     EvidencePipeline(db).review(evidence["id"], "auditor", "VERIFIED", "checked")
     ClaimStateService(db).transition(
