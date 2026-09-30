@@ -6,6 +6,27 @@ class IntelligenceService:
         return self.db.all("""SELECT a.id,a.name,a.role,a.status,a.manager,
           COUNT(r.id) AS run_count,COALESCE(AVG(r.confidence),0) AS confidence
           FROM agents a LEFT JOIN agent_runs r ON r.agent_id=a.id GROUP BY a.id ORDER BY a.id""")
+    def scientific_knowledge(self, project_id=None):
+        where = " WHERE project_id=?" if project_id else ""
+        args = (project_id,) if project_id else ()
+        claims = self.db.all("SELECT status, COUNT(*) AS n FROM claims" + where + " GROUP BY status", args)
+        freshness_where = " WHERE c.project_id=?" if project_id else ""
+        freshness_args = (project_id,) if project_id else ()
+        active = self.db.all(
+            "SELECT kf.entity_type, COUNT(*) AS n FROM knowledge_freshness kf "
+            "JOIN claims c ON kf.entity_type='CLAIM' AND kf.entity_id=c.id"
+            + freshness_where + " GROUP BY kf.entity_type",
+            freshness_args,
+        )
+        return {
+            "claims_by_status": {str(r["status"]).upper(): r["n"] for r in claims},
+            "active_knowledge_by_type": {str(r["entity_type"]).upper(): r["n"] for r in active},
+            "interpretation": {
+                "supported_claims_are_scientifically_admitted_only_when_the_admission_gate_passes": True,
+                "candidate_and_proposed_claims_are_not_active_knowledge": True,
+                "uncertain_and_contradicted_claims_are_not_active_knowledge": True,
+            },
+        }
     def health(self):
         return {"agents":self.db.one("SELECT COUNT(*) AS n FROM agents")["n"],
                 "open_risks":self.db.one("SELECT COUNT(*) AS n FROM risks WHERE status='OPEN'")["n"],
