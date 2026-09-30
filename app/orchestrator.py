@@ -23,19 +23,14 @@ class CompanyOrchestrator:
         # A direct execution call must not bypass a pending DecisionEngine approval.
         # The autonomous loop already stops on action_required; this closes the
         # alternate HTTP path that could otherwise execute queued work directly.
-        import json
-        pending_decision=None
-        for approval in self.db.all(
-            "SELECT id,action,status,context,created_at FROM approvals WHERE status='PENDING' AND action LIKE 'DECISION:%' ORDER BY created_at DESC"
-        ):
-            raw_context=approval.get("context") or "{}"
-            try:
-                context=raw_context if isinstance(raw_context,dict) else json.loads(raw_context)
-            except (TypeError,ValueError):
-                continue
-            if str(context.get("project_id"))==str(project_id):
-                pending_decision={"id":approval["id"],"action":approval["action"],"status":approval["status"]}
-                break
+        pending_decision=self.db.one(
+            """SELECT a.id,a.action,a.status
+               FROM approvals a
+               JOIN decisions d ON d.id=SUBSTR(a.action,9)
+               WHERE a.status='PENDING' AND a.action LIKE 'DECISION:%' AND d.project_id=?
+               ORDER BY a.created_at DESC LIMIT 1""",
+            (str(project_id),),
+        )
         with self.db.transaction() as con:
             cur=con.execute("SELECT * FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED') ORDER BY priority DESC LIMIT 1",(project_id,))
             row=cur.fetchone()
