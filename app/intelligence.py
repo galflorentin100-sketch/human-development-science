@@ -25,7 +25,7 @@ class IntelligenceService:
                       k.id AS knowledge_freshness_id,k.next_review_at
                FROM claims c
                JOIN knowledge_freshness k
-                 ON k.entity_type='CLAIM' AND k.entity_id=c.id AND k.project_id=c.project_id
+                 ON k.entity_type='CLAIM' AND k.entity_id=c.id
                 AND k.status='ACTIVE'
                WHERE c.project_id=? AND c.status='SUPPORTED'
                ORDER BY c.updated_at DESC""",
