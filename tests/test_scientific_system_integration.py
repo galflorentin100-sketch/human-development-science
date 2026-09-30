@@ -88,7 +88,12 @@ def test_freshness_register_and_scan(tmp_path):
     db=Database(str(tmp_path/"f.db")); ResearchCycle(db); pid=_setup(db)
     from app.models import now
     claim=str(uuid.uuid4())
-    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,pid,"x","HYPOTHESIS","PRELIMINARY",0.0,"PROPOSED",now()))
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,pid,"x","HYPOTHESIS","PRELIMINARY",0.0,"SUPPORTED",now()))
+    ep=EvidencePipeline(db)
+    source=ep.register_source("source","https://example.org/freshness-"+claim)
+    ep.ingest_text(source["id"],"verified excerpt")
+    evidence=ep.attach(claim,source["id"],"verified excerpt","SUPPORTS")
+    ep.review(evidence["id"],"auditor","VERIFIED","checked")
     row=KnowledgeFreshness(db).register("CLAIM",claim,90,"tester")
     assert row["status"]=="ACTIVE"
     db.execute("UPDATE knowledge_freshness SET next_review_at=? WHERE id=?",( "2000-01-01T00:00:00+00:00",row["id"]))

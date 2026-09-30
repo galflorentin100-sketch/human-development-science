@@ -1,6 +1,7 @@
 from app.database import Database
 from app.workflow import ResearchCycle
 from app.science import ScientificRegistry
+from app.evidence_pipeline import EvidencePipeline
 
 def test_scientific_registry_tracks_construct_measure_and_version(tmp_path):
     db=Database(str(tmp_path/"science.db")); ResearchCycle(db)
@@ -149,7 +150,7 @@ def test_evidence_uncertain_plus_verified_remains_uncertain(tmp_path):
     db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(aid,"a","r","m","[]","[]","1","ACTIVE",now()))
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(pid,cid,"o","ACTIVE",aid,now()))
     claim_id=str(uuid.uuid4())
-    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim_id,pid,"x","HYPOTHESIS","PRELIMINARY",0.5,"PROPOSED",now()))
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim_id,pid,"x","HYPOTHESIS","PRELIMINARY",0.5,"SUPPORTED",now()))
     p=EvidencePipeline(db)
     sid=str(uuid.uuid4())
     db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",(sid,"s","https://example.com/"+sid,"PAPER","","test"))
@@ -170,7 +171,12 @@ def test_knowledge_freshness_flags_due_review(tmp_path):
     db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",(aid,"a","r","m","[]","[]","1","ACTIVE",now()))
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(pid,cid,"o","ACTIVE",aid,now()))
     claim_id=str(uuid.uuid4())
-    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim_id,pid,"x","HYPOTHESIS","PRELIMINARY",0.5,"PROPOSED",now()))
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim_id,pid,"x","HYPOTHESIS","PRELIMINARY",0.5,"SUPPORTED",now()))
+    ep=EvidencePipeline(db)
+    source=ep.register_source("source","https://example.org/freshness-"+claim_id)
+    ep.ingest_text(source["id"],"verified excerpt")
+    evidence=ep.attach(claim_id,source["id"],"verified excerpt","SUPPORTS")
+    ep.review(evidence["id"],"auditor","VERIFIED","checked")
     k=KnowledgeFreshness(db)
     k.register("CLAIM",claim_id,1)
     db.execute("UPDATE knowledge_freshness SET next_review_at=? WHERE entity_type='CLAIM' AND entity_id=?",( "2000-01-01T00:00:00+00:00",claim_id))
