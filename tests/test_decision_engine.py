@@ -57,3 +57,36 @@ def test_decision_outcome_requires_matching_project_when_scope_is_supplied(tmp_p
 
     assert db.one("SELECT actual_outcome FROM decisions WHERE id=?",(decision["id"],))["actual_outcome"] is None
     assert DecisionEngine(db).record_outcome(decision["id"],"observed",project_id=p1["id"])["actual_outcome"]=="observed"
+
+
+def test_direct_execution_cannot_bypass_pending_decision_approval(tmp_path):
+    from app.orchestrator import CompanyOrchestrator
+    from app.tasks import TaskEngine
+
+    db=Database(str(tmp_path/"decision_execution.db"))
+    project=ResearchCycle(db).run("execution governance")["project"]
+    TaskEngine(db).create_task(
+        "governed task",
+        "must wait for decision approval",
+        project_id=project["id"],
+        owner="researcher",
+    )
+    DecisionEngine(db).assess(
+        project["id"],
+        "PUBLISH",
+        ["publish","wait"],
+        ["verified evidence"],
+        ["publication uncertainty"],
+        0.9,
+        "measure publication outcome",
+        owner="founder",
+        risk_level="HIGH",
+    )
+
+    result=CompanyOrchestrator(db).execute_next(project["id"])
+
+    assert result["status"]=="WAITING_FOR_APPROVAL"
+    assert db.one(
+        "SELECT status FROM tasks WHERE project_id=? AND title=?",
+        (project["id"],"governed task"),
+    )["status"]=="PLANNED"
