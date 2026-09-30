@@ -5,13 +5,17 @@ class TaskEngine:
     def __init__(self,db): self.db=db
     def create_goal(self,title,description=""):
         i=str(uuid4()); self.db.execute("INSERT INTO goals(id,company_id,title,status,priority,owner,expected_outcome,created_at,updated_at) VALUES (?,? ,?,'ACTIVE',?,?,?,?,?)",(i,"hds",title,1.0,"ceo",description,now(),now())); return self.db.one("SELECT * FROM goals WHERE id=?",(i,))
-    def create_task(self,title,description="",project_id=None,owner="coo",required_permissions=None,priority=1.0,retry_limit=2):
+    def create_task_in_transaction(self,con,title,description="",project_id=None,owner="coo",required_permissions=None,priority=1.0,retry_limit=2):
         if project_id is None: raise ValueError("project_id is required")
         i=str(uuid4()); ts=now(); limit=max(0,int(retry_limit))
+        con.execute("INSERT INTO tasks(id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at,owner,required_permissions,retry_limit) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (i,project_id,title,"PLANNED",owner,float(priority),description or "Complete task",ts,ts,owner,json.dumps(required_permissions or ["READ"]),limit))
+        return dict(con.execute("SELECT * FROM tasks WHERE id=?",(i,)).fetchone())
+
+    def create_task(self,title,description="",project_id=None,owner="coo",required_permissions=None,priority=1.0,retry_limit=2):
         with self.db.transaction() as con:
-            con.execute("INSERT INTO tasks(id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at,owner,required_permissions,retry_limit) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                        (i,project_id,title,"PLANNED",owner,float(priority),description or "Complete task",ts,ts,owner,json.dumps(required_permissions or ["READ"]),limit))
-        return self.db.one("SELECT * FROM tasks WHERE id=?",(i,))
+            row=self.create_task_in_transaction(con,title,description,project_id,owner,required_permissions,priority,retry_limit)
+        return self.db.one("SELECT * FROM tasks WHERE id=?",(row["id"],))
     def get(self,i): return self.db.one("SELECT * FROM tasks WHERE id=?",(i,))
     def transition(self,i,status):
         allowed={"PLANNED":{"ASSIGNED","CANCELLED"},"ASSIGNED":{"RUNNING","CANCELLED"},"RUNNING":{"COMPLETED","FAILED","BLOCKED","REVIEW"},"REVIEW":{"COMPLETED","FAILED","BLOCKED"},"BLOCKED":{"PLANNED","CANCELLED"},"FAILED":{"PLANNED","CANCELLED"}}

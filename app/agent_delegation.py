@@ -29,9 +29,7 @@ class AgentDelegation:
         title=f"[{kind}] {decision.get('title','Scientific review')}"
         criteria=decision.get("reason","Produce a traceable, reviewable output.")
 
-        # Governance-sensitive decisions must be explicitly approved before execution.
         if decision.get("requires_founder_approval"):
-            kind=kind.upper()
             action=f"FOUNDER_DECISION:{kind}:{decision.get('id')}"
             approval=self.db.one(
                 "SELECT * FROM approvals WHERE action=? AND status IN ('PENDING','APPROVED') ORDER BY created_at DESC LIMIT 1",
@@ -46,24 +44,30 @@ class AgentDelegation:
                 )
             if approval["status"] != "APPROVED":
                 return {"status":"WAITING_FOR_APPROVAL","approval":approval,"decision":decision}
-            try:
-                ApprovalService(self.db).consume(
-                    approval["id"],
+
+            # Approval consumption and task creation are one DB transaction.
+            # A failed task insert therefore rolls back the consumed approval.
+            with self.db.transaction() as con:
+                ApprovalService(self.db)._consume_in_transaction(
+                    con,approval["id"],
                     expected_action=action,
                     expected_context={"project_id":str(project_id),"decision_type":kind,"decision_id":str(decision.get("id"))},
                     actor="scientific-orchestrator",
                 )
-            except ApprovalRequired:
-                return {"status":"WAITING_FOR_APPROVAL","approval":self.db.one("SELECT * FROM approvals WHERE id=?",(approval["id"],)),"decision":decision}
-        task=self.tasks.create_task(
-            title=title,
-            description=criteria,
-            project_id=project_id,
-            owner=agent,
-            required_permissions=["READ"],
-            priority={"CRITICAL":1.5,"HIGH":1.2,"NORMAL":1.0,"LOW":0.7}.get(decision.get("priority","NORMAL"),1.0),
-            retry_limit=1,
-        )
+                task=self.tasks.create_task_in_transaction(
+                    con,title=title,description=criteria,project_id=project_id,owner=agent,
+                    required_permissions=["READ"],
+                    priority={"CRITICAL":1.5,"HIGH":1.2,"NORMAL":1.0,"LOW":0.7}.get(decision.get("priority","NORMAL"),1.0),
+                    retry_limit=1,
+                )
+        else:
+            task=self.tasks.create_task(
+                title=title,description=criteria,project_id=project_id,owner=agent,
+                required_permissions=["READ"],
+                priority={"CRITICAL":1.5,"HIGH":1.2,"NORMAL":1.0,"LOW":0.7}.get(decision.get("priority","NORMAL"),1.0),
+                retry_limit=1,
+            )
+
         self.db.audit("scientific.task_delegated","task",task["id"],"scientific-orchestrator",{
             "decision_type":kind,"agent":agent,"decision_id":decision.get("id")
         },now(),None)
