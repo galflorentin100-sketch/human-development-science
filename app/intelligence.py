@@ -7,7 +7,7 @@ class IntelligenceService:
     def _finding_state(self,row):
         status=str(row.get("status") or "").upper()
         if status=="ACCEPTED":
-            return "ACCEPTED_FINDING_REQUIRES_CLAIM_GOVERNANCE"
+            return "ACCEPTED_FINDING_NOT_YET_KNOWLEDGE"
         if status=="CANDIDATE":
             return "CANDIDATE_REQUIRES_INDEPENDENT_REVIEW"
         if status=="REJECTED":
@@ -21,7 +21,7 @@ class IntelligenceService:
             "SELECT c.id,c.project_id,c.statement,c.status,c.evidence_level,c.confidence "
             "FROM claims c"+scope+" ORDER BY c.updated_at DESC LIMIT 100",params)
         return {
-            "accepted_claims":[dict(r,scientific_state="SUPPORTED_ACTIVE_CANDIDATE_FOR_KNOWLEDGE") for r in claims if str(r["status"]).upper()=="SUPPORTED"],
+            "accepted_claims":[dict(r,scientific_state="SUPPORTED_REQUIRES_SCIENTIFIC_ADMISSION") for r in claims if str(r["status"]).upper()=="SUPPORTED"],
             "claims_requiring_review":[dict(r,scientific_state="NOT_ACTIVE_KNOWLEDGE") for r in claims if str(r["status"]).upper()!="SUPPORTED"],
             "policy":"Only scientifically admitted SUPPORTED claims may enter active knowledge; all other claim states are explicitly non-active.",
         }
