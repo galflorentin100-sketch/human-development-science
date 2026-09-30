@@ -14,3 +14,25 @@ def test_impact_engine_proposes_review(tmp_path):
     assert out["affected_count"]==1
     rows=KnowledgeImpactEngine(db).list(pid)
     assert rows[0]["affected_id"]==tid
+
+
+def test_accepted_impact_review_only_queues_reassessment_not_action(tmp_path):
+    from app.knowledge_impact_engine import KnowledgeImpactEngine
+    db=Database(str(tmp_path/"review.db")); ResearchCycle(db)
+    pid=ResearchCycle(db).run("impact governance")["project"]["id"]
+    cid=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(cid,pid,"supported claim","HYPOTHESIS","PRELIMINARY",0.8,"SUPPORTED",now()))
+    baseline_tasks=db.all("SELECT id FROM tasks WHERE project_id=?",(pid,))
+    review_id=str(uuid.uuid4())
+    db.execute("""INSERT INTO knowledge_impact_reviews
+        (id,project_id,source_type,source_id,impact_type,affected_type,affected_id,reason,status,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        (review_id,pid,"claims",cid,"GRAPH_DEPENDENCY","TRAINING_PROTOCOL","protocol-1",
+         "Potential downstream impact","PROPOSED",now()))
+    reviewed=KnowledgeImpactEngine(db).review(
+        review_id,"founder","ACCEPT",
+        "Reassess the dependency before any scientific state change.",
+    )
+    assert reviewed["status"]=="ACCEPTED"
+    assert db.all("SELECT id FROM tasks WHERE project_id=?",(pid,)) == baseline_tasks
+    assert len(db.all("SELECT id FROM hds_research_queue WHERE project_id=? AND status='PROPOSED'",(pid,))) == 1
