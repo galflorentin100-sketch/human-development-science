@@ -13,14 +13,16 @@ class IntelligenceService:
         freshness_where = " WHERE c.project_id=?" if project_id else ""
         freshness_args = (project_id,) if project_id else ()
         active = self.db.all(
-            "SELECT kf.entity_type, COUNT(*) AS n FROM knowledge_freshness kf "
+            "SELECT kf.entity_type, kf.status, COUNT(*) AS n FROM knowledge_freshness kf "
             "JOIN claims c ON kf.entity_type='CLAIM' AND kf.entity_id=c.id"
-            + freshness_where + " GROUP BY kf.entity_type",
+            + freshness_where + " GROUP BY kf.entity_type, kf.status",
             freshness_args,
         )
         return {
             "claims_by_status": {str(r["status"]).upper(): r["n"] for r in claims},
-            "active_knowledge_by_type": {str(r["entity_type"]).upper(): r["n"] for r in active},
+            "knowledge_freshness_by_type_and_status": {
+                f"{str(r['entity_type']).upper()}:{str(r['status']).upper()}": r["n"] for r in active
+            },
             "interpretation": {
                 "supported_claims_are_scientifically_admitted_only_when_the_admission_gate_passes": True,
                 "candidate_and_proposed_claims_are_not_active_knowledge": True,
