@@ -4,6 +4,7 @@ from app.contradiction_engine import ContradictionEngine
 from app.research_queue import ResearchQueue
 from app.experiment_engine import ExperimentEngine
 from app.decision_center import DecisionCenter
+from app.intelligence import IntelligenceService
 
 class FounderIntelligence:
     def __init__(self, db): self.db=db
@@ -18,6 +19,7 @@ class FounderIntelligence:
         review_tasks=self.db.all("SELECT rrt.role, t.status, COUNT(*) n FROM research_review_tasks rrt JOIN tasks t ON t.id=rrt.task_id JOIN research_workspaces rw ON rw.id=rrt.workspace_id WHERE rw.project_id=? GROUP BY rrt.role,t.status",(project_id,))
         tasks=self.db.all("SELECT status, COUNT(*) n FROM tasks WHERE project_id=? GROUP BY status",(project_id,))
         decisions=DecisionCenter(self.db).list(project_id)
+        scientific_knowledge=IntelligenceService(self.db).scientific_knowledge(project_id)
         return {
             "project_id":project_id,
             "scientific_health":{
@@ -27,6 +29,7 @@ class FounderIntelligence:
                 "decision_queue":len(decisions),
                 "high_priority_decisions":sum(1 for x in decisions if x["priority"] in {"HIGH","CRITICAL"}),
             },
+            "scientific_knowledge":scientific_knowledge,
             "research":{
                 "proposed":sum(1 for x in queue if x["status"]=="PROPOSED"),
                 "approved":sum(1 for x in queue if x["status"]=="APPROVED"),

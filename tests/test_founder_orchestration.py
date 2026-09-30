@@ -21,3 +21,15 @@ def test_agent_registry_has_scientific_roles():
     from app.agent_registry import AgentRegistry
     roles={x["id"] for x in AgentRegistry().list()}
     assert {"researcher","skeptic","evidence_auditor","experiment_designer","analyst"} <= roles
+
+
+def test_founder_snapshot_labels_scientific_knowledge_state(tmp_path):
+    from app.founder_intelligence import FounderIntelligence
+    db=Database(str(tmp_path/"knowledge-f.f.db")); ResearchCycle(db); pid=_setup(db)
+    db.execute(
+        "INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        ("candidate-founder", pid, "Candidate statement", "HYPOTHESIS", "PRELIMINARY", 0.2, "CANDIDATE", "2026-01-01T00:00:00Z"),
+    )
+    snap=FounderIntelligence(db).snapshot(pid)
+    assert snap["scientific_knowledge"]["claims_by_status"]["CANDIDATE"] == 1
+    assert snap["scientific_knowledge"]["interpretation"]["candidate_and_proposed_claims_are_not_active_knowledge"] is True
