@@ -22,9 +22,8 @@ def _finding(db, project_id, status):
 
 def test_claim_revision_rejects_candidate_finding(tmp_path):
     db=Database(str(tmp_path/"revision.db"))
-    project_id=str(uuid.uuid4())
-    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",
-               (project_id,"hds","test","RUNNING","agent-1","2026-01-01T00:00:00Z"))
+    from app.workflow import ResearchCycle
+    project_id=ResearchCycle(db).run("claim revision gate")["project"]["id"]
     claim_id=_claim(db,project_id)
     finding_id=_finding(db,project_id,"CANDIDATE")
 
@@ -38,9 +37,8 @@ def test_claim_revision_rejects_candidate_finding(tmp_path):
 
 def test_claim_revision_accepts_accepted_finding_same_project(tmp_path):
     db=Database(str(tmp_path/"revision_accepted.db"))
-    project_id=str(uuid.uuid4())
-    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",
-               (project_id,"hds","test","RUNNING","agent-1","2026-01-01T00:00:00Z"))
+    from app.workflow import ResearchCycle
+    project_id=ResearchCycle(db).run("claim revision gate")["project"]["id"]
     claim_id=_claim(db,project_id)
     finding_id=_finding(db,project_id,"ACCEPTED")
 
