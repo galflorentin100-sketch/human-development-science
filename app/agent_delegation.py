@@ -23,13 +23,18 @@ class AgentDelegation:
         self.db=db
         self.tasks=TaskEngine(db)
 
+    GOVERNED_KINDS={"CONTRADICTION","IMPACT","EXPERIMENT","INTEGRITY","AGENT_OUTPUT","FINDING","ACCEPTED_FINDING","SKEPTIC","RESEARCH_AUDIT"}
+
     def delegate(self,project_id,decision):
         kind=decision.get("type","RESEARCH").upper()
         agent=ROLE_MAP.get(kind,"ceo")
+        # Governance is derived from the server-side decision type. Never trust
+        # caller-controlled requires_founder_approval metadata for sensitive work.
+        requires_founder_approval = kind in self.GOVERNED_KINDS
         title=f"[{kind}] {decision.get('title','Scientific review')}"
         criteria=decision.get("reason","Produce a traceable, reviewable output.")
 
-        if decision.get("requires_founder_approval"):
+        if requires_founder_approval:
             action=f"FOUNDER_DECISION:{kind}:{decision.get('id')}"
             approval=self.db.one(
                 "SELECT * FROM approvals WHERE action=? AND status IN ('PENDING','APPROVED') ORDER BY created_at DESC LIMIT 1",
@@ -69,7 +74,8 @@ class AgentDelegation:
             )
 
         self.db.audit("scientific.task_delegated","task",task["id"],"scientific-orchestrator",{
-            "decision_type":kind,"agent":agent,"decision_id":decision.get("id")
+            "decision_type":kind,"agent":agent,"decision_id":decision.get("id"),
+            "founder_approval_required":requires_founder_approval
         },now(),None)
         return task
 
