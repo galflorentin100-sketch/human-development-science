@@ -28,8 +28,9 @@ class CompanyOrchestrator:
         for approval in self.db.all(
             "SELECT id,action,status,context,created_at FROM approvals WHERE status='PENDING' AND action LIKE 'DECISION:%' ORDER BY created_at DESC"
         ):
+            raw_context=approval.get("context") or "{}"
             try:
-                context=json.loads(approval.get("context") or "{}")
+                context=raw_context if isinstance(raw_context,dict) else json.loads(raw_context)
             except (TypeError,ValueError):
                 continue
             if str(context.get("project_id"))==str(project_id):
