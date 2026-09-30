@@ -48,9 +48,9 @@ def test_intelligence_labels_nonaccepted_scientific_state(tmp_path):
 def test_intelligence_labels_candidate_and_accepted_findings(tmp_path):
     db = Database(str(tmp_path / "intelligence_findings.db"))
     project = ResearchCycle(db).run("intelligence findings")["project"]
-    db.execute(
-        "UPDATE research_findings SET status='CANDIDATE' WHERE project_id=?",
-        (project["id"],),
+    from app.research import ResearchFindingService
+    ResearchFindingService(db).create(
+        project["id"], "Candidate scientific observation", classification="HYPOTHESIS"
     )
     rows = IntelligenceService(db).findings()
     assert rows
