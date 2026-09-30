@@ -2,12 +2,11 @@ import uuid
 from app.database import Database
 from app.research_queue import ResearchQueue
 from app.models import now
+from app.agent_delegation import AgentDelegation
+from app.workflow import ResearchCycle
 
 def test_delegation_maps_research_to_agent(tmp_path):
-    from app.agent_delegation import AgentDelegation
-from app.workflow import ResearchCycle
     db=Database(str(tmp_path/"x.db"))
-    from app.workflow import ResearchCycle
     ResearchCycle(db)
     pid=ResearchCycle(db).run("delegation")["project"]["id"]
     ResearchQueue(db).propose(pid,"Question","Need evidence","DISCOVERY")
@@ -85,6 +84,7 @@ def test_governed_delegation_rolls_back_consumed_approval_when_task_creation_fai
 def test_sensitive_decision_cannot_disable_founder_approval_via_metadata(tmp_path):
     db = Database(str(tmp_path / "governance.db"))
     project = ResearchCycle(db).run("server governance")["project"]
+    delegation = AgentDelegation(db)
     decision = {
         "type": "IMPACT",
         "id": "impact-1",
@@ -93,7 +93,7 @@ def test_sensitive_decision_cannot_disable_founder_approval_via_metadata(tmp_pat
         "priority": "HIGH",
         "requires_founder_approval": False,
     }
-    result = AgentDelegation(db).delegate(project["id"], decision)
+    result = delegation.delegate(project["id"], decision)
     assert result["status"] == "WAITING_FOR_APPROVAL"
     assert result["approval"]["action"] == "FOUNDER_DECISION:IMPACT:impact-1"
 
@@ -101,6 +101,7 @@ def test_sensitive_decision_cannot_disable_founder_approval_via_metadata(tmp_pat
 def test_non_governed_research_decision_can_delegate_without_founder_gate(tmp_path):
     db = Database(str(tmp_path / "research.db"))
     project = ResearchCycle(db).run("server research governance")["project"]
+    delegation = AgentDelegation(db)
     decision = {
         "type": "RESEARCH",
         "id": "research-1",
@@ -108,5 +109,5 @@ def test_non_governed_research_decision_can_delegate_without_founder_gate(tmp_pa
         "reason": "Investigate evidence.",
         "requires_founder_approval": False,
     }
-    result = AgentDelegation(db).delegate(project["id"], decision)
+    result = delegation.delegate(project["id"], decision)
     assert result["status"] == "PLANNED"
