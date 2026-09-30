@@ -20,6 +20,20 @@ class CompanyOrchestrator:
         self.db.audit("company.goal_started","goal",goal_id,"ceo",{"project_id":project_id,"task_count":len(tasks)},now(),str(uuid4()))
         return {"goal":goal,"project":self.db.one("SELECT * FROM projects WHERE id=?",(project_id,)),"tasks":tasks}
     def execute_next(self,project_id):
+        # A direct execution call must not bypass a pending DecisionEngine approval.
+        # The autonomous loop already stops on action_required; this closes the
+        # alternate HTTP path that could otherwise execute queued work directly.
+        pending_decision=self.db.one(
+            """SELECT a.id,a.action,a.status
+               FROM approvals a
+               WHERE a.status='PENDING'
+                 AND a.action LIKE 'DECISION:%'
+                 AND json_extract(a.context,'$.project_id')=?
+               ORDER BY a.created_at DESC LIMIT 1""",
+            (str(project_id),),
+        )
+        if pending_decision:
+            return {"status":"WAITING_FOR_APPROVAL","approval":pending_decision}
         with self.db.transaction() as con:
             cur=con.execute("SELECT * FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED') ORDER BY priority DESC LIMIT 1",(project_id,))
             row=cur.fetchone()
