@@ -30,3 +30,28 @@ def test_company_intelligence_health_counts_track_work(tmp_path):
     after = IntelligenceService(db).health()
 
     assert after["open_risks"] == before["open_risks"] + 1
+
+
+def test_intelligence_labels_nonaccepted_scientific_state(tmp_path):
+    db = Database(str(tmp_path / "intelligence_state.db"))
+    project = ResearchCycle(db).run("intelligence state")["project"]
+    db.execute(
+        "UPDATE claims SET status='PROPOSED' WHERE project_id=?",
+        (project["id"],),
+    )
+    state = IntelligenceService(db).scientific_state(project["id"])
+    assert state["accepted_claims"] == []
+    assert all(x["scientific_state"] == "NOT_ACTIVE_KNOWLEDGE" for x in state["claims_requiring_review"])
+    assert "Only scientifically admitted SUPPORTED claims" in state["policy"]
+
+
+def test_intelligence_labels_candidate_and_accepted_findings(tmp_path):
+    db = Database(str(tmp_path / "intelligence_findings.db"))
+    project = ResearchCycle(db).run("intelligence findings")["project"]
+    db.execute(
+        "UPDATE research_findings SET status='CANDIDATE' WHERE project_id=?",
+        (project["id"],),
+    )
+    rows = IntelligenceService(db).findings()
+    assert rows
+    assert rows[0]["scientific_state"] == "CANDIDATE_REQUIRES_INDEPENDENT_REVIEW"
