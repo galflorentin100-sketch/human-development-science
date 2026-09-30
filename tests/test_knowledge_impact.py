@@ -22,6 +22,7 @@ def test_accepted_impact_review_only_queues_reassessment_not_action(tmp_path):
     pid=ResearchCycle(db).run("impact governance")["project"]["id"]
     cid=str(uuid.uuid4())
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(cid,pid,"supported claim","HYPOTHESIS","PRELIMINARY",0.8,"SUPPORTED",now()))
+    baseline_tasks=db.all("SELECT id FROM tasks WHERE project_id=?",(pid,))
     review_id=str(uuid.uuid4())
     db.execute("""INSERT INTO knowledge_impact_reviews
         (id,project_id,source_type,source_id,impact_type,affected_type,affected_id,reason,status,created_at)
@@ -33,5 +34,5 @@ def test_accepted_impact_review_only_queues_reassessment_not_action(tmp_path):
         "Reassess the dependency before any scientific state change.",
     )
     assert reviewed["status"]=="ACCEPTED"
-    assert db.all("SELECT id FROM tasks WHERE project_id=?",(pid,)) == []
+    assert db.all("SELECT id FROM tasks WHERE project_id=?",(pid,)) == baseline_tasks
     assert len(db.all("SELECT id FROM hds_research_queue WHERE project_id=? AND status='PROPOSED'",(pid,))) == 1
