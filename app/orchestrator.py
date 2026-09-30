@@ -23,16 +23,18 @@ class CompanyOrchestrator:
         # A direct execution call must not bypass a pending DecisionEngine approval.
         # The autonomous loop already stops on action_required; this closes the
         # alternate HTTP path that could otherwise execute queued work directly.
-        pending_decision=self.db.one(
-            """SELECT a.id,a.action,a.status
-               FROM approvals a
-               JOIN decisions d ON d.id=SUBSTR(a.action,9)
-               WHERE a.status='PENDING' AND a.action LIKE 'DECISION:%' AND d.project_id=?
-               ORDER BY a.created_at DESC LIMIT 1""",
+        pending_decision=None
+        for decision in self.db.all(
+            "SELECT id FROM decisions WHERE project_id=? ORDER BY created_at DESC",
             (str(project_id),),
-        )
-        if pending_decision:
-            return {"status":"WAITING_FOR_APPROVAL","approval":pending_decision}
+        ):
+            approval=self.db.one(
+                "SELECT id,action,status FROM approvals WHERE action=? AND status='PENDING' ORDER BY created_at DESC LIMIT 1",
+                (f"DECISION:{decision['id']}",),
+            )
+            if approval:
+                pending_decision=approval
+                break
         with self.db.transaction() as con:
             cur=con.execute("SELECT * FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED') ORDER BY priority DESC LIMIT 1",(project_id,))
             row=cur.fetchone()
