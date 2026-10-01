@@ -37,6 +37,7 @@ def test_training_session_requires_current_safety_clearance_and_blocks_unresolve
         retention_target="retention",
         safety_constraints="stop on adverse event",
     )
+    db.execute("UPDATE training_protocols SET status='PILOT' WHERE id=?",(protocol["id"],))
     participant=ParticipantGovernance(db)
     participant.register("p1","consent-v1")
 
@@ -87,6 +88,7 @@ def test_training_session_rechecks_consent_and_adverse_event_inside_write_transa
         project, "transaction-gated protocol", "mechanism", "domain",
         "one session", "progress", "transfer", "retention", "stop on adverse event",
     )
+    db.execute("UPDATE training_protocols SET status='PILOT' WHERE id=?",(protocol["id"],))
     governance=ParticipantGovernance(db)
     governance.register("p1","consent-v1")
     session=TrainingProtocolService(db).session(
