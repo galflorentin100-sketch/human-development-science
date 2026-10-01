@@ -71,7 +71,7 @@ class TrainingProtocolService:
         return self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
 
     def attach_evidence(self,protocol_id,evidence_kind,evidence_ref,notes=""):
-        protocol=self.db.one("SELECT project_id FROM training_protocols WHERE id=?",(protocol_id,))
+        protocol=self.db.one("SELECT project_id,status FROM training_protocols WHERE id=?",(protocol_id,))
         if not protocol:
             raise ValueError("training protocol not found")
         if protocol["status"] in {"SUPPORTED","RETIRED"}:
