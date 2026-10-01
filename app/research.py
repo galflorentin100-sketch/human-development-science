@@ -297,16 +297,47 @@ class StudyExecution:
     def complete(self,study_id):
         study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
         if not study or study["status"]!="RUNNING": raise ValueError("study must be running")
-        required={r["observation_type"] for r in self.db.all(
-            "SELECT DISTINCT observation_type FROM study_measure_bindings WHERE study_id=? AND required=1",
+        bindings=self.db.all(
+            """SELECT b.observation_type,b.timepoint,m.name AS outcome_name
+               FROM study_measure_bindings b
+               JOIN study_measure_definitions m ON m.id=b.measure_id
+               WHERE b.study_id=? AND b.required=1
+               ORDER BY m.name,b.observation_type,b.timepoint""",
             (study_id,),
-        )}
-        if not required:
+        )
+        if not bindings:
             raise ValueError("study cannot complete without required preregistered observations")
-        present={r["observation_type"] for r in self.db.all("SELECT DISTINCT observation_type FROM study_outcomes WHERE study_id=?",(study_id,))}
-        missing=required-present
-        if missing: raise ValueError("study cannot complete; missing preregistered observation types: "+",".join(sorted(missing)))
-        if not self.db.one("SELECT 1 FROM study_analysis_plans WHERE study_id=? AND frozen=1",(study_id,)): raise ValueError("study cannot complete without a frozen analysis plan")
+        participants=self.db.all(
+            "SELECT id FROM study_participants WHERE study_id=? AND consent_status='CONSENTED'",
+            (study_id,),
+        )
+        if not participants:
+            raise ValueError("study cannot complete without consented study participants")
+        missing_bindings=[]
+        for binding in bindings:
+            observed=self.db.one(
+                """SELECT COUNT(DISTINCT p.id) AS n
+                   FROM study_participants p
+                   JOIN study_outcomes o
+                     ON o.study_id=p.study_id
+                    AND o.participant_id=p.id
+                    AND o.outcome_name=?
+                    AND o.observation_type=?
+                    AND o.timepoint=?
+                   WHERE p.study_id=? AND p.consent_status='CONSENTED'""",
+                (binding["outcome_name"],binding["observation_type"],binding["timepoint"],study_id),
+            )
+            if int(observed["n"]) != len(participants):
+                missing_bindings.append(
+                    f"{binding['outcome_name']}:{binding['observation_type']}:{binding['timepoint']}"
+                )
+        if missing_bindings:
+            raise ValueError(
+                "study cannot complete; missing required preregistered observations for "
+                "consented participants: "+",".join(missing_bindings)
+            )
+        if not self.db.one("SELECT 1 FROM study_analysis_plans WHERE study_id=? AND frozen=1",(study_id,)):
+            raise ValueError("study cannot complete without a frozen analysis plan")
         with self.db.transaction() as con:
             updated=con.execute("UPDATE studies SET status='COMPLETED' WHERE id=? AND status='RUNNING'",(study_id,))
             if getattr(updated,"rowcount",1) != 1:
