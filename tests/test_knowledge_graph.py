@@ -131,3 +131,21 @@ def test_sync_materializes_full_explicit_scientific_provenance_chain(tmp_path):
     assert any(e["from_type"]=="CLAIM" and e["to_type"]=="KNOWLEDGE_VERSION" and e["from_id"]==claim and e["to_id"]==version["id"] for e in edges)
     assert any(e["from_type"]=="EVIDENCE" and e["to_type"]=="INTERVENTION" and e["to_id"]==intervention for e in edges)
     assert any(e["from_type"]=="EVIDENCE" and e["to_type"]=="TRAINING_PROTOCOL" and e["to_id"]==protocol for e in edges)
+
+
+def test_sync_materializes_only_audited_analysis_as_provenance_node(tmp_path):
+    db=Database(str(tmp_path/"analysis-graph.db")); ResearchCycle(db); pid=_setup(db)
+    from app.models import now
+    study,result=[str(uuid.uuid4()) for _ in range(2)]
+    db.execute("INSERT INTO studies(id,project_id,title,design,population,findings,created_at) VALUES (?,?,?,?,?,?,?)",
+               (study,pid,"study","DESCRIPTIVE","population","","2026"))
+    db.execute("INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES (?,?,?,?,?,?,?)",
+               ("plan-"+study,study,1,'{"spec":"{}","sha256":"x"}',1,"2026","2026"))
+    db.execute("INSERT INTO study_analysis_results(id,study_id,analysis_plan_id,outcome_name,n_total,n_observed,estimate,uncertainty,missing_data_note,interpretation,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+               (result,study,"plan-"+study,"score",1,1,1.0,"u","m","i","2026"))
+    g=KnowledgeDependencyGraph(db)
+    assert not any(n["type"]=="ANALYSIS" and n["id"]==result for n in g.build(pid)["nodes"])
+    db.execute("INSERT INTO study_analysis_audit(id,study_id,analysis_plan_id,analysis_result_id,protocol_hash,analysis_plan_hash,dataset_hash,method,population_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+               ("audit-"+result,study,"plan-"+study,result,"p","a","d","DESCRIPTIVE","population","2026"))
+    g.sync_project(pid)
+    assert any(n["type"]=="ANALYSIS" and n["id"]==result for n in g.build(pid)["nodes"])
