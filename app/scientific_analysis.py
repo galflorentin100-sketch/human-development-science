@@ -107,7 +107,17 @@ class ScientificAnalysisEngine:
         study=self.db.one("SELECT protocol_hash FROM studies WHERE id=?",(study_id,))
         if not study or not study["protocol_hash"]:
             raise ValueError("protocol hash required for analysis audit")
-        plan_hash=hashlib.sha256((plan["analysis_spec"] or "").encode("utf-8")).hexdigest()
+        # freeze_analysis_plan stores {spec, sha256}; audit the canonical
+        # preregistered spec itself, not the storage envelope.
+        raw_plan=plan["analysis_spec"] or ""
+        try:
+            payload=json.loads(raw_plan)
+        except (TypeError,ValueError) as exc:
+            raise ValueError("frozen analysis plan contains invalid analysis_spec") from exc
+        canonical_spec=payload.get("spec") if isinstance(payload,dict) else None
+        if not isinstance(canonical_spec,str):
+            canonical_spec=raw_plan
+        plan_hash=hashlib.sha256(canonical_spec.encode("utf-8")).hexdigest()
         dataset_hash=self._dataset_hash(study_id,outcome_name)
         self.db.execute("INSERT INTO study_analysis_audit(id,study_id,analysis_plan_id,analysis_result_id,protocol_hash,analysis_plan_hash,dataset_hash,method,population_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (str(uuid4()),study_id,plan["id"],result_id,study["protocol_hash"],plan_hash,dataset_hash,method,population_note,now()))
