@@ -33,7 +33,9 @@ class ScientificAnalysisEngine:
         if "spec" in spec and isinstance(spec["spec"],str):
             raw_spec=spec["spec"]
             stored_hash=spec.get("sha256")
-            if stored_hash and hashlib.sha256(raw_spec.encode("utf-8")).hexdigest() != stored_hash:
+            if not stored_hash:
+                raise ValueError("frozen analysis plan integrity hash is missing")
+            if hashlib.sha256(raw_spec.encode("utf-8")).hexdigest() != stored_hash:
                 raise ValueError("frozen analysis plan integrity hash mismatch")
             try:
                 spec=json.loads(raw_spec)
