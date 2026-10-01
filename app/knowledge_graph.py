@@ -21,7 +21,7 @@ class KnowledgeDependencyGraph:
 
     def add_edge(self,project_id,from_type,from_id,relation,to_type,to_id,provenance_refs=(),created_by="system"):
         if not self.db.one("SELECT 1 FROM projects WHERE id=?",(project_id,)): raise ValueError("project not found")
-        allowed={"CLAIM","INTERVENTION","TRAINING_PROTOCOL","FINDING","KNOWLEDGE_VERSION","QUESTION","EXPERIMENT","EVIDENCE","SOURCE","TRAINING_SESSION","EXPERIMENT_RESULT","PROJECT","HYPOTHESIS"}
+        allowed={"CLAIM","INTERVENTION","TRAINING_PROTOCOL","FINDING","KNOWLEDGE_VERSION","QUESTION","EXPERIMENT","EVIDENCE","SOURCE","TRAINING_SESSION","EXPERIMENT_RESULT","PROJECT","HYPOTHESIS","ANALYSIS"}
         ownership_queries={
             "CLAIM":"SELECT project_id FROM claims WHERE id=?",
             "INTERVENTION":"SELECT project_id FROM interventions WHERE id=?",
@@ -38,6 +38,7 @@ class KnowledgeDependencyGraph:
             # enforced by the EVIDENCE/CLAIM nodes that connect a source into a project graph.
             "SOURCE":"SELECT id AS source_id FROM sources WHERE id=?",
             "HYPOTHESIS":"SELECT project_id FROM hypotheses WHERE id=?",
+            "ANALYSIS":"SELECT s.project_id FROM study_analysis_results ar JOIN studies s ON s.id=ar.study_id WHERE ar.id=?",
         }
         for typ,nid in ((from_type,from_id),(to_type,to_id)):
             typ=str(typ).upper()
@@ -142,6 +143,19 @@ class KnowledgeDependencyGraph:
         # Research findings have machine-readable evidence refs. Resolve them only
         # through evidence joined to a claim in the same project; an ID alone is
         # insufficient because IDs may be supplied from another project.
+        # Analysis results are first-class provenance nodes. Findings that explicitly
+        # cite an analysis result are linked back to that immutable audited result.
+        for r in self.db.all("""SELECT id FROM study_analysis_results ar
+                                JOIN studies s ON s.id=ar.study_id
+                                WHERE s.project_id=?""",(project_id,)):
+            # A result may only be materialized when an immutable audit exists.
+            if self.db.one("SELECT 1 FROM study_analysis_audit WHERE analysis_result_id=? LIMIT 1",(r["id"],)):
+                # Use the result itself as the provenance anchor; no efficacy is inferred.
+                pass
+        for r in self.db.all("""SELECT id,source_id FROM research_findings
+                                WHERE project_id=? AND source_type='ANALYSIS' AND source_id IS NOT NULL""",(project_id,)):
+            if self.db.one("SELECT 1 FROM study_analysis_audit WHERE analysis_result_id=? LIMIT 1",(str(r["source_id"]),)):
+                edge("ANALYSIS",str(r["source_id"]),"SUPPORTS_FINDING","FINDING",r["id"])
         for r in self.db.all("SELECT id,evidence_refs FROM research_findings WHERE project_id=?",(project_id,)):
             try: refs=json.loads(r.get("evidence_refs") or "[]")
             except (TypeError,ValueError): refs=[]
