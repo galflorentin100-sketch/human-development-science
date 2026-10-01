@@ -599,6 +599,58 @@ CREATE TABLE IF NOT EXISTS study_analysis_audit (
 );
 CREATE INDEX IF NOT EXISTS idx_study_analysis_audit_study ON study_analysis_audit(study_id,created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_study_analysis_audit_result ON study_analysis_audit(analysis_result_id) WHERE analysis_result_id IS NOT NULL;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_plan_immutable
+BEFORE UPDATE ON study_analysis_plans
+WHEN OLD.frozen=1
+BEGIN
+ SELECT RAISE(ABORT,'frozen analysis plan is immutable');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_plan_delete_guard
+BEFORE DELETE ON study_analysis_plans
+WHEN OLD.frozen=1 OR EXISTS (SELECT 1 FROM study_analysis_audit WHERE analysis_plan_id=OLD.id)
+BEGIN
+ SELECT RAISE(ABORT,'analysis plan is immutable');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_result_immutable
+BEFORE UPDATE ON study_analysis_results
+WHEN EXISTS (SELECT 1 FROM study_analysis_audit WHERE analysis_result_id=OLD.id)
+BEGIN
+ SELECT RAISE(ABORT,'audited analysis result is immutable');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_result_delete_guard
+BEFORE DELETE ON study_analysis_results
+WHEN EXISTS (SELECT 1 FROM study_analysis_audit WHERE analysis_result_id=OLD.id)
+BEGIN
+ SELECT RAISE(ABORT,'audited analysis result is immutable');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_metrics_immutable
+BEFORE UPDATE ON study_analysis_metrics
+WHEN EXISTS (
+ SELECT 1 FROM study_analysis_audit a
+ WHERE a.study_id=OLD.study_id AND a.analysis_plan_id=OLD.analysis_plan_id AND a.outcome_name=OLD.outcome_name
+)
+BEGIN
+ SELECT RAISE(ABORT,'audited analysis metrics are immutable');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_metrics_delete_guard
+BEFORE DELETE ON study_analysis_metrics
+WHEN EXISTS (
+ SELECT 1 FROM study_analysis_audit a
+ WHERE a.study_id=OLD.study_id AND a.analysis_plan_id=OLD.analysis_plan_id AND a.outcome_name=OLD.outcome_name
+)
+BEGIN
+ SELECT RAISE(ABORT,'audited analysis metrics are immutable');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_audit_immutable
+BEFORE UPDATE ON study_analysis_audit
+BEGIN
+ SELECT RAISE(ABORT,'analysis audit is immutable');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_audit_delete_guard
+BEFORE DELETE ON study_analysis_audit
+BEGIN
+ SELECT RAISE(ABORT,'analysis audit is immutable');
+END;
 
 CREATE INDEX IF NOT EXISTS idx_goals_company_status ON goals(company_id,status);
 CREATE INDEX IF NOT EXISTS idx_decisions_company_created ON decisions(company_id,created_at);
