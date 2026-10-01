@@ -47,8 +47,8 @@ def test_claim_impact_resolves_finding_refs_by_evidence_id_and_flags_knowledge_v
                (cid,pid,"claim","HYPOTHESIS","PRELIMINARY",0.8,"SUPPORTED",now()))
     db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",
                ("src","source","https://example.test","PAPER","",""))
-    db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?)",
-               (eid,cid,"src","SUPPORTS",1,"researcher","hash",now()))
+    db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,excerpt,verified,created_by,excerpt_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+               (eid,cid,"src","SUPPORTS","claim evidence excerpt",1,"researcher","hash",now()))
     db.execute("INSERT INTO research_findings(id,project_id,source_type,statement,classification,status,evidence_refs,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                (fid,pid,"OBSERVATION","finding","HYPOTHESIS","CANDIDATE",'["'+eid+'"]',"researcher",now()))
     db.execute("INSERT INTO scientific_knowledge_versions(id,claim_id,version,statement,classification,status,confidence,evidence_state,evidence_snapshot_hash,change_reason,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
