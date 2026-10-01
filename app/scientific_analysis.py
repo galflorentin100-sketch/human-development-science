@@ -98,7 +98,7 @@ class ScientificAnalysisEngine:
 
     def _dataset_hash(self, study_id, outcome_name):
         rows=self.db.all("SELECT id,participant_id,observation_type,timepoint,session_id,value,unit,missing_reason,recorded_at FROM study_outcomes WHERE study_id=? AND outcome_name=? ORDER BY participant_id,observation_type,timepoint,recorded_at,id",(study_id,outcome_name))
-        assignments=self.db.all("SELECT participant_id,arm,assigned_at FROM study_assignments WHERE study_id=? ORDER BY participant_id,arm,assigned_at")
+        assignments=self.db.all("SELECT participant_id,arm,assigned_at FROM study_assignments WHERE study_id=? ORDER BY participant_id,arm,assigned_at",(study_id,))
         payload=json.dumps({
             "outcomes":[dict(r) for r in rows],
             "assignments":[dict(r) for r in assignments],
