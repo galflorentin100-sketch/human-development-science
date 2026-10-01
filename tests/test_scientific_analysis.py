@@ -74,18 +74,22 @@ def test_randomized_analysis_records_protocol_plan_and_dataset_audit(tmp_path):
     assert audit[0]["analysis_plan_hash"]
 
 
-def test_randomized_analysis_records_protocol_plan_and_dataset_audit(tmp_path):
+
+
+def test_analysis_audit_hashes_canonical_spec_and_dataset_includes_assignment(tmp_path):
     db=setup(tmp_path)
     for pid,base,post in [('i',10,16),('c1',10,12)]:
-        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?)",(pid+'b','s',pid,'score',base,'TRAINING','2026-01','2026-01-01'))
-        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?)",(pid+'p','s',pid,'score',post,'TRAINING','2026-02','2026-02-01'))
-    ScientificAnalysisEngine(db).randomized_arm_analysis('s','plan','score')
-    audit=ScientificAnalysisEngine(db).analysis_audit('s','plan','score')
-    assert len(audit)==1
-    assert audit[0]["method"]=="RANDOMIZED_ARM"
-    assert audit[0]["protocol_hash"]=="protocol-test-hash"
-    assert audit[0]["dataset_hash"]
-    assert audit[0]["analysis_plan_hash"]
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?)",(pid+'b','s',pid,'score',base,'TRAINING','baseline','2026-01'))
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?)",(pid+'p','s',pid,'score',post,'TRAINING','post','2026-02'))
+    engine=ScientificAnalysisEngine(db)
+    engine.randomized_arm_analysis('s','plan','score')
+    audit=db.one("SELECT * FROM study_analysis_audit WHERE study_id='s'")
+    spec=db.one("SELECT analysis_spec FROM study_analysis_plans WHERE id='plan'")["analysis_spec"]
+    payload=json.loads(spec)
+    assert audit["analysis_plan_hash"] == __import__("hashlib").sha256(payload["spec"].encode()).hexdigest()
+    before=audit["dataset_hash"]
+    db.execute("UPDATE study_assignments SET arm='CONTROL' WHERE participant_id='i' AND study_id='s'")
+    assert engine._dataset_hash('s','score') != before
 
 
 def test_analysis_plan_blocks_unplanned_multiplicity_and_requires_explicit_controls(tmp_path):
