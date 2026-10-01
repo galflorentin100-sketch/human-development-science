@@ -495,3 +495,18 @@ def test_admitted_protocol_basis_and_evidence_cannot_be_mutated(tmp_path):
         assert False
     except Exception as exc:
         assert "evidence cannot be changed" in str(exc)
+
+
+def test_adaptive_training_blocks_non_operational_protocol(tmp_path):
+    from app.database import Database
+    from app.adaptive_training import AdaptiveTrainingService
+    db=Database(str(tmp_path/"adaptive-gate.db"))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p','hds','p','RUNNING','ceo','2026','2026')")
+    db.execute("""INSERT INTO training_protocols
+        (id,project_id,name,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at)
+        VALUES ('tp','p','tp','m','d','d','p','t','r','s','UNTESTED','DRAFT',1,'2026')""")
+    try:
+        AdaptiveTrainingService(db).apply("p","tp","participant",2,"rationale",{"readiness":"CLEAR"})
+        assert False
+    except Exception as exc:
+        assert "operationally admissible" in str(exc)
