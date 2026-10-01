@@ -22,7 +22,14 @@ class CompanyOrchestrator:
     def execute_next(self,project_id):
         # Direct execution must not bypass a pending governed decision.
         pending_decision=self.db.one(
-            "SELECT id,action,status FROM approvals WHERE status='PENDING' AND action LIKE 'DECISION:%' ORDER BY created_at DESC LIMIT 1"
+            """SELECT a.id,a.action,a.status
+               FROM approvals a
+               JOIN decisions d ON d.id=SUBSTR(a.action,9)
+               WHERE a.status='PENDING'
+                 AND a.action LIKE 'DECISION:%'
+                 AND d.project_id=?
+               ORDER BY a.created_at DESC LIMIT 1""",
+            (str(project_id),),
         )
         if pending_decision:
             return {"status":"WAITING_FOR_APPROVAL","approval":pending_decision}
