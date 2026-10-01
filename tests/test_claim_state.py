@@ -123,3 +123,21 @@ def test_knowledge_version_rejects_conflicted_evidence(tmp_path):
         assert False
     except ValueError as exc:
         assert "conflicted" in str(exc)
+
+
+def test_knowledge_version_snapshot_changes_when_evidence_review_set_changes(tmp_path):
+    db=Database(str(tmp_path/"knowledge-snapshot.db"))
+    # Build a minimal claim/evidence graph through the existing test helpers.
+    from app.evidence_pipeline import EvidencePipeline
+    from app.claim_state import ClaimStateService
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p','hds','snapshot','RUNNING','ceo','2026','2026')")
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,status,confidence,review_required,created_at,updated_at) VALUES ('c','p','A claim','SCIENTIFIC','SUPPORTED',0.8,0,'2026','2026')")
+    db.execute("INSERT INTO sources(id,title,url,authors,publication_year,source_type,verified_at,provenance_note) VALUES ('s','source','https://example.test/s','a',2026,'PAPER','','')")
+    db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,content,fetched_at,parsed_at,created_at) VALUES ('es','s','PARSED','hash','The claim is supported.','2026','2026','2026')")
+    ev=EvidencePipeline(db).attach("c","s","The claim is supported.","SUPPORTS",actor="researcher")
+    EvidencePipeline(db).review(ev["id"],"reviewer-1","VERIFIED","verified")
+    v1=ClaimStateService(db).knowledge_version("c","auditor","initial snapshot")
+    db.execute("UPDATE claims SET status='UNCERTAIN' WHERE id='c'")
+    EvidencePipeline(db).review(ev["id"],"reviewer-2","UNCERTAIN","uncertain on replication")
+    v2=ClaimStateService(db).knowledge_version("c","auditor","updated snapshot")
+    assert v1["evidence_snapshot_hash"] != v2["evidence_snapshot_hash"]
