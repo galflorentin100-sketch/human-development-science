@@ -750,6 +750,7 @@ def _migrate_phase4(self):
             con.execute("ALTER TABLE hds_research_queue ADD COLUMN research_queue_workspace_id TEXT")
         _ensure_hds_schema(con)
         _ensure_hds_indexes(con)
+        con.executescript(_PHASE4_ANALYSIS_IMMUTABILITY_SQL)
         existing_studies={row[1] for row in con.execute("PRAGMA table_info(studies)")}
         if "project_id" not in existing_studies:
             con.execute("ALTER TABLE studies ADD COLUMN project_id TEXT")
@@ -1160,5 +1161,40 @@ BEGIN SELECT RAISE(ABORT,'SUPPORTED training protocol admission requirements are
 
 # Keep a single authoritative SQLite migration path. The function is defined above
 # but resolves PHASE6/PHASE7 globals at runtime, after all schema constants exist.
+
+# Scientific analysis artifacts become immutable after creation/freeze/audit.
+# Keep these guards in the authoritative SQLite migration path so direct SQL cannot bypass the scientific audit trail.
+_PHASE4_ANALYSIS_IMMUTABILITY_SQL = """
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_plan_immutable_update
+BEFORE UPDATE ON study_analysis_plans
+WHEN OLD.frozen=1
+BEGIN SELECT RAISE(ABORT,'frozen analysis plan is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_plan_immutable_delete
+BEFORE DELETE ON study_analysis_plans
+WHEN OLD.frozen=1
+BEGIN SELECT RAISE(ABORT,'frozen analysis plan is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_result_immutable_update
+BEFORE UPDATE ON study_analysis_results
+WHEN EXISTS (SELECT 1 FROM study_analysis_audit WHERE analysis_result_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'audited analysis result is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_result_immutable_delete
+BEFORE DELETE ON study_analysis_results
+WHEN EXISTS (SELECT 1 FROM study_analysis_audit WHERE analysis_result_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'audited analysis result is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_metrics_immutable_update
+BEFORE UPDATE ON study_analysis_metrics
+WHEN EXISTS (SELECT 1 FROM study_analysis_audit a WHERE a.study_id=OLD.study_id AND a.analysis_plan_id=OLD.analysis_plan_id AND a.outcome_name=OLD.outcome_name)
+BEGIN SELECT RAISE(ABORT,'audited analysis metrics are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_metrics_immutable_delete
+BEFORE DELETE ON study_analysis_metrics
+WHEN EXISTS (SELECT 1 FROM study_analysis_audit a WHERE a.study_id=OLD.study_id AND a.analysis_plan_id=OLD.analysis_plan_id AND a.outcome_name=OLD.outcome_name)
+BEGIN SELECT RAISE(ABORT,'audited analysis metrics are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_audit_immutable_update
+BEFORE UPDATE ON study_analysis_audit
+BEGIN SELECT RAISE(ABORT,'analysis audit is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_audit_immutable_delete
+BEFORE DELETE ON study_analysis_audit
+BEGIN SELECT RAISE(ABORT,'analysis audit is immutable'); END;
+"""
 Database.migrate = _migrate_phase4
 
