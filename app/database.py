@@ -1012,6 +1012,40 @@ BEFORE INSERT ON training_protocols
 WHEN NEW.status='SUPPORTED'
 BEGIN SELECT RAISE(ABORT,'SUPPORTED training protocol must use lifecycle promotion'); END;
 
+CREATE TRIGGER IF NOT EXISTS trg_intervention_admitted_immutable
+BEFORE UPDATE ON interventions
+WHEN OLD.status IN ('SUPPORTED','RETIRED') AND (
+    OLD.status='RETIRED' OR NEW.status=OLD.status
+)
+BEGIN SELECT RAISE(ABORT,'admitted intervention is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intervention_evidence_admitted_guard
+BEFORE INSERT ON intervention_evidence
+WHEN EXISTS (SELECT 1 FROM interventions WHERE id=NEW.intervention_id AND status IN ('SUPPORTED','RETIRED'))
+BEGIN SELECT RAISE(ABORT,'evidence cannot be changed for an admitted intervention'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intervention_evidence_admitted_delete_guard
+BEFORE DELETE ON intervention_evidence
+WHEN EXISTS (SELECT 1 FROM interventions WHERE id=OLD.intervention_id AND status IN ('SUPPORTED','RETIRED'))
+BEGIN SELECT RAISE(ABORT,'evidence cannot be changed for an admitted intervention'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_training_protocol_admitted_immutable
+BEFORE UPDATE ON training_protocols
+WHEN OLD.status IN ('SUPPORTED','RETIRED') AND (
+    OLD.status='RETIRED' OR NEW.status=OLD.status
+)
+BEGIN SELECT RAISE(ABORT,'admitted training protocol is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_training_protocol_evidence_admitted_guard
+BEFORE INSERT ON training_protocol_evidence
+WHEN EXISTS (SELECT 1 FROM training_protocols WHERE id=NEW.protocol_id AND status IN ('SUPPORTED','RETIRED'))
+BEGIN SELECT RAISE(ABORT,'evidence cannot be changed for an admitted training protocol'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_training_protocol_evidence_admitted_delete_guard
+BEFORE DELETE ON training_protocol_evidence
+WHEN EXISTS (SELECT 1 FROM training_protocols WHERE id=OLD.protocol_id AND status IN ('SUPPORTED','RETIRED'))
+BEGIN SELECT RAISE(ABORT,'evidence cannot be changed for an admitted training protocol'); END;
+
 CREATE TRIGGER IF NOT EXISTS trg_intervention_supported_gate
 BEFORE UPDATE OF status ON interventions
 WHEN NEW.status='SUPPORTED' AND (
