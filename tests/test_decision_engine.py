@@ -100,3 +100,39 @@ def test_direct_execution_cannot_bypass_pending_decision_approval(tmp_path):
         "SELECT status FROM tasks WHERE project_id=? AND title=?",
         (project["id"],"governed task"),
     )["status"]=="PLANNED"
+
+
+def test_pending_decision_in_another_project_does_not_block_execution(tmp_path):
+    from app.orchestrator import CompanyOrchestrator
+    from app.tasks import TaskEngine
+
+    db=Database(str(tmp_path/"decision_execution_scope.db"))
+    p1=ResearchCycle(db).run("execution project one")["project"]
+    p2=ResearchCycle(db).run("execution project two")["project"]
+
+    TaskEngine(db).create_task(
+        "independent task",
+        "must not be blocked by another project's approval",
+        project_id=p1["id"],
+        owner="researcher",
+    )
+    decision=DecisionEngine(db).assess(
+        p2["id"],
+        "PUBLISH",
+        ["publish","wait"],
+        ["verified evidence"],
+        ["publication uncertainty"],
+        0.9,
+        "measure publication outcome",
+        owner="founder",
+        risk_level="HIGH",
+    )["decision"]
+
+    result=CompanyOrchestrator(db).execute_next(p1["id"])
+
+    assert result["status"]!="WAITING_FOR_APPROVAL"
+    assert db.one(
+        "SELECT status FROM tasks WHERE project_id=? AND title=?",
+        (p1["id"],"independent task"),
+    )["status"] in {"REVIEW","FAILED","PLANNED"}
+    assert db.one("SELECT status FROM approvals WHERE action=?",(f"DECISION:{decision['id']}",))["status"]=="PENDING"
