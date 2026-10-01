@@ -848,7 +848,7 @@ def attach_training_protocol_evidence(protocol_id: str, body: dict, principal: P
 
 @app.post("/api/science/training-protocols/{protocol_id}/sessions")
 def record_training_session(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     require_resource_project(principal, "training_protocol", protocol_id, "WRITE")
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).session(
@@ -2038,7 +2038,7 @@ def hds_training_progression(protocol_id: str, participant_ref: str, principal: 
 
 @app.post("/api/hds/challenges/{challenge_id}/participants/{participant_id}/start")
 def start_hds_challenge(challenge_id: str, participant_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     from app.adaptive_training import ChallengeExecutionService
     project_id=body.get("project_id")
     if not project_id: raise HTTPException(400,"project_id is required")
@@ -2048,7 +2048,7 @@ def start_hds_challenge(challenge_id: str, participant_id: str, body: dict, prin
 
 @app.post("/api/hds/challenge-executions/{execution_id}/stop")
 def stop_hds_challenge(execution_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     row=db.one("SELECT project_id FROM hds_challenge_executions WHERE id=?",(execution_id,))
     if not row: raise HTTPException(404,"challenge execution not found")
     require_project(principal,row["project_id"],"WRITE")
@@ -2058,7 +2058,7 @@ def stop_hds_challenge(execution_id: str, body: dict, principal: Principal = Dep
 
 @app.post("/api/hds/projects/{project_id}/challenge-executions/emergency-stop")
 def emergency_stop_hds_challenges(project_id: str, body: dict, challenge_id: str | None = None, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     require_project(principal, project_id, "WRITE")
     from app.adaptive_training import ChallengeExecutionService
     try:
@@ -2070,7 +2070,7 @@ def emergency_stop_hds_challenges(project_id: str, body: dict, challenge_id: str
 
 @app.post("/api/hds/challenge-executions/{execution_id}/complete")
 def complete_hds_challenge(execution_id: str, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     row=db.one("SELECT project_id FROM hds_challenge_executions WHERE id=?",(execution_id,))
     if not row: raise HTTPException(404,"challenge execution not found")
     require_project(principal,row["project_id"],"WRITE")
@@ -2090,7 +2090,7 @@ def adaptive_hds_training(protocol_id: str, participant_ref: str, principal: Pri
 
 @app.post("/api/hds/training/{protocol_id}/participants/{participant_ref}/adaptive")
 def apply_adaptive_hds_training(protocol_id: str, participant_ref: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     protocol=db.one("SELECT project_id FROM training_protocols WHERE id=?",(protocol_id,))
     if not protocol: raise HTTPException(404,"training protocol not found")
     require_project(principal,protocol["project_id"],"WRITE")
