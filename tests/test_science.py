@@ -362,3 +362,27 @@ def test_agent_executor_enforces_task_agent_and_project_binding(tmp_path):
         assert False, "execution must remain bound to the task project"
     except PermissionError as exc:
         assert "project" in str(exc)
+
+
+def test_database_scientific_admission_guards(tmp_path):
+    from app.database import Database
+    db=Database(str(tmp_path/"admission-db.db"))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p1','hds','p1','RUNNING','ceo','2026','2026')")
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p2','hds','p2','RUNNING','ceo','2026','2026')")
+    db.execute("INSERT INTO interventions(id,project_id,name,rationale,mechanism,evidence_level,dosage,population,status,created_at) VALUES ('i','p1','i','r','m','UNTESTED','d','pop','EXPERIMENTAL','2026')")
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,status,confidence,created_at) VALUES ('c2','p2','claim','SCIENTIFIC','SUPPORTED',1.0,'2026')")
+    db.execute("INSERT INTO sources(id,title,url,authors,publication_year,source_type,provenance_note) VALUES ('s2','s','https://example.org/s2','a',2026,'PAPER','')")
+    db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,content,fetched_at,parsed_at,created_at) VALUES ('es2','s2','PARSED','h','x','2026','2026','2026')")
+    db.execute("INSERT INTO evidence(id,claim_id,source_id,excerpt,stance,verified,created_at) VALUES ('e2','c2','s2','x','SUPPORTS',1,'2026')")
+    try:
+        db.execute("INSERT INTO intervention_evidence(id,intervention_id,evidence_kind,evidence_ref,notes,created_at) VALUES ('ie','i','PRIMARY','e2','','2026')")
+        assert False
+    except Exception as exc:
+        assert "another project" in str(exc)
+
+    db.execute("INSERT INTO training_protocols(id,project_id,name,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at) VALUES ('tp','p1','tp','m','d','d','p','t','r','s','UNTESTED','DRAFT',1,'2026')")
+    try:
+        db.execute("UPDATE training_protocols SET status='SUPPORTED' WHERE id='tp'")
+        assert False
+    except Exception as exc:
+        assert "admission" in str(exc)
