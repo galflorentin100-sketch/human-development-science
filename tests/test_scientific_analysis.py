@@ -92,6 +92,24 @@ def test_analysis_audit_hashes_canonical_spec_and_dataset_includes_assignment(tm
     assert engine._dataset_hash('s','score') != before
 
 
+
+def test_analysis_result_rolls_back_if_audit_fails(tmp_path, monkeypatch):
+    db=setup(tmp_path)
+    for pid,base,post in [('i',10,16),('c1',10,12)]:
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?)",(pid+'b','s',pid,'score',base,'TRAINING','baseline','2026-01'))
+        db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES (?,?,?,?,?,?,?,?)",(pid+'p','s',pid,'score',post,'TRAINING','post','2026-02'))
+    def fail_audit(*args, **kwargs):
+        raise RuntimeError("audit failure")
+    monkeypatch.setattr(ScientificAnalysisEngine, "_record_analysis_audit", fail_audit)
+    try:
+        ScientificAnalysisEngine(db).randomized_arm_analysis('s','plan','score')
+        assert False
+    except RuntimeError as exc:
+        assert str(exc) == "audit failure"
+    assert db.one("SELECT COUNT(*) AS n FROM study_analysis_results WHERE study_id='s'")["n"] == 0
+    assert db.one("SELECT COUNT(*) AS n FROM study_analysis_metrics WHERE study_id='s'")["n"] == 0
+
+
 def test_analysis_plan_blocks_unplanned_multiplicity_and_requires_explicit_controls(tmp_path):
     db=setup(tmp_path)
     engine=ScientificAnalysisEngine(db)
