@@ -1002,6 +1002,16 @@ WHEN EXISTS (
 )
 BEGIN SELECT RAISE(ABORT,'training protocol evidence belongs to another project'); END;
 
+CREATE TRIGGER IF NOT EXISTS trg_intervention_insert_supported_gate
+BEFORE INSERT ON interventions
+WHEN NEW.status='SUPPORTED'
+BEGIN SELECT RAISE(ABORT,'SUPPORTED intervention must use lifecycle promotion'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_training_protocol_insert_supported_gate
+BEFORE INSERT ON training_protocols
+WHEN NEW.status='SUPPORTED'
+BEGIN SELECT RAISE(ABORT,'SUPPORTED training protocol must use lifecycle promotion'); END;
+
 CREATE TRIGGER IF NOT EXISTS trg_intervention_supported_gate
 BEFORE UPDATE OF status ON interventions
 WHEN NEW.status='SUPPORTED' AND (
