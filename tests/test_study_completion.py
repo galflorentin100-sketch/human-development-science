@@ -1,5 +1,7 @@
 import json
 from app.database import Database
+import hashlib
+import json
 from app.research import StudyExecution
 
 
@@ -22,7 +24,7 @@ def setup(tmp_path):
     db.execute(
         "INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) "
         "VALUES ('plan','s',1,?,?,?,?)",
-        (json.dumps({"spec":spec,"sha256":"x"}),1,"2026","2026")
+        (json.dumps({"spec":spec,"sha256":hashlib.sha256(spec.encode()).hexdigest()}),1,"2026","2026")
     )
     db.execute(
         "INSERT INTO study_measure_definitions(id,study_id,name,operational_definition,method,scale_type,unit,reliability_note,validity_note,status,created_at) "
