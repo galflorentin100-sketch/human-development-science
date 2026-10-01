@@ -66,3 +66,15 @@ def test_complete_accepts_explicit_missing_outcome_reason(tmp_path):
     )
     StudyExecution(db).complete("s")
     assert db.one("SELECT status FROM studies WHERE id='s'")["status"]=="COMPLETED"
+
+
+def test_legacy_mean_change_creates_analysis_audit(tmp_path):
+    db=setup(tmp_path)
+    db.execute("INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES ('p1','s','p1','CONSENTED','2026')")
+    db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES ('o1','s','p1','score',10,'TRAINING','baseline','2026')")
+    db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES ('o2','s','p1','score',12,'TRAINING','post','2026')")
+    result=StudyExecution(db).analyze_mean_change("s","plan","score")
+    audit=db.one("SELECT * FROM study_analysis_audit WHERE analysis_result_id=?",(result["id"],))
+    assert audit is not None
+    assert audit["analysis_plan_id"]=="plan"
+    assert audit["method"]=="DESCRIPTIVE"
