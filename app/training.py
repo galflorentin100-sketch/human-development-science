@@ -72,6 +72,8 @@ class TrainingProtocolService:
         protocol=self.db.one("SELECT project_id FROM training_protocols WHERE id=?",(protocol_id,))
         if not protocol:
             raise ValueError("training protocol not found")
+        if protocol["status"] in {"SUPPORTED","RETIRED"}:
+            raise ValueError("admitted training protocols cannot change evidence")
         if not evidence_kind or not evidence_ref:
             raise ValueError("evidence kind and reference are required")
         evidence=self.db.one(
