@@ -239,7 +239,6 @@ class ScientificAnalysisEngine:
             for name,(value,denom) in metrics.items():
                 con.execute("INSERT INTO study_analysis_metrics(id,study_id,analysis_plan_id,outcome_name,metric_name,metric_value,denominator,note,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                     (str(uuid4()),study_id,analysis_plan_id,outcome_name,name,value,denom,None,now()))
-        with self.db.transaction() as con:
             self._record_analysis_audit(study_id, plan, rid, outcome_name, "INFERENTIAL_RANDOMIZED_ARM", "Complete paired TRAINING cases only", con=con)
         return result
 
@@ -312,7 +311,6 @@ class ScientificAnalysisEngine:
             for name,(value,denom) in metrics.items():
                 con.execute("INSERT INTO study_analysis_metrics(id,study_id,analysis_plan_id,outcome_name,metric_name,metric_value,denominator,note,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                             (str(uuid4()),study_id,analysis_plan_id,outcome_name,name,value,denom,None,now()))
-        with self.db.transaction() as con:
             self._record_analysis_audit(study_id, plan, result_id, outcome_name, "RANDOMIZED_ARM", "Observed paired TRAINING cases by randomized arm", con=con)
         return {"result":self.db.one("SELECT * FROM study_analysis_results WHERE id=?",(result_id,)),
                 "metrics":self.db.all("SELECT metric_name,metric_value,denominator,note FROM study_analysis_metrics WHERE study_id=? AND analysis_plan_id=? AND outcome_name=?",(study_id,analysis_plan_id,outcome_name)),
@@ -393,7 +391,6 @@ class ScientificAnalysisEngine:
                     "INSERT INTO study_analysis_metrics(id,study_id,analysis_plan_id,outcome_name,metric_name,metric_value,denominator,note,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                     (str(uuid4()),study_id,analysis_plan_id,outcome_name,name,value,denom,None,now())
                 )
-        with self.db.transaction() as con:
             self._record_analysis_audit(study_id, plan, result_id, outcome_name, "DESCRIPTIVE", "Observed study participants with available outcome records", con=con)
         return {
             "result":self.db.one("SELECT * FROM study_analysis_results WHERE id=?",(result_id,)),
