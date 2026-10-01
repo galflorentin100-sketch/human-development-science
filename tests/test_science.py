@@ -386,3 +386,72 @@ def test_database_scientific_admission_guards(tmp_path):
         assert False
     except Exception as exc:
         assert "admission" in str(exc)
+
+
+def test_training_operational_gate_blocks_conflicted_basis(tmp_path):
+    import uuid
+    from app.models import now
+    from app.scientific_admission import ScientificAdmissionGate
+    db=Database(str(tmp_path/"operational-gate.db")); ResearchCycle(db)
+    project=db.one("SELECT id FROM projects LIMIT 1")
+    claim=str(uuid.uuid4()); source=str(uuid.uuid4()); evidence=str(uuid.uuid4()); protocol=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+               (claim,project["id"],"basis","HYPOTHESIS","SUPPORTED",1.0,"SUPPORTED",now()))
+    db.execute("INSERT INTO sources(id,title,url,source_type,provenance_note) VALUES (?,?,?,?,?)",
+               (source,"basis","https://example.com/"+source,"PAPER","test"))
+    EvidencePipeline(db).ingest_text(source,"excerpt")
+    EvidencePipeline(db).attach(claim,source,"excerpt")
+    ev=db.one("SELECT id FROM evidence WHERE claim_id=?",(claim,))
+    EvidencePipeline(db).review(ev["id"],"reviewer-a","VERIFIED","support")
+    EvidencePipeline(db).review(ev["id"],"reviewer-b","REJECTED","contradiction")
+    db.execute("""INSERT INTO training_protocols
+        (id,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,
+         challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,
+         evidence_level,status,version,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (protocol,project["id"],"p",None,claim,None,"hypothesis","domain","dose","progress","transfer","retention","safety",
+         "SUPPORTED","SUPPORTED",1,now()))
+    db.execute("""INSERT INTO training_protocol_evidence
+        (id,protocol_id,evidence_kind,evidence_ref,notes,created_at)
+        VALUES (?,?,?,?,?,?)""",(str(uuid.uuid4()),protocol,"PRIMARY",ev["id"],"",now()))
+    try:
+        ScientificAdmissionGate(db).assert_training_operational(protocol)
+        assert False
+    except ValueError as exc:
+        assert "non-verified or conflicted" in str(exc)
+
+
+def test_training_operational_gate_blocks_stale_basis(tmp_path):
+    import uuid
+    from app.models import now
+    from app.scientific_admission import ScientificAdmissionGate
+    db=Database(str(tmp_path/"stale-gate.db")); ResearchCycle(db)
+    project=db.one("SELECT id FROM projects LIMIT 1")
+    claim=str(uuid.uuid4()); source=str(uuid.uuid4()); evidence=str(uuid.uuid4()); protocol=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+               (claim,project["id"],"basis","HYPOTHESIS","SUPPORTED",1.0,"SUPPORTED",now()))
+    db.execute("INSERT INTO sources(id,title,url,source_type,provenance_note) VALUES (?,?,?,?,?)",
+               (source,"basis","https://example.com/"+source,"PAPER","test"))
+    EvidencePipeline(db).ingest_text(source,"excerpt")
+    EvidencePipeline(db).attach(claim,source,"excerpt")
+    ev=db.one("SELECT id FROM evidence WHERE claim_id=?",(claim,))
+    EvidencePipeline(db).review(ev["id"],"reviewer-a","VERIFIED","support")
+    db.execute("""INSERT INTO training_protocols
+        (id,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,
+         challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,
+         evidence_level,status,version,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (protocol,project["id"],"p",None,claim,None,"hypothesis","domain","dose","progress","transfer","retention","safety",
+         "SUPPORTED","SUPPORTED",1,now()))
+    db.execute("""INSERT INTO training_protocol_evidence
+        (id,protocol_id,evidence_kind,evidence_ref,notes,created_at)
+        VALUES (?,?,?,?,?,?)""",(str(uuid.uuid4()),protocol,"PRIMARY",ev["id"],"",now()))
+    db.execute("""INSERT INTO knowledge_freshness
+        (id,entity_type,entity_id,review_interval_days,last_validated_at,next_review_at,status,owner,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        (str(uuid.uuid4()),"CLAIM",claim,30,now(),"2000-01-01T00:00:00+00:00","ACTIVE","test",now(),now()))
+    try:
+        ScientificAdmissionGate(db).assert_training_operational(protocol)
+        assert False
+    except ValueError as exc:
+        assert "freshness review" in str(exc)
