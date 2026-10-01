@@ -75,6 +75,8 @@ class AdaptiveTrainingService:
             raise ValueError("training protocol not found")
         if str(protocol["project_id"])!=str(project_id):
             raise ValueError("training protocol belongs to another project")
+        from app.scientific_admission import ScientificAdmissionGate
+        ScientificAdmissionGate(self.db).assert_training_operational(protocol_id)
         from app.participant_governance import ParticipantGovernance
         ParticipantGovernance(self.db).assert_active(str(participant_ref))
         if not isinstance(safety_checks,dict) or not safety_checks:
