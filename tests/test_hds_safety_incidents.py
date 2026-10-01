@@ -1,6 +1,7 @@
 from app.database import Database
 from app.workflow import ResearchCycle
 from app.human_development import HumanDevelopmentService
+from app.participant_governance import ParticipantGovernance
 from app.models import now
 
 def test_safety_incident_requires_independent_review(tmp_path):
