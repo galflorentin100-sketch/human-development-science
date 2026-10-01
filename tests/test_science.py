@@ -410,7 +410,7 @@ def test_training_operational_gate_blocks_conflicted_basis(tmp_path):
          evidence_level,status,version,created_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (protocol,project["id"],"p",None,claim,None,"hypothesis","domain","dose","progress","transfer","retention","safety",
-         "SUPPORTED","SUPPORTED",1,now()))
+         "SUPPORTED","PILOT",1,now()))
     db.execute("""INSERT INTO training_protocol_evidence
         (id,protocol_id,evidence_kind,evidence_ref,notes,created_at)
         VALUES (?,?,?,?,?,?)""",(str(uuid.uuid4()),protocol,"PRIMARY",ev["id"],"",now()))
