@@ -110,6 +110,8 @@ class TrainingProtocolService:
             raise ValueError(f"training session blocked by safety gate: {safety['status']}")
         if protocol["status"]=="RETIRED":
             raise ValueError("retired training protocols cannot accept new sessions")
+        from app.scientific_admission import ScientificAdmissionGate
+        ScientificAdmissionGate(self.db).assert_training_operational(protocol_id)
         if int(session_number)<1:
             raise ValueError("session_number must be positive")
         if int(adherence) not in {0,1}:
