@@ -78,3 +78,13 @@ def test_legacy_mean_change_creates_analysis_audit(tmp_path):
     assert audit is not None
     assert audit["analysis_plan_id"]=="plan"
     assert audit["method"]=="DESCRIPTIVE"
+
+
+def test_legacy_mean_change_rejects_tampered_frozen_plan(tmp_path):
+    db=setup(tmp_path)
+    db.execute("UPDATE study_analysis_plans SET analysis_spec=? WHERE id='plan'", (json.dumps({"spec":json.dumps({"outcome_name":"score","estimand":"change","population":"consented participants","estimator":"unadjusted","ci_method":"none","missing_data_policy":"explicit missing reason","multiplicity_policy":"primary only","subgroup_policy":"none","stopping_rule":"fixed","allowed_methods":["DESCRIPTIVE"]}),"sha256":"tampered"}),))
+    try:
+        StudyExecution(db).analyze_mean_change("s","plan","score")
+        assert False
+    except ValueError as exc:
+        assert "integrity hash" in str(exc)
