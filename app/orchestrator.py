@@ -20,6 +20,10 @@ class CompanyOrchestrator:
         self.db.audit("company.goal_started","goal",goal_id,"ceo",{"project_id":project_id,"task_count":len(tasks)},now(),str(uuid4()))
         return {"goal":goal,"project":self.db.one("SELECT * FROM projects WHERE id=?",(project_id,)),"tasks":tasks}
     def execute_next(self,project_id):
+        project=self.db.one("SELECT status FROM projects WHERE id=?",(project_id,))
+        if not project: raise ValueError("project not found")
+        if project["status"] != "RUNNING":
+            return {"status":"PROJECT_NOT_EXECUTABLE","project_status":project["status"]}
         # Direct execution must not bypass a pending governed decision; scope the gate to this project.
         pending_decision=self.db.one(
             """SELECT a.id,a.action,a.status
