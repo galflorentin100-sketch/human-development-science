@@ -442,7 +442,7 @@ def test_training_operational_gate_blocks_stale_basis(tmp_path):
          evidence_level,status,version,created_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (protocol,project["id"],"p",None,claim,None,"hypothesis","domain","dose","progress","transfer","retention","safety",
-         "SUPPORTED","SUPPORTED",1,now()))
+         "SUPPORTED","PILOT",1,now()))
     db.execute("""INSERT INTO training_protocol_evidence
         (id,protocol_id,evidence_kind,evidence_ref,notes,created_at)
         VALUES (?,?,?,?,?,?)""",(str(uuid.uuid4()),protocol,"PRIMARY",ev["id"],"",now()))
@@ -455,3 +455,43 @@ def test_training_operational_gate_blocks_stale_basis(tmp_path):
         assert False
     except ValueError as exc:
         assert "freshness review" in str(exc)
+
+
+def test_database_blocks_direct_supported_inserts(tmp_path):
+    from app.database import Database
+    db=Database(str(tmp_path/"direct-supported.db"))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p','hds','p','RUNNING','ceo','2026','2026')")
+    try:
+        db.execute("""INSERT INTO interventions
+            (id,project_id,name,rationale,mechanism,evidence_level,dosage,population,status,created_at)
+            VALUES ('i','p','i','r','m','SUPPORTED','d','pop','SUPPORTED','2026')""")
+        assert False
+    except Exception as exc:
+        assert "lifecycle promotion" in str(exc)
+    try:
+        db.execute("""INSERT INTO training_protocols
+            (id,project_id,name,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at)
+            VALUES ('tp','p','tp','m','d','d','p','t','r','s','SUPPORTED','SUPPORTED',1,'2026')""")
+        assert False
+    except Exception as exc:
+        assert "lifecycle promotion" in str(exc)
+
+
+def test_admitted_protocol_basis_and_evidence_cannot_be_mutated(tmp_path):
+    from app.database import Database
+    db=Database(str(tmp_path/"admitted-mutation.db"))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p','hds','p','RUNNING','ceo','2026','2026')")
+    db.execute("""INSERT INTO training_protocols
+        (id,project_id,name,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at)
+        VALUES ('tp','p','tp','m','d','d','p','t','r','s','SUPPORTED','PILOT',1,'2026')""")
+    db.execute("UPDATE training_protocols SET status='RETIRED' WHERE id='tp'")
+    try:
+        db.execute("UPDATE training_protocols SET name='changed' WHERE id='tp'")
+        assert False
+    except Exception as exc:
+        assert "admitted training protocol is immutable" in str(exc)
+    try:
+        db.execute("INSERT INTO training_protocol_evidence(id,protocol_id,evidence_kind,evidence_ref,notes,created_at) VALUES ('x','tp','PRIMARY','missing','','2026')")
+        assert False
+    except Exception as exc:
+        assert "evidence cannot be changed" in str(exc)
