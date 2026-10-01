@@ -599,6 +599,63 @@ CREATE TABLE IF NOT EXISTS study_analysis_audit (
 );
 CREATE INDEX IF NOT EXISTS idx_study_analysis_audit_study ON study_analysis_audit(study_id,created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_study_analysis_audit_result ON study_analysis_audit(analysis_result_id) WHERE analysis_result_id IS NOT NULL;
+CREATE TRIGGER IF NOT EXISTS trg_intervention_evidence_project_guard
+BEFORE INSERT ON intervention_evidence
+WHEN EXISTS (
+ SELECT 1 FROM interventions i
+ JOIN evidence e ON e.id=NEW.evidence_ref
+ JOIN claims c ON c.id=e.claim_id
+ WHERE i.id=NEW.intervention_id
+   AND i.project_id IS NOT NULL
+   AND c.project_id != i.project_id
+)
+BEGIN SELECT RAISE(ABORT,'intervention evidence belongs to another project'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_training_protocol_evidence_project_guard
+BEFORE INSERT ON training_protocol_evidence
+WHEN EXISTS (
+ SELECT 1 FROM training_protocols p
+ JOIN evidence e ON e.id=NEW.evidence_ref
+ JOIN claims c ON c.id=e.claim_id
+ WHERE p.id=NEW.protocol_id
+   AND c.project_id != p.project_id
+)
+BEGIN SELECT RAISE(ABORT,'training protocol evidence belongs to another project'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intervention_supported_gate
+BEFORE UPDATE OF status ON interventions
+WHEN NEW.status='SUPPORTED' AND (
+ NOT EXISTS (SELECT 1 FROM intervention_evidence WHERE intervention_id=NEW.id)
+ OR EXISTS (
+   SELECT 1 FROM intervention_evidence ie
+   LEFT JOIN evidence e ON e.id=ie.evidence_ref
+   WHERE ie.intervention_id=NEW.id
+     AND (e.id IS NULL OR e.verified != 1
+          OR EXISTS (
+             SELECT 1 FROM evidence e2
+             WHERE e2.claim_id=e.claim_id AND e2.verified=1
+          ) AND 0=1)
+ )
+ OR NEW.evidence_level NOT IN ('SUPPORTED','WELL_SUPPORTED')
+)
+BEGIN SELECT RAISE(ABORT,'SUPPORTED intervention requires verified evidence and supported evidence level'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_training_protocol_supported_gate
+BEFORE UPDATE OF status ON training_protocols
+WHEN NEW.status='SUPPORTED' AND (
+ (NEW.source_claim_id IS NULL AND NEW.intervention_id IS NULL)
+ OR NOT EXISTS (SELECT 1 FROM training_protocol_evidence WHERE protocol_id=NEW.id)
+ OR EXISTS (
+   SELECT 1 FROM training_protocol_evidence pe
+   LEFT JOIN evidence e ON e.id=pe.evidence_ref
+   WHERE pe.protocol_id=NEW.id AND (e.id IS NULL OR e.verified != 1)
+ )
+ OR NOT EXISTS (SELECT 1 FROM training_sessions WHERE protocol_id=NEW.id)
+ OR NOT EXISTS (SELECT 1 FROM training_sessions WHERE protocol_id=NEW.id AND transfer_score IS NOT NULL)
+ OR NOT EXISTS (SELECT 1 FROM training_sessions WHERE protocol_id=NEW.id AND retention_score IS NOT NULL)
+)
+BEGIN SELECT RAISE(ABORT,'SUPPORTED training protocol admission requirements are not met'); END;
+
 CREATE TRIGGER IF NOT EXISTS trg_scientific_knowledge_version_immutable
 BEFORE UPDATE ON scientific_knowledge_versions
 BEGIN
