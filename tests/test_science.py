@@ -393,7 +393,7 @@ def test_training_operational_gate_blocks_cross_project_basis(tmp_path):
     from app.models import now
     from app.scientific_admission import ScientificAdmissionGate
     db=Database(str(tmp_path/"cross-project-gate.db")); ResearchCycle(db)
-    p1=db.one("SELECT id FROM projects LIMIT 1")["id"]
+    p1=ResearchCycle(db).run("cross-project gate")["project"]["id"]
     p2=str(uuid.uuid4())
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(p2,"hds","other","RUNNING","ceo",now()))
     claim=str(uuid.uuid4()); protocol=str(uuid.uuid4())
@@ -413,7 +413,7 @@ def test_training_operational_gate_blocks_conflicted_basis(tmp_path):
     from app.models import now
     from app.scientific_admission import ScientificAdmissionGate
     db=Database(str(tmp_path/"operational-gate.db")); ResearchCycle(db)
-    project=db.one("SELECT id FROM projects LIMIT 1")
+    project=ResearchCycle(db).run("conflicted operational gate")["project"]
     claim=str(uuid.uuid4()); source=str(uuid.uuid4()); evidence=str(uuid.uuid4()); protocol=str(uuid.uuid4())
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
                (claim,project["id"],"basis","HYPOTHESIS","SUPPORTED",1.0,"SUPPORTED",now()))
@@ -446,7 +446,7 @@ def test_training_operational_gate_blocks_stale_basis(tmp_path):
     from app.models import now
     from app.scientific_admission import ScientificAdmissionGate
     db=Database(str(tmp_path/"stale-gate.db")); ResearchCycle(db)
-    project=db.one("SELECT id FROM projects LIMIT 1")
+    project=ResearchCycle(db).run("stale operational gate")["project"]
     claim=str(uuid.uuid4()); source=str(uuid.uuid4()); evidence=str(uuid.uuid4()); protocol=str(uuid.uuid4())
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
                (claim,project["id"],"basis","HYPOTHESIS","SUPPORTED",1.0,"SUPPORTED",now()))
