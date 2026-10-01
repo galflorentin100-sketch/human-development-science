@@ -598,6 +598,7 @@ CREATE TABLE IF NOT EXISTS study_analysis_audit (
  created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_study_analysis_audit_study ON study_analysis_audit(study_id,created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_study_analysis_audit_result ON study_analysis_audit(analysis_result_id) WHERE analysis_result_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_goals_company_status ON goals(company_id,status);
 CREATE INDEX IF NOT EXISTS idx_decisions_company_created ON decisions(company_id,created_at);
