@@ -108,6 +108,8 @@ class TrainingProtocolService:
         safety=SafetyGate(self.db).assess(protocol_id,str(participant_ref),safety_checks)
         if safety["status"]!="CLEAR":
             raise ValueError(f"training session blocked by safety gate: {safety['status']}")
+        if protocol["status"] not in {"PILOT","SUPPORTED"}:
+            raise ValueError("training protocol is not operationally admissible")
         if protocol["status"]=="RETIRED":
             raise ValueError("retired training protocols cannot accept new sessions")
         from app.scientific_admission import ScientificAdmissionGate
