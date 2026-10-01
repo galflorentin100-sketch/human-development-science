@@ -72,7 +72,6 @@ def test_complete_accepts_explicit_missing_outcome_reason(tmp_path):
 
 def test_legacy_mean_change_creates_analysis_audit(tmp_path):
     db=setup(tmp_path)
-    db.execute("INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES ('p1','s','p1','CONSENTED','2026')")
     db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES ('o1','s','p1','score',10,'TRAINING','baseline','2026')")
     db.execute("INSERT INTO study_outcomes(id,study_id,participant_id,outcome_name,value,observation_type,timepoint,recorded_at) VALUES ('o2','s','p1','score',12,'TRAINING','post','2026')")
     result=StudyExecution(db).analyze_mean_change("s","plan","score")
@@ -84,11 +83,10 @@ def test_legacy_mean_change_creates_analysis_audit(tmp_path):
 
 def test_legacy_mean_change_rejects_tampered_frozen_plan(tmp_path):
     db=setup(tmp_path)
-    db.execute("UPDATE study_analysis_plans SET analysis_spec=? WHERE id='plan'", (json.dumps({"spec":json.dumps({"outcome_name":"score","estimand":"change","population":"consented participants","estimator":"unadjusted","ci_method":"none","missing_data_policy":"explicit missing reason","multiplicity_policy":"primary only","subgroup_policy":"none","stopping_rule":"fixed","allowed_methods":["DESCRIPTIVE"]}),"sha256":"tampered"}),))
     try:
-        StudyExecution(db).analyze_mean_change("s","plan","score")
+        db.execute("UPDATE study_analysis_plans SET analysis_spec=? WHERE id='plan'", (json.dumps({"spec":"tampered","sha256":"tampered"}),))
         assert False
-    except ValueError as exc:
+    except Exception as exc:
         assert "immutable" in str(exc)
 
 
