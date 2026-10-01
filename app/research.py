@@ -386,7 +386,11 @@ class StudyExecution:
         if not plan or not plan["frozen"]: raise ValueError("analysis plan must be frozen")
         try:
             payload=json.loads(plan["analysis_spec"] or "{}")
-            spec=json.loads(payload["spec"]) if isinstance(payload.get("spec"),str) else payload.get("spec",payload)
+            canonical=payload.get("spec") if isinstance(payload,dict) else None
+            stored_hash=payload.get("sha256") if isinstance(payload,dict) else None
+            if not isinstance(canonical,str) or not stored_hash or hashlib.sha256(canonical.encode("utf-8")).hexdigest() != stored_hash:
+                raise ValueError("frozen analysis plan integrity hash mismatch")
+            spec=json.loads(canonical)
         except (TypeError,ValueError,KeyError) as exc:
             raise ValueError("frozen analysis plan is invalid") from exc
         if not isinstance(spec,dict) or "DESCRIPTIVE" not in spec.get("allowed_methods",[]):
