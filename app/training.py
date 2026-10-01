@@ -18,6 +18,8 @@ class TrainingProtocolService:
             raise ValueError("invalid training protocol evidence level")
         if status not in self.STATUSES:
             raise ValueError("invalid training protocol status")
+        if status != "DRAFT":
+            raise ValueError("new training protocols must start as DRAFT and use the lifecycle promotion gate")
         required={
             "name":name,"mechanism_hypothesis":mechanism_hypothesis,
             "challenge_domain":challenge_domain,"dosage":dosage,
