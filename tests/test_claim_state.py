@@ -141,3 +141,18 @@ def test_knowledge_version_snapshot_changes_when_evidence_review_set_changes(tmp
     EvidencePipeline(db).review(ev["id"],"reviewer-2","UNCERTAIN","uncertain on replication")
     v2=ClaimStateService(db).knowledge_version("c","auditor","updated snapshot")
     assert v1["evidence_snapshot_hash"] != v2["evidence_snapshot_hash"]
+
+
+def test_scientific_knowledge_versions_are_immutable(tmp_path):
+    db,cid,sid=setup(tmp_path)
+    from app.evidence_pipeline import EvidencePipeline
+    ep=EvidencePipeline(db)
+    ep.ingest_text(sid,"support")
+    ev=ep.attach(cid,sid,"support","SUPPORTS")
+    ep.review(ev["id"],"auditor","VERIFIED","verified")
+    version=ClaimStateService(db).knowledge_version(cid,"auditor","immutable snapshot")
+    import pytest
+    with pytest.raises(Exception, match="immutable"):
+        db.execute("UPDATE scientific_knowledge_versions SET change_reason='tampered' WHERE id=?",(version["id"],))
+    with pytest.raises(Exception, match="immutable"):
+        db.execute("DELETE FROM scientific_knowledge_versions WHERE id=?",(version["id"],))
