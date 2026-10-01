@@ -150,6 +150,7 @@ def test_scientific_knowledge_versions_are_immutable(tmp_path):
     ep.ingest_text(sid,"support")
     ev=ep.attach(cid,sid,"support","SUPPORTS")
     ep.review(ev["id"],"auditor","VERIFIED","verified")
+    ClaimStateService(db).transition(cid,"SUPPORTED","reviewer","verified support",ev["id"])
     version=ClaimStateService(db).knowledge_version(cid,"auditor","immutable snapshot")
     import pytest
     with pytest.raises(Exception, match="immutable"):
