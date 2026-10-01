@@ -118,6 +118,18 @@ class TrainingProtocolService:
             raise ValueError("load_note is required")
         i=str(uuid4()); ts=now()
         with self.db.transaction() as con:
+            participant=con.execute(
+                "SELECT consent_status,withdrawn_at FROM participant_governance WHERE participant_ref=?",
+                (str(participant_ref),),
+            ).fetchone()
+            if not participant or participant["consent_status"]!="CONSENTED" or participant["withdrawn_at"]:
+                raise ValueError("participant is not actively consented")
+            unresolved=con.execute(
+                "SELECT 1 FROM training_adverse_events WHERE participant_ref=? AND resolved=0 LIMIT 1",
+                (str(participant_ref),),
+            ).fetchone()
+            if unresolved:
+                raise ValueError("participant has an unresolved adverse event; training is blocked pending review")
             if con.execute("SELECT 1 FROM training_sessions WHERE protocol_id=? AND participant_ref=? AND session_number=?",
                            (protocol_id,str(participant_ref),int(session_number))).fetchone():
                 raise ValueError("training session already exists")
