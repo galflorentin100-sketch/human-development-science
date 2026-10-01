@@ -96,7 +96,11 @@ class ScientificAnalysisEngine:
 
     def _dataset_hash(self, study_id, outcome_name):
         rows=self.db.all("SELECT id,participant_id,observation_type,timepoint,session_id,value,unit,missing_reason,recorded_at FROM study_outcomes WHERE study_id=? AND outcome_name=? ORDER BY participant_id,observation_type,timepoint,recorded_at,id",(study_id,outcome_name))
-        payload=json.dumps([dict(r) for r in rows],sort_keys=True,default=str,separators=(",",":"))
+        assignments=self.db.all("SELECT participant_id,arm,created_at FROM study_assignments WHERE study_id=? ORDER BY participant_id,arm,created_at")
+        payload=json.dumps({
+            "outcomes":[dict(r) for r in rows],
+            "assignments":[dict(r) for r in assignments],
+        },sort_keys=True,default=str,separators=(",",":"))
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def _record_analysis_audit(self, study_id, plan, result_id, outcome_name, method, population_note):
@@ -189,7 +193,7 @@ class ScientificAnalysisEngine:
             "WHERE p.study_id=? ORDER BY p.id,o.recorded_at",(study_id,outcome_name,study_id))
         grouped={}
         for r in rows:
-            p=grouped.setdefault(r["participant_id"],{"arm":r["arm"],"values":[]})
+            p=grouped.setdefault(r["participant_id"],{"arm":r["arm"]})
             if r["observation_type"]=="TRAINING" and r["value"] is not None: p.setdefault("by_timepoint",{}).setdefault(r["timepoint"],[]).append(r["value"])
         changes={"INTERVENTION":[],"CONTROL":[]}
         for p in grouped.values():
@@ -207,7 +211,7 @@ class ScientificAnalysisEngine:
         rid=str(uuid4())
         with self.db.transaction() as con:
             con.execute("INSERT INTO study_analysis_results(id,study_id,analysis_plan_id,outcome_name,n_total,n_observed,estimate,uncertainty,missing_data_note,interpretation,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                (rid,study_id,analysis_plan_id,outcome_name,len(grouped),sum(len(v["values"])>=2 for v in grouped.values()),
+                (rid,study_id,analysis_plan_id,outcome_name,len(grouped),sum(1 for v in grouped.values() if v.get("by_timepoint",{}).get(spec["baseline_timepoint"]) and v.get("by_timepoint",{}).get(spec["post_timepoint"])),
                  diff,"95% CIs use a normal approximation; Cohen's d is unadjusted.",
                  "Complete paired cases only; participants with missing baseline/post values are excluded.",
                  result["interpretation"],now()))
@@ -339,8 +343,8 @@ class ScientificAnalysisEngine:
             vals=by.get(pid,[])
             numeric=[r for r in vals if r["value"] is not None]
             training=[r for r in numeric if r["observation_type"]=="TRAINING"]
-            baseline=[r["value"] for r in training if r.get("timepoint")==spec.get("baseline_timepoint")]
-            post=[r["value"] for r in training if r.get("timepoint")==spec.get("post_timepoint")]
+            baseline=[r["value"] for r in training if r["timepoint"]==spec.get("baseline_timepoint")]
+            post=[r["value"] for r in training if r["timepoint"]==spec.get("post_timepoint")]
             if baseline and post:
                 training_changes.append(post[-1]-baseline[-1])
             retention=[r["value"] for r in numeric if r["observation_type"]=="RETENTION"]
