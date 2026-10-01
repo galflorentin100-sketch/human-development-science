@@ -522,8 +522,12 @@ class Database:
             # identities present so foreign-key enforcement remains meaningful.
             con.execute("INSERT OR IGNORE INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",
                         ("hds","Human Development Science","Scientific human development","Evidence-governed human development","Truth and scientific integrity above all else",now()))
-            con.execute("INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-                        ("ceo","HDS Founder","founder","Govern HDS execution","[]","[]","1","ACTIVE",now()))
+            from app.registry import all_agents
+            for agent in all_agents():
+                con.execute(
+                    "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at,manager) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (agent.id,agent.name,agent.role,agent.role,"[]","[]","1","ACTIVE",now(),agent.manager),
+                )
             _ensure_hds_schema(con)
             _ensure_hds_indexes(con)
             for name,definition in {
