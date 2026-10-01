@@ -388,6 +388,26 @@ def test_database_scientific_admission_guards(tmp_path):
         assert "admission" in str(exc)
 
 
+def test_training_operational_gate_blocks_cross_project_basis(tmp_path):
+    import uuid
+    from app.models import now
+    from app.scientific_admission import ScientificAdmissionGate
+    db=Database(str(tmp_path/"cross-project-gate.db")); ResearchCycle(db)
+    p1=db.one("SELECT id FROM projects LIMIT 1")["id"]
+    p2=str(uuid.uuid4())
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(p2,"hds","other","RUNNING","ceo",now()))
+    claim=str(uuid.uuid4()); protocol=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,p2,"basis","HYPOTHESIS","SUPPORTED",1.0,"SUPPORTED",now()))
+    db.execute("""INSERT INTO training_protocols
+        (id,project_id,name,source_claim_id,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(protocol,p1,"p",claim,"m","d","dose","progress","transfer","retention","safety","SUPPORTED","PILOT",1,now()))
+    try:
+        ScientificAdmissionGate(db).assert_training_operational(protocol)
+        assert False
+    except ValueError as exc:
+        assert "belongs to another project" in str(exc)
+
+
 def test_training_operational_gate_blocks_conflicted_basis(tmp_path):
     import uuid
     from app.models import now
