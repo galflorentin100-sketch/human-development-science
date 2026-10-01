@@ -599,130 +599,6 @@ CREATE TABLE IF NOT EXISTS study_analysis_audit (
 );
 CREATE INDEX IF NOT EXISTS idx_study_analysis_audit_study ON study_analysis_audit(study_id,created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_study_analysis_audit_result ON study_analysis_audit(analysis_result_id) WHERE analysis_result_id IS NOT NULL;
-CREATE TRIGGER IF NOT EXISTS trg_scientific_knowledge_version_immutable
-BEFORE UPDATE ON scientific_knowledge_versions
-BEGIN
- SELECT RAISE(ABORT,'scientific knowledge version is immutable');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_scientific_knowledge_version_delete_guard
-BEFORE DELETE ON scientific_knowledge_versions
-BEGIN
- SELECT RAISE(ABORT,'scientific knowledge version is immutable');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_study_analysis_plan_immutable
-BEFORE UPDATE ON study_analysis_plans
-WHEN OLD.frozen=1
-BEGIN
- SELECT RAISE(ABORT,'frozen analysis plan is immutable');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_study_analysis_plan_delete_guard
-BEFORE DELETE ON study_analysis_plans
-WHEN OLD.frozen=1 OR EXISTS (SELECT 1 FROM study_analysis_audit WHERE analysis_plan_id=OLD.id)
-BEGIN
- SELECT RAISE(ABORT,'analysis plan is immutable');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_study_analysis_result_immutable
-BEFORE UPDATE ON study_analysis_results
-WHEN EXISTS (SELECT 1 FROM study_analysis_audit WHERE analysis_result_id=OLD.id)
-BEGIN
- SELECT RAISE(ABORT,'audited analysis result is immutable');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_study_analysis_result_delete_guard
-BEFORE DELETE ON study_analysis_results
-WHEN EXISTS (SELECT 1 FROM study_analysis_audit WHERE analysis_result_id=OLD.id)
-BEGIN
- SELECT RAISE(ABORT,'audited analysis result is immutable');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_study_analysis_metrics_immutable
-BEFORE UPDATE ON study_analysis_metrics
-WHEN EXISTS (
- SELECT 1 FROM study_analysis_audit a
- WHERE a.study_id=OLD.study_id AND a.analysis_plan_id=OLD.analysis_plan_id AND a.outcome_name=OLD.outcome_name
-)
-BEGIN
- SELECT RAISE(ABORT,'audited analysis metrics are immutable');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_study_analysis_metrics_delete_guard
-BEFORE DELETE ON study_analysis_metrics
-WHEN EXISTS (
- SELECT 1 FROM study_analysis_audit a
- WHERE a.study_id=OLD.study_id AND a.analysis_plan_id=OLD.analysis_plan_id AND a.outcome_name=OLD.outcome_name
-)
-BEGIN
- SELECT RAISE(ABORT,'audited analysis metrics are immutable');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_study_analysis_audit_immutable
-BEFORE UPDATE ON study_analysis_audit
-BEGIN
- SELECT RAISE(ABORT,'analysis audit is immutable');
-END;
-CREATE TRIGGER IF NOT EXISTS trg_study_analysis_audit_delete_guard
-BEFORE DELETE ON study_analysis_audit
-BEGIN
- SELECT RAISE(ABORT,'analysis audit is immutable');
-END;
-
-CREATE INDEX IF NOT EXISTS idx_goals_company_status ON goals(company_id,status);
-CREATE INDEX IF NOT EXISTS idx_decisions_company_created ON decisions(company_id,created_at);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
-"""
-_PHASE2_COLUMNS={"agents":{"responsibilities":"TEXT NOT NULL DEFAULT '[]'","tools":"TEXT NOT NULL DEFAULT '[]'","manager":"TEXT","performance_history":"TEXT NOT NULL DEFAULT '[]'","updated_at":"TEXT"},"projects":{"goal_id":"TEXT","budget":"REAL","updated_at":"TEXT"},"tasks":{"owner":"TEXT","expected_outcome":"TEXT","actual_outcome":"TEXT","verification_method":"TEXT","retry_limit":"INTEGER NOT NULL DEFAULT 0","retry_count":"INTEGER NOT NULL DEFAULT 0","escalation_required":"INTEGER NOT NULL DEFAULT 0","required_permissions":"TEXT NOT NULL DEFAULT '[]'"},"agent_runs":{"confidence":"REAL","evidence_refs":"TEXT NOT NULL DEFAULT '[]'","uncertainties":"TEXT NOT NULL DEFAULT '[]'","cost_metadata":"TEXT NOT NULL DEFAULT '{}'","error":"TEXT","verified":"INTEGER NOT NULL DEFAULT 0"},"failures":{"contributing_factors":"TEXT NOT NULL DEFAULT '[]'","corrective_action":"TEXT","corrective_result":"TEXT","owner":"TEXT"}}
-def _add_phase2_columns(con):
-    for table,columns in _PHASE2_COLUMNS.items():
-        existing={row[1] for row in con.execute(f"PRAGMA table_info({table})")}
-        for name,definition in columns.items():
-            if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
-def _migrate_phase2(self):
-    with self.connect() as con: con.executescript(SCHEMA); _add_phase2_columns(con); con.executescript(PHASE2_SCHEMA)
-Database.migrate=_migrate_phase2
-_original_migrate_phase2=_migrate_phase2
-def _migrate_all(self):
-    _original_migrate_phase2(self)
-    with self.connect() as con:
-        con.executescript(PHASE_AGENT_OUTPUT_SCHEMA)
-Database.migrate=_migrate_all
-PHASE_AGENT_OUTPUT_SCHEMA = """CREATE TABLE IF NOT EXISTS agent_output_reviews (id TEXT PRIMARY KEY, agent_run_id TEXT NOT NULL REFERENCES agent_runs(id), project_id TEXT REFERENCES projects(id), task_id TEXT REFERENCES tasks(id), evidence_refs TEXT NOT NULL, provenance_hash TEXT NOT NULL, status TEXT NOT NULL, reviewer TEXT, rationale TEXT, created_at TEXT NOT NULL, reviewed_at TEXT);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_output_reviews_run ON agent_output_reviews(agent_run_id);
-"""
-
-PHASE3_SCHEMA = """CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, external_subject TEXT NOT NULL UNIQUE, email TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS roles (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, permissions TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS company_memberships (company_id TEXT NOT NULL REFERENCES companies(id), user_id TEXT NOT NULL REFERENCES users(id), role_id TEXT NOT NULL REFERENCES roles(id), status TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(company_id,user_id));
-CREATE TABLE IF NOT EXISTS project_memberships (project_id TEXT NOT NULL REFERENCES projects(id), user_id TEXT NOT NULL REFERENCES users(id), role_id TEXT NOT NULL REFERENCES roles(id), status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL, PRIMARY KEY(project_id,user_id));
-CREATE INDEX IF NOT EXISTS idx_project_memberships_user ON project_memberships(user_id,status);
-CREATE TABLE IF NOT EXISTS service_identities (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, permissions TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS approval_events (id TEXT PRIMARY KEY, approval_id TEXT NOT NULL REFERENCES approvals(id), actor TEXT NOT NULL, action TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS idempotency_keys (key TEXT PRIMARY KEY, actor TEXT NOT NULL, operation TEXT NOT NULL, response TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'COMPLETED', claim_token TEXT, lease_expires_at TEXT);
-CREATE TABLE IF NOT EXISTS model_calls (id TEXT PRIMARY KEY, correlation_id TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, purpose TEXT NOT NULL, input_metadata TEXT NOT NULL, output_metadata TEXT NOT NULL, input_tokens INTEGER, output_tokens INTEGER, estimated_cost REAL NOT NULL, latency_ms INTEGER NOT NULL, retry_count INTEGER NOT NULL, status TEXT NOT NULL, error TEXT, created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS claim_state_transitions (id TEXT PRIMARY KEY, claim_id TEXT NOT NULL REFERENCES claims(id), prior_status TEXT NOT NULL, new_status TEXT NOT NULL, actor TEXT NOT NULL, rationale TEXT NOT NULL, evidence_id TEXT REFERENCES evidence(id), created_at TEXT NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_claim_state_transitions_claim ON claim_state_transitions(claim_id,created_at);
-CREATE TABLE IF NOT EXISTS claim_revisions (id TEXT PRIMARY KEY, claim_id TEXT NOT NULL REFERENCES claims(id), prior_classification TEXT NOT NULL, prior_confidence REAL NOT NULL, new_classification TEXT NOT NULL, new_confidence REAL NOT NULL, reason TEXT NOT NULL, evidence_id TEXT REFERENCES evidence(id), review_required INTEGER NOT NULL, created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS findings (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), claim_id TEXT REFERENCES claims(id), category TEXT NOT NULL, title TEXT NOT NULL, change_type TEXT NOT NULL, confidence REAL NOT NULL, evidence_level TEXT, provenance TEXT NOT NULL, why_it_matters TEXT NOT NULL, recommended_action TEXT NOT NULL, review_required INTEGER NOT NULL, created_at TEXT NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status,created_at);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_approval_events_consumed_once ON approval_events(approval_id) WHERE action='CONSUMED';
-CREATE INDEX IF NOT EXISTS idx_model_calls_correlation ON model_calls(correlation_id,created_at);
-CREATE INDEX IF NOT EXISTS idx_claim_revisions_claim ON claim_revisions(claim_id,created_at);
-CREATE INDEX IF NOT EXISTS idx_findings_project_created ON findings(project_id,created_at);
-CREATE TABLE IF NOT EXISTS evidence_sources (id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES sources(id), state TEXT NOT NULL, content_hash TEXT, fetched_at TEXT, parsed_at TEXT, rejection_reason TEXT, created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS evidence_reviews (id TEXT PRIMARY KEY, evidence_id TEXT NOT NULL REFERENCES evidence(id), reviewer TEXT NOT NULL, verdict TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS research_findings (
- id TEXT PRIMARY KEY,
- project_id TEXT NOT NULL REFERENCES projects(id),
- source_type TEXT NOT NULL,
- source_id TEXT,
- statement TEXT NOT NULL,
- classification TEXT NOT NULL,
- status TEXT NOT NULL,
- evidence_refs TEXT NOT NULL,
- interpretation TEXT,
- created_by TEXT NOT NULL,
- reviewed_by TEXT,
- created_at TEXT NOT NULL,
- reviewed_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_research_findings_project ON research_findings(project_id,created_at);
 CREATE TABLE IF NOT EXISTS scientific_knowledge_versions (
  id TEXT PRIMARY KEY,
  claim_id TEXT NOT NULL REFERENCES claims(id),
@@ -737,6 +613,17 @@ CREATE TABLE IF NOT EXISTS scientific_knowledge_versions (
  created_at TEXT NOT NULL,
  UNIQUE(claim_id,version)
 );
+CREATE TRIGGER IF NOT EXISTS trg_scientific_knowledge_version_immutable
+BEFORE UPDATE ON scientific_knowledge_versions
+BEGIN
+ SELECT RAISE(ABORT,'scientific knowledge version is immutable');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_scientific_knowledge_version_delete_guard
+BEFORE DELETE ON scientific_knowledge_versions
+BEGIN
+ SELECT RAISE(ABORT,'scientific knowledge version is immutable');
+END;
+
 CREATE INDEX IF NOT EXISTS idx_knowledge_versions_claim ON scientific_knowledge_versions(claim_id,version);
 CREATE TABLE IF NOT EXISTS retry_events (id TEXT PRIMARY KEY, task_id TEXT REFERENCES tasks(id), attempt INTEGER NOT NULL, reason TEXT, action TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_retry_task ON retry_events(task_id,attempt);
