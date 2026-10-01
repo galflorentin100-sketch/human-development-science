@@ -381,8 +381,20 @@ class StudyExecution:
                         (i,study_id,int(version),payload,1,ts,ts))
         return self.db.one("SELECT * FROM study_analysis_plans WHERE id=?",(i,))
     def analyze_mean_change(self,study_id,analysis_plan_id,outcome_name):
-        plan=self.db.one("SELECT * FROM study_analysis_plans WHERE id=?",(analysis_plan_id,))
+        """Legacy descriptive entry point with the same preregistration and audit guarantees."""
+        plan=self.db.one("SELECT * FROM study_analysis_plans WHERE id=? AND study_id=?",(analysis_plan_id,study_id))
         if not plan or not plan["frozen"]: raise ValueError("analysis plan must be frozen")
+        try:
+            payload=json.loads(plan["analysis_spec"] or "{}")
+            spec=json.loads(payload["spec"]) if isinstance(payload.get("spec"),str) else payload.get("spec",payload)
+        except (TypeError,ValueError,KeyError) as exc:
+            raise ValueError("frozen analysis plan is invalid") from exc
+        if not isinstance(spec,dict) or "DESCRIPTIVE" not in spec.get("allowed_methods",[]):
+            raise ValueError("analysis method 'DESCRIPTIVE' is not preregistered")
+        if spec.get("outcome_name") != outcome_name:
+            raise ValueError("analysis outcome does not match preregistered outcome")
+        if self.db.one("SELECT 1 FROM study_analysis_audit WHERE study_id=? AND analysis_result_id IS NOT NULL LIMIT 1",(study_id,)):
+            raise ValueError("study already has an analysis audit; create a new frozen analysis dataset")
         rows=self.db.all("SELECT participant_id,value,recorded_at FROM study_outcomes WHERE study_id=? AND outcome_name=? AND value IS NOT NULL ORDER BY participant_id,recorded_at",(study_id,outcome_name))
         grouped={}
         for row in rows: grouped.setdefault(row["participant_id"],[]).append(row["value"])
@@ -390,6 +402,20 @@ class StudyExecution:
         n_total=self.db.one("SELECT COUNT(*) AS n FROM study_participants WHERE study_id=?",(study_id,))["n"]
         estimate=sum(changes)/len(changes) if changes else None
         result={"n_total":n_total,"n_observed":len(changes),"estimate":estimate,"uncertainty":"Not estimated: no inferential model implemented.","missing_data_note":f"{n_total-len(changes)} participants lacked >=2 observed values.","interpretation":"Descriptive pre/post change only; no causal inference."}
-        i=str(uuid4())
-        self.db.execute("INSERT INTO study_analysis_results(id,study_id,analysis_plan_id,outcome_name,n_total,n_observed,estimate,uncertainty,missing_data_note,interpretation,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",(i,study_id,analysis_plan_id,outcome_name,n_total,len(changes),estimate,result["uncertainty"],result["missing_data_note"],result["interpretation"],now()))
-        return self.db.one("SELECT * FROM study_analysis_results WHERE id=?",(i,))
+        result_id=str(uuid4())
+        with self.db.transaction() as con:
+            con.execute("INSERT INTO study_analysis_results(id,study_id,analysis_plan_id,outcome_name,n_total,n_observed,estimate,uncertainty,missing_data_note,interpretation,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",(result_id,study_id,analysis_plan_id,outcome_name,n_total,len(changes),estimate,result["uncertainty"],result["missing_data_note"],result["interpretation"],now()))
+            study=self.db.one("SELECT protocol_hash FROM studies WHERE id=?",(study_id,))
+            if not study or not study["protocol_hash"]: raise ValueError("protocol hash required for analysis audit")
+            raw_plan=plan["analysis_spec"] or ""
+            try: parsed=json.loads(raw_plan)
+            except (TypeError,ValueError) as exc: raise ValueError("frozen analysis plan contains invalid analysis_spec") from exc
+            canonical=parsed.get("spec") if isinstance(parsed,dict) else None
+            if not isinstance(canonical,str): canonical=raw_plan
+            plan_hash=hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+            dataset_rows=self.db.all("SELECT id,participant_id,observation_type,timepoint,session_id,value,unit,missing_reason,recorded_at FROM study_outcomes WHERE study_id=? AND outcome_name=? ORDER BY participant_id,observation_type,timepoint,recorded_at,id",(study_id,outcome_name))
+            assignments=self.db.all("SELECT participant_id,arm,created_at FROM study_assignments WHERE study_id=? ORDER BY participant_id,arm,created_at")
+            dataset_hash=hashlib.sha256(json.dumps({"outcomes":[dict(x) for x in dataset_rows],"assignments":[dict(x) for x in assignments]},sort_keys=True,default=str,separators=(",",":")).encode("utf-8")).hexdigest()
+            con.execute("INSERT INTO study_analysis_audit(id,study_id,analysis_plan_id,analysis_result_id,protocol_hash,analysis_plan_hash,dataset_hash,method,population_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",(str(uuid4()),study_id,analysis_plan_id,result_id,study["protocol_hash"],plan_hash,dataset_hash,"DESCRIPTIVE","Participants with at least two observed values",now()))
+        return self.db.one("SELECT * FROM study_analysis_results WHERE id=?",(result_id,))
+
