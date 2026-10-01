@@ -477,6 +477,23 @@ def test_database_blocks_direct_supported_inserts(tmp_path):
         assert "lifecycle promotion" in str(exc)
 
 
+def test_admitted_protocol_basis_cannot_be_mutated_via_service(tmp_path):
+    from app.database import Database
+    from app.training import TrainingProtocolService
+    db=Database(str(tmp_path/"admitted-basis-service.db"))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p','hds','p','RUNNING','ceo','2026','2026')")
+    db.execute("""INSERT INTO training_protocols
+        (id,project_id,name,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at)
+        VALUES ('tp','p','tp','m','d','d','p','t','r','s','PRELIMINARY','PILOT',1,'2026')""")
+    db.execute("""INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at)
+        VALUES ('c','p','claim','HYPOTHESIS','PRELIMINARY',0.5,'PROPOSED','2026')""")
+    try:
+        TrainingProtocolService(db).link_basis("tp",source_claim_id="c")
+        assert False
+    except ValueError as exc:
+        assert "cannot change scientific basis" in str(exc)
+
+
 def test_admitted_protocol_basis_and_evidence_cannot_be_mutated(tmp_path):
     from app.database import Database
     db=Database(str(tmp_path/"admitted-mutation.db"))
