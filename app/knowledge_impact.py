@@ -38,6 +38,7 @@ class KnowledgeImpactAnalyzer:
                 "organizational_decisions":decisions,
                 "research_findings":findings
             },
+            "knowledge_versions": versions,
             "review_required": bool(protocols or interventions or decisions or findings or conflict or versions),
             "review_reasons": [
                 *([ "evidence_conflict" ] if conflict else []),
