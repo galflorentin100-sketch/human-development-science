@@ -110,6 +110,29 @@ def test_analysis_result_rolls_back_if_audit_fails(tmp_path, monkeypatch):
     assert db.one("SELECT COUNT(*) AS n FROM study_analysis_metrics WHERE study_id='s'")["n"] == 0
 
 
+
+def test_analysis_audit_has_one_record_per_result(tmp_path):
+    db=setup(tmp_path)
+    audit_id="audit-1"
+    db.execute(
+        "INSERT INTO study_analysis_results(id,study_id,analysis_plan_id,outcome_name,n_total,n_observed,estimate,uncertainty,missing_data_note,interpretation,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        ("result-1","s","plan","score",2,2,4.0,"u","m","i","2026"),
+    )
+    db.execute(
+        "INSERT INTO study_analysis_audit(id,study_id,analysis_plan_id,analysis_result_id,protocol_hash,analysis_plan_hash,dataset_hash,method,population_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (audit_id,"s","plan","result-1","p","a","d","DESCRIPTIVE","population","2026"),
+    )
+    try:
+        db.execute(
+            "INSERT INTO study_analysis_audit(id,study_id,analysis_plan_id,analysis_result_id,protocol_hash,analysis_plan_hash,dataset_hash,method,population_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            ("audit-2","s","plan","result-1","p2","a2","d2","DESCRIPTIVE","population","2026"),
+        )
+        assert False
+    except Exception:
+        pass
+    assert db.one("SELECT COUNT(*) AS n FROM study_analysis_audit WHERE analysis_result_id='result-1'")["n"] == 1
+
+
 def test_analysis_plan_blocks_unplanned_multiplicity_and_requires_explicit_controls(tmp_path):
     db=setup(tmp_path)
     engine=ScientificAnalysisEngine(db)
