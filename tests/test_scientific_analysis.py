@@ -8,7 +8,7 @@ def setup(tmp_path):
     db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES ('a','Researcher','researcher','m','[]','[]','1','IDLE','2026')")
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES ('p','c','test','RUNNING','a','2026')")
     db.execute("INSERT INTO studies(id,title,design,population,findings,created_at,protocol_hash,status) VALUES ('s','study','RCT','adults','', '2026','protocol-test-hash','COMPLETED')")
-    analysis_spec=json.dumps({"outcome_name":"score","registered_outcome_name":"score","estimand":"between-arm change difference","population":"randomized participants","estimator":"unadjusted","ci_method":"normal_approximation_95","missing_data_policy":"complete cases","multiplicity_policy":"primary only","subgroup_policy":"none","stopping_rule":"fixed","baseline_timepoint":"baseline","post_timepoint":"post","retention_timepoint":"retention","allowed_methods":["RANDOMIZED_ARM","INFERENTIAL_RANDOMIZED_ARM","LONGITUDINAL_RETENTION","DESCRIPTIVE"]})
+    analysis_spec=json.dumps({"spec":{"outcome_name":"score","registered_outcome_name":"score","estimand":"between-arm change difference","population":"randomized participants","estimator":"unadjusted","ci_method":"normal_approximation_95","missing_data_policy":"complete cases","multiplicity_policy":"primary only","subgroup_policy":"none","stopping_rule":"fixed","baseline_timepoint":"baseline","post_timepoint":"post","retention_timepoint":"retention","allowed_methods":["RANDOMIZED_ARM","INFERENTIAL_RANDOMIZED_ARM","LONGITUDINAL_RETENTION","DESCRIPTIVE"]}})
     db.execute("INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES (?,?,?,?,?,?,?)",("plan","s",1,analysis_spec,1,"2026","2026"))
     for pid,arm in [('i','INTERVENTION'),('c1','CONTROL')]:
         db.execute("INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",(pid,'s',pid,'CONSENTED','2026'))
@@ -80,7 +80,7 @@ def test_analysis_audit_hashes_canonical_spec_and_dataset_includes_assignment(tm
     audit=db.one("SELECT * FROM study_analysis_audit WHERE study_id='s'")
     spec=db.one("SELECT analysis_spec FROM study_analysis_plans WHERE id='plan'")["analysis_spec"]
     payload=json.loads(spec)
-    assert audit["analysis_plan_hash"] == __import__("hashlib").sha256(payload["spec"].encode()).hexdigest()
+    assert audit["analysis_plan_hash"] == __import__("hashlib").sha256(json.dumps(payload["spec"],sort_keys=True,separators=(",",":")).encode()).hexdigest()
     before=audit["dataset_hash"]
     db.execute("UPDATE study_assignments SET arm='CONTROL' WHERE participant_id='i' AND study_id='s'")
     assert engine._dataset_hash('s','score') != before
