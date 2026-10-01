@@ -371,7 +371,7 @@ def test_database_scientific_admission_guards(tmp_path):
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p2','hds','p2','RUNNING','ceo','2026','2026')")
     db.execute("INSERT INTO interventions(id,project_id,name,rationale,mechanism,evidence_level,dosage,population,status,created_at) VALUES ('i','p1','i','r','m','UNTESTED','d','pop','EXPERIMENTAL','2026')")
     db.execute("INSERT INTO claims(id,project_id,statement,classification,status,confidence,created_at) VALUES ('c2','p2','claim','SCIENTIFIC','SUPPORTED',1.0,'2026')")
-    db.execute("INSERT INTO sources(id,title,url,authors,publication_year,source_type,provenance_note) VALUES ('s2','s','https://example.org/s2','a',2026,'PAPER','')")
+    db.execute("INSERT INTO sources(id,title,url,authors,publication_year,source_type,verified_at,provenance_note) VALUES ('s2','s','https://example.org/s2','a',2026,'PAPER','','')")
     db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,content,fetched_at,parsed_at,created_at) VALUES ('es2','s2','PARSED','h','x','2026','2026','2026')")
     db.execute("INSERT INTO evidence(id,claim_id,source_id,excerpt,stance,verified,created_at) VALUES ('e2','c2','s2','x','SUPPORTS',1,'2026')")
     try:
