@@ -74,3 +74,45 @@ def test_training_session_requires_current_safety_clearance_and_blocks_unresolve
         safety_checks={"readiness":"CLEAR"},
     )
     assert session2["session_number"]==2
+
+
+def test_training_session_rechecks_consent_and_adverse_event_inside_write_transaction(tmp_path):
+    from app.training import TrainingProtocolService
+    from app.participant_governance import ParticipantGovernance
+
+    db=Database(str(tmp_path/"training-transaction-gate.db"))
+    project=ResearchCycle(db).run("transaction safety gate")["project"]["id"]
+    protocol=TrainingProtocolService(db).create(
+        project, "transaction-gated protocol", "mechanism", "domain",
+        "one session", "progress", "transfer", "retention", "stop on adverse event",
+    )
+    governance=ParticipantGovernance(db)
+    governance.register("p1","consent-v1")
+    session=TrainingProtocolService(db).session(
+        protocol["id"], "p1", 1, "normal load", 1,
+        safety_checks={"readiness":"CLEAR"},
+    )
+    assert session["session_number"] == 1
+
+    governance.withdraw("p1","participant withdrew consent")
+    try:
+        TrainingProtocolService(db).session(
+            protocol["id"], "p1", 2, "normal load", 1,
+            safety_checks={"readiness":"CLEAR"},
+        )
+        assert False, "withdrawn consent must block a new session"
+    except ValueError as exc:
+        assert "actively consented" in str(exc)
+
+    governance.register("p1","consent-v2")
+    event=governance.record_adverse_event("p1",protocol["id"],"HIGH","unexpected event")
+    try:
+        TrainingProtocolService(db).session(
+            protocol["id"], "p1", 3, "normal load", 1,
+            safety_checks={"readiness":"CLEAR"},
+        )
+        assert False, "unresolved adverse event must block a new session"
+    except ValueError as exc:
+        assert "unresolved adverse event" in str(exc)
+    assert db.one("SELECT session_number FROM training_sessions WHERE protocol_id=? AND participant_ref=? AND session_number=3",
+                  (protocol["id"],"p1")) is None
