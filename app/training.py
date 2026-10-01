@@ -55,6 +55,8 @@ class TrainingProtocolService:
     def link_basis(self,protocol_id,source_claim_id=None,intervention_id=None):
         protocol=self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
         if not protocol: raise ValueError("training protocol not found")
+        if protocol["status"] in {"SUPPORTED","RETIRED"}:
+            raise ValueError("admitted training protocols cannot change scientific basis")
         if source_claim_id is not None:
             claim=self.db.one("SELECT project_id FROM claims WHERE id=?",(source_claim_id,))
             if not claim: raise ValueError("source claim not found")
