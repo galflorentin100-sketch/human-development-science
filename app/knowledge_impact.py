@@ -27,6 +27,8 @@ class KnowledgeImpactAnalyzer:
                 if row: interventions.append(row)
         evidence=self.db.all("SELECT id FROM evidence WHERE claim_id=?",(claim_id,))
         resolved=[EvidencePipeline(self.db).resolve(e["id"]) for e in evidence]
+        conflict=any(x["state"]=="CONFLICTED" for x in resolved)
+        versions=self.db.all("SELECT id FROM scientific_knowledge_versions WHERE claim_id=?",(claim_id,))
         return {
             "claim":claim,
             "evidence":resolved,
@@ -36,13 +38,14 @@ class KnowledgeImpactAnalyzer:
                 "organizational_decisions":decisions,
                 "research_findings":findings
             },
-            "review_required": bool(protocols or interventions or decisions or conflict or versions),
+            "review_required": bool(protocols or interventions or decisions or findings or conflict or versions),
             "review_reasons": [
                 *([ "evidence_conflict" ] if conflict else []),
                 *([ "knowledge_version_exists" ] if versions else []),
                 *([ "downstream_training_protocol" ] if protocols else []),
                 *([ "downstream_intervention" ] if interventions else []),
                 *([ "downstream_decision" ] if decisions else []),
+                *([ "downstream_research_finding" ] if findings else []),
             ],
             "policy":"impact analysis is advisory; no automatic retirement or downgrade"
         }
