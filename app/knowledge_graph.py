@@ -69,6 +69,13 @@ class KnowledgeDependencyGraph:
         nodes=[]; edges=[]
         tables=[("claims","CLAIM"),("interventions","INTERVENTION"),("training_protocols","TRAINING_PROTOCOL"),
                 ("research_findings","FINDING"),("evidence","EVIDENCE"),("research_questions","QUESTION"),("hds_experiments","EXPERIMENT")]
+        # Analysis results are immutable provenance nodes only when an audit exists.
+        analysis_rows=self.db.all("""SELECT ar.* FROM study_analysis_results ar
+                                     JOIN studies s ON s.id=ar.study_id
+                                     WHERE s.project_id=?""",(project_id,) if project_id else ())
+        for row in analysis_rows:
+            if self.db.one("SELECT 1 FROM study_analysis_audit WHERE analysis_result_id=? LIMIT 1",(row["id"],)):
+                nodes.append({"id":row["id"],"type":"ANALYSIS","status":"AUDITED"})
         available=self.db.table_names()
         for table,typ in tables:
             if table not in available:
@@ -145,13 +152,6 @@ class KnowledgeDependencyGraph:
         # insufficient because IDs may be supplied from another project.
         # Analysis results are first-class provenance nodes. Findings that explicitly
         # cite an analysis result are linked back to that immutable audited result.
-        for r in self.db.all("""SELECT id FROM study_analysis_results ar
-                                JOIN studies s ON s.id=ar.study_id
-                                WHERE s.project_id=?""",(project_id,)):
-            # A result may only be materialized when an immutable audit exists.
-            if self.db.one("SELECT 1 FROM study_analysis_audit WHERE analysis_result_id=? LIMIT 1",(r["id"],)):
-                # Use the result itself as the provenance anchor; no efficacy is inferred.
-                pass
         for r in self.db.all("""SELECT id,source_id FROM research_findings
                                 WHERE project_id=? AND source_type='ANALYSIS' AND source_id IS NOT NULL""",(project_id,)):
             if self.db.one("SELECT 1 FROM study_analysis_audit WHERE analysis_result_id=? LIMIT 1",(str(r["source_id"]),)):
