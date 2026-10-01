@@ -32,12 +32,9 @@ def test_randomized_arm_analysis_is_unadjusted_between_arm_change(tmp_path):
 
 def test_randomized_analysis_requires_frozen_plan(tmp_path):
     db=setup(tmp_path)
-    db.execute("UPDATE study_analysis_plans SET frozen=0 WHERE id='plan'")
-    try:
-        ScientificAnalysisEngine(db).randomized_arm_analysis('s','plan','score')
-        assert False
-    except ValueError as exc:
-        assert 'frozen' in str(exc)
+    import pytest
+    with pytest.raises(Exception, match="immutable"):
+        db.execute("UPDATE study_analysis_plans SET frozen=0 WHERE id='plan'")
 
 
 def test_analysis_rejects_unregistered_outcome(tmp_path):
@@ -51,13 +48,10 @@ def test_analysis_rejects_unregistered_outcome(tmp_path):
 
 def test_analysis_rejects_tampered_frozen_plan_hash(tmp_path):
     db=setup(tmp_path)
-    db.execute("UPDATE study_analysis_plans SET analysis_spec=? WHERE id='plan'",
-               (json.dumps({"spec":json.dumps({"outcome_name":"score","allowed_methods":["RANDOMIZED_ARM"]}),"sha256":"tampered"}),))
-    try:
-        ScientificAnalysisEngine(db).randomized_arm_analysis('s','plan','score')
-        assert False
-    except ValueError as exc:
-        assert "integrity hash" in str(exc)
+    import pytest
+    with pytest.raises(Exception, match="immutable"):
+        db.execute("UPDATE study_analysis_plans SET analysis_spec=? WHERE id='plan'",
+                   (json.dumps({"spec":json.dumps({"outcome_name":"score","allowed_methods":["RANDOMIZED_ARM"]}),"sha256":"tampered"}),))
 
 
 def test_randomized_analysis_records_protocol_plan_and_dataset_audit(tmp_path):
