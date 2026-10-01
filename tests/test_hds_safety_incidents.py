@@ -116,3 +116,21 @@ def test_training_session_rechecks_consent_and_adverse_event_inside_write_transa
         assert "unresolved adverse event" in str(exc)
     assert db.one("SELECT session_number FROM training_sessions WHERE protocol_id=? AND participant_ref=? AND session_number=3",
                   (protocol["id"],"p1")) is None
+
+
+def test_participant_consent_withdrawal_and_deviation_are_audited(tmp_path):
+    db=Database(str(tmp_path/"participant-audit.db"))
+    governance=ParticipantGovernance(db)
+    governance.register("audit-p1","consent-v1","researcher")
+    governance.record_deviation("audit-p1","protocol-1","load reduced","minor",session_id="session-1")
+    governance.withdraw("audit-p1","participant requested withdrawal")
+    events=db.all(
+        "SELECT event_type,actor FROM audit_logs WHERE entity_type='participant' AND entity_id=? ORDER BY created_at",
+        ("audit-p1",),
+    )
+    assert [e["event_type"] for e in events] == [
+        "participant.consent_recorded",
+        "participant.protocol_deviation_recorded",
+        "participant.consent_withdrawn",
+    ]
+    assert events[0]["actor"] == "researcher"
