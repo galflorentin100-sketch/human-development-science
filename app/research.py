@@ -422,7 +422,7 @@ class StudyExecution:
             if not isinstance(canonical,str): canonical=raw_plan
             plan_hash=hashlib.sha256(canonical.encode("utf-8")).hexdigest()
             dataset_rows=self.db.all("SELECT id,participant_id,observation_type,timepoint,session_id,value,unit,missing_reason,recorded_at FROM study_outcomes WHERE study_id=? AND outcome_name=? ORDER BY participant_id,observation_type,timepoint,recorded_at,id",(study_id,outcome_name))
-            assignments=self.db.all("SELECT participant_id,arm,created_at FROM study_assignments WHERE study_id=? ORDER BY participant_id,arm,created_at")
+            assignments=self.db.all("SELECT participant_id,arm,assigned_at FROM study_assignments WHERE study_id=? ORDER BY participant_id,arm,assigned_at")
             dataset_hash=hashlib.sha256(json.dumps({"outcomes":[dict(x) for x in dataset_rows],"assignments":[dict(x) for x in assignments]},sort_keys=True,default=str,separators=(",",":")).encode("utf-8")).hexdigest()
             con.execute("INSERT INTO study_analysis_audit(id,study_id,analysis_plan_id,analysis_result_id,protocol_hash,analysis_plan_hash,dataset_hash,method,population_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",(str(uuid4()),study_id,analysis_plan_id,result_id,study["protocol_hash"],plan_hash,dataset_hash,"DESCRIPTIVE","Participants with at least two observed values",now()))
         return self.db.one("SELECT * FROM study_analysis_results WHERE id=?",(result_id,))
