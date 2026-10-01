@@ -89,4 +89,33 @@ def test_legacy_mean_change_rejects_tampered_frozen_plan(tmp_path):
         StudyExecution(db).analyze_mean_change("s","plan","score")
         assert False
     except ValueError as exc:
-        assert "integrity hash" in str(exc)
+        assert "immutable" in str(exc)
+
+
+def test_database_immutability_guards_scientific_analysis_records(tmp_path):
+    db=setup(tmp_path)
+    try:
+        db.execute("UPDATE study_analysis_plans SET analysis_spec=? WHERE id='plan'", (json.dumps({"spec":"{}","sha256":"x"}),))
+        assert False
+    except Exception as exc:
+        assert "immutable" in str(exc)
+
+    db.execute(
+        "INSERT INTO study_analysis_results(id,study_id,analysis_plan_id,outcome_name,n_total,n_observed,estimate,uncertainty,missing_data_note,interpretation,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        ("result-immut","s","plan","score",1,1,1.0,"u","m","i","2026"),
+    )
+    db.execute(
+        "INSERT INTO study_analysis_audit(id,study_id,analysis_plan_id,analysis_result_id,protocol_hash,analysis_plan_hash,dataset_hash,method,population_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        ("audit-immut","s","plan","result-immut","p","a","d","DESCRIPTIVE","population","2026"),
+    )
+    for sql in [
+        "UPDATE study_analysis_results SET interpretation='changed' WHERE id='result-immut'",
+        "DELETE FROM study_analysis_results WHERE id='result-immut'",
+        "UPDATE study_analysis_audit SET method='CHANGED' WHERE id='audit-immut'",
+        "DELETE FROM study_analysis_audit WHERE id='audit-immut'",
+    ]:
+        try:
+            db.execute(sql)
+            assert False
+        except Exception as exc:
+            assert "immutable" in str(exc)
