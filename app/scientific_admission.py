@@ -71,10 +71,18 @@ class ScientificAdmissionGate:
                 raise ValueError("training protocol execution blocked by non-verified or conflicted evidence")
 
         # A linked claim/intervention must still be scientifically admitted.
-        if protocol["source_claim_id"] and not self.claim(protocol["source_claim_id"])["supported"]:
-            raise ValueError("training protocol execution blocked because its source claim is no longer supported")
-        if protocol["intervention_id"] and not self.intervention(protocol["intervention_id"])["supported"]:
-            raise ValueError("training protocol execution blocked because its intervention is no longer supported")
+        if protocol["source_claim_id"]:
+            claim=self.db.one("SELECT project_id FROM claims WHERE id=?",(protocol["source_claim_id"],))
+            if not claim or str(claim["project_id"])!=str(protocol["project_id"]):
+                raise ValueError("training protocol execution blocked because its source claim belongs to another project")
+            if not self.claim(protocol["source_claim_id"])["supported"]:
+                raise ValueError("training protocol execution blocked because its source claim is no longer supported")
+        if protocol["intervention_id"]:
+            intervention=self.db.one("SELECT project_id FROM interventions WHERE id=?",(protocol["intervention_id"],))
+            if not intervention or str(intervention["project_id"])!=str(protocol["project_id"]):
+                raise ValueError("training protocol execution blocked because its intervention belongs to another project")
+            if not self.intervention(protocol["intervention_id"])["supported"]:
+                raise ValueError("training protocol execution blocked because its intervention is no longer supported")
 
         # Freshness is advisory for ordinary knowledge, but operational use requires
         # an up-to-date review of the scientific basis.
