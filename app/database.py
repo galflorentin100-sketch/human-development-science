@@ -889,7 +889,19 @@ class PostgreSQLDatabase:
     def migrate(self):
         statements=[]
         for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE_AGENT_OUTPUT_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA,PHASE6_SCHEMA,PHASE7_SCHEMA,OPTIONAL_SCIENCE_SCHEMA,HUMAN_DEVELOPMENT_SCHEMA):
-            statements.extend(s.strip() for s in schema.split(";") if s.strip() and not s.strip().startswith("PRAGMA"))
+            in_trigger=False
+            for raw in schema.split(";"):
+                statement=raw.strip()
+                if not statement or statement.startswith("PRAGMA"): continue
+                upper=statement.upper()
+                if upper.startswith("CREATE TRIGGER"):
+                    in_trigger=True
+                    continue
+                if in_trigger:
+                    if upper == "END" or upper.endswith("\nEND"):
+                        in_trigger=False
+                    continue
+                statements.append(statement)
         with self.connect() as con:
             for statement in statements: con.execute(self._sql(statement))
             for table,columns in {**_PHASE2_COLUMNS,**_PHASE3_COLUMNS,**{'study_outcomes':{'observation_type':"TEXT NOT NULL DEFAULT 'TRAINING'","timepoint":"TEXT"},"idempotency_keys":{"status":"TEXT NOT NULL DEFAULT 'COMPLETED'","claim_token":"TEXT","lease_expires_at":"TEXT"},"code_change_proposals":{"approval_id":"TEXT"}}}.items():
