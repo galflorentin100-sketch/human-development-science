@@ -5,7 +5,6 @@ from app.research_handoff import ResearchHandoffCoordinator
 def test_handoff_requires_accepted_output(tmp_path):
     db=Database(str(tmp_path/"handoff.db"))
     project=ResearchCycle(db).run("Handoff")["project"]
-    # An unregistered review cannot enter the closed loop.
     try:
         ResearchHandoffCoordinator(db).handoff("missing-review","actor")
         assert False
@@ -14,11 +13,20 @@ def test_handoff_requires_accepted_output(tmp_path):
 
 def test_handoff_rejects_unaccepted_output(tmp_path):
     db=Database(str(tmp_path/"handoff2.db"))
-    ResearchCycle(db).run("Handoff")
+    project=ResearchCycle(db).run("Handoff")
+    task_id="task-handoff"
+    db.execute("""INSERT INTO tasks
+        (id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at,owner,required_permissions,retry_limit)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (task_id,project["project"]["id"],"test","PLANNED",None,1.0,"{}","now","now","test","[]",0))
+    db.execute("""INSERT INTO agent_runs
+        (id,task_id,agent_id,project_id,status,output_payload,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,datetime('now'),datetime('now'))""",
+        ("run","task-handoff","agent",project["project"]["id"],"COMPLETED","{}"))
     db.execute("""INSERT INTO agent_output_reviews
         (id,agent_run_id,project_id,task_id,evidence_refs,provenance_hash,status,created_at)
         VALUES (?,?,?,?,?,?,?,datetime('now'))""",
-        ("review","run","project","task","[]","hash","READY_FOR_REVIEW"))
+        ("review","run",project["project"]["id"],task_id,"[]","hash","READY_FOR_REVIEW"))
     try:
         ResearchHandoffCoordinator(db).handoff("review","actor")
         assert False
