@@ -44,6 +44,16 @@ class ResearchQuestionGenerator:
         created=[]
         q=ResearchQueue(self.db)
         for question,rationale,trigger,refs in candidates:
+            # Materialize the gap as an OPEN research question so the existing
+            # autonomous planner can select it; this does not approve a conclusion.
+            existing=self.db.one("SELECT * FROM research_questions WHERE project_id=? AND question=? AND status NOT IN ('RESOLVED','CLOSED')",
+                                 (project_id,question))
+            if not existing:
+                from uuid import uuid4
+                from app.models import now
+                self.db.execute(
+                    "INSERT INTO research_questions(id,project_id,question,status,created_at) VALUES (?,?,?,?,?)",
+                    (str(uuid4()),project_id,question,"OPEN",now()))
             item=q.propose(project_id,question,rationale,trigger_type="AUTONOMOUS_GAP_DETECTOR",
                            evidence_refs=[x for x in refs if self.db.one("SELECT 1 FROM evidence WHERE id=?",(x,))])
             created.append(item)
