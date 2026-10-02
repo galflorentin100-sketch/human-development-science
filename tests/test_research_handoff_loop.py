@@ -19,8 +19,10 @@ def test_handoff_rejects_synthesis_from_other_project(tmp_path):
     db.execute("""CREATE TABLE IF NOT EXISTS research_syntheses
         (id TEXT PRIMARY KEY, workspace_id TEXT, synthesis TEXT, limitations TEXT, uncertainty TEXT,
          provenance_hash TEXT, evidence_refs TEXT, status TEXT, created_by TEXT, created_at TEXT)""")
-    db.execute("INSERT INTO research_workspaces VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
-        ("ws-foreign",p2["id"],"Q","S","[]","[]","REVIEWED","x",__import__("datetime").datetime.now().isoformat()))
+    db.execute("""INSERT INTO research_workspaces
+        (id,project_id,question,scope,inclusion_rules,exclusion_rules,status,owner,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))""",
+        ("ws-foreign",p2["id"],"Q","S","[]","[]","REVIEWED","x"))
     db.execute("INSERT INTO research_syntheses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
         ("syn-foreign","ws-foreign","S","","","hash","[]","ACCEPTED","x"))
     with __import__("pytest").raises(ValueError):
