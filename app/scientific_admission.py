@@ -93,8 +93,17 @@ class ScientificAdmissionGate:
             if protocol["status"]=="SUPPORTED" and not self.intervention(protocol["intervention_id"])["supported"]:
                 raise ValueError("training protocol execution blocked because its intervention is no longer supported")
 
-        freshness=self.db.all("SELECT status FROM knowledge_freshness WHERE entity_type='TRAINING_PROTOCOL' AND entity_id=?",(protocol_id,))
-        if any(row["status"] in {"STALE","REVIEW_REQUIRED"} for row in freshness):
-            raise ValueError("training protocol execution blocked by stale scientific basis")
+        freshness_checks=[("TRAINING_PROTOCOL",protocol_id)]
+        if protocol["source_claim_id"]:
+            freshness_checks.append(("CLAIM",protocol["source_claim_id"]))
+        if protocol["intervention_id"]:
+            freshness_checks.append(("INTERVENTION",protocol["intervention_id"]))
+        for entity_type,entity_id in freshness_checks:
+            freshness=self.db.all(
+                "SELECT status FROM knowledge_freshness WHERE entity_type=? AND entity_id=?",
+                (entity_type,entity_id),
+            )
+            if any(row["status"] in {"STALE","REVIEW_REQUIRED"} for row in freshness):
+                raise ValueError("training protocol execution blocked by stale scientific basis")
         return {"admissible":True,"protocol_id":protocol_id,"status":protocol["status"]}
 
