@@ -86,6 +86,50 @@ class ResearchQueue:
             row=dict(con.execute("SELECT * FROM hds_research_queue WHERE id=?",(item_id,)).fetchone())
         return row
 
+    def autonomous_begin(self, item_id, actor, mode="DIGITAL_RESEARCH"):
+        """Begin only explicitly permitted low-risk digital research."""
+        if mode != "DIGITAL_RESEARCH":
+            raise ValueError("autonomous queue execution permits DIGITAL_RESEARCH only")
+        if not str(actor or "").strip():
+            raise ValueError("actor is required")
+        with self.db.transaction() as con:
+            row=con.execute(
+                "SELECT * FROM hds_research_queue WHERE id=? AND status='PROPOSED' AND trigger_type='AUTONOMOUS_SCHEDULER'",
+                (item_id,),
+            ).fetchone()
+            if not row:
+                raise ValueError("autonomous item must be a proposed scheduler item")
+            row=dict(row)
+            existing=con.execute(
+                "SELECT * FROM research_workspaces WHERE project_id=? AND question=? AND status IN ('DRAFT','ACTIVE','SYNTHESIS_READY','REVIEWED') AND (research_queue_id IS NULL OR research_queue_id=?) LIMIT 1",
+                (row["project_id"],row["question"],item_id)).fetchone()
+            if existing:
+                workspace=dict(existing)
+            else:
+                workspace_id=str(uuid4()); ts=now()
+                con.execute(
+                    "INSERT INTO research_workspaces(id,project_id,question,scope,inclusion_rules,exclusion_rules,status,owner,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (workspace_id,row["project_id"],row["question"],
+                     "Autonomous bounded digital research. No participants, intervention, publication, spending, or external contact.",
+                     "[]","[]","ACTIVE",actor,ts,ts))
+                workspace=dict(con.execute("SELECT * FROM research_workspaces WHERE id=?",(workspace_id,)).fetchone())
+            ts=now()
+            linked=con.execute(
+                "UPDATE research_workspaces SET research_queue_id=?,updated_at=? WHERE id=? AND (research_queue_id IS NULL OR research_queue_id=?)",
+                (item_id,ts,workspace["id"],item_id))
+            if linked.rowcount != 1:
+                raise ValueError("research workspace queue linkage changed concurrently")
+            updated=con.execute(
+                "UPDATE hds_research_queue SET research_queue_workspace_id=?,status='IN_PROGRESS',updated_at=? WHERE id=? AND status='PROPOSED'",
+                (workspace["id"],ts,item_id))
+            if updated.rowcount != 1:
+                raise ValueError("autonomous research item was changed concurrently")
+            con.execute(
+                "INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+                (str(uuid4()),"research_queue.autonomous_started","research_queue",item_id,actor,
+                 json.dumps({"workspace_id":workspace["id"],"mode":mode,"governance":"digital-only"},sort_keys=True),ts))
+        return {"queue_item":self.get(item_id),"workspace":workspace}
+
     def begin(self, item_id, actor):
         if not str(actor or "").strip():
             raise ValueError("actor is required")
