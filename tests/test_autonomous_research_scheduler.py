@@ -41,6 +41,8 @@ def test_scheduler_consumes_generated_replication_gap(tmp_path):
     rp=ReplicationEngine(db).propose(project["id"],exp["id"],"independent confirmation")
     ReplicationEngine(db).ready(rp["id"]); ReplicationEngine(db).record_result(rp["id"],"descriptive replication result","requires review")
     result=AutonomousResearchScheduler(db).schedule_once(project["id"])
-    assert result["status"]=="TASK_CREATED"
+    assert result["status"]=="GOVERNED_REVIEW_REQUIRED"
     assert result["candidate"]["kind"]=="RESEARCH"
+    assert result["candidate"]["action_type"]=="REPLICATION_REVIEW"
+    assert result["candidate"]["route"]["execution_authorized"] is False
     assert "Clarify the replication outcome" in result["candidate"]["title"]
