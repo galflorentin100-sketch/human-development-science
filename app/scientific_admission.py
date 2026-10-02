@@ -67,13 +67,16 @@ class ScientificAdmissionGate:
         # Once SUPPORTED, every attached evidence item must remain independently verified.
         from app.evidence_pipeline import EvidencePipeline
         refs=self.db.all("SELECT evidence_ref FROM training_protocol_evidence WHERE protocol_id=?",(protocol_id,))
-        if protocol["status"]=="SUPPORTED":
-            if not refs:
-                raise ValueError("training protocol has no attached evidence")
-            for ref in refs:
-                state=EvidencePipeline(self.db).resolve(ref["evidence_ref"])["state"]
-                if state!="VERIFIED":
-                    raise ValueError("training protocol execution blocked by non-verified or conflicted evidence")
+        if refs:
+            states=[EvidencePipeline(self.db).resolve(ref["evidence_ref"])["state"] for ref in refs]
+            # A pilot may proceed with preliminary/uncertain evidence, but an
+            # explicit contradiction or evidence conflict is never operationally safe.
+            if "CONFLICTED" in states or "REJECTED" in states:
+                raise ValueError("training protocol execution blocked by non-verified or conflicted evidence")
+            if protocol["status"]=="SUPPORTED" and any(state!="VERIFIED" for state in states):
+                raise ValueError("training protocol execution blocked by non-verified or conflicted evidence")
+        elif protocol["status"]=="SUPPORTED":
+            raise ValueError("training protocol has no attached evidence")
 
         # Any linked scientific basis must remain project-local. A PILOT may reference
         # a hypothesis; a SUPPORTED protocol must reference a currently supported basis.
