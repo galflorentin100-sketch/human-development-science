@@ -1,4 +1,5 @@
 import json
+import hashlib
 from app.database import Database
 from app.scientific_analysis import ScientificAnalysisEngine
 
@@ -9,7 +10,7 @@ def setup(tmp_path):
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES ('p','c','test','RUNNING','a','2026')")
     db.execute("INSERT INTO studies(id,title,design,population,findings,created_at,protocol_hash,status) VALUES ('s','study','RCT','adults','', '2026','protocol-test-hash','COMPLETED')")
     canonical_spec=json.dumps({"outcome_name":"score","registered_outcome_name":"score","estimand":"between-arm change difference","population":"randomized participants","estimator":"unadjusted","ci_method":"normal_approximation_95","missing_data_policy":"complete cases","multiplicity_policy":"primary only","subgroup_policy":"none","stopping_rule":"fixed","baseline_timepoint":"baseline","post_timepoint":"post","retention_timepoint":"retention","allowed_methods":["RANDOMIZED_ARM","INFERENTIAL_RANDOMIZED_ARM","LONGITUDINAL_RETENTION","DESCRIPTIVE"]},sort_keys=True,separators=(",",":"))
-    analysis_spec=json.dumps({"spec":canonical_spec})
+    analysis_spec=json.dumps({"spec":canonical_spec,"sha256":hashlib.sha256(canonical_spec.encode()).hexdigest()},sort_keys=True,separators=(",",":"))
     db.execute("INSERT INTO study_analysis_plans(id,study_id,version,analysis_spec,frozen,frozen_at,created_at) VALUES (?,?,?,?,?,?,?)",("plan","s",1,analysis_spec,1,"2026","2026"))
     for pid,arm in [('i','INTERVENTION'),('c1','CONTROL')]:
         db.execute("INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",(pid,'s',pid,'CONSENTED','2026'))
@@ -140,17 +141,25 @@ def test_analysis_plan_blocks_unplanned_multiplicity_and_requires_explicit_contr
     except ValueError as exc:
         assert "primary-only" in str(exc)
 
-    adjusted=dict(json.loads(plan["analysis_spec"]))
+    adjusted_payload=json.loads(plan["analysis_spec"])
+    adjusted=json.loads(adjusted_payload["spec"])
     adjusted["multiplicity_policy"]="adjusted"
     adjusted["multiplicity_method"]="holm"
     adjusted["subgroup_policy"]="none"
-    adjusted_plan=dict(plan); adjusted_plan["analysis_spec"]=json.dumps(adjusted)
+    adjusted_spec=json.dumps(adjusted,sort_keys=True,separators=(",",":"))
+    adjusted_payload["spec"]=adjusted_spec
+    adjusted_payload["sha256"]=hashlib.sha256(adjusted_spec.encode()).hexdigest()
+    adjusted_plan=dict(plan); adjusted_plan["analysis_spec"]=json.dumps(adjusted_payload)
     assert engine.validate_analysis_spec(adjusted_plan)["valid"]
 
-    subgroup=dict(json.loads(plan["analysis_spec"]))
+    subgroup_payload=json.loads(plan["analysis_spec"])
+    subgroup=json.loads(subgroup_payload["spec"])
     subgroup["subgroup_policy"]="pre_specified"
     try:
-        subgroup_plan=dict(plan); subgroup_plan["analysis_spec"]=json.dumps(subgroup)
+        subgroup_spec=json.dumps(subgroup,sort_keys=True,separators=(",",":"))
+        subgroup_payload["spec"]=subgroup_spec
+        subgroup_payload["sha256"]=hashlib.sha256(subgroup_spec.encode()).hexdigest()
+        subgroup_plan=dict(plan); subgroup_plan["analysis_spec"]=json.dumps(subgroup_payload)
         engine.validate_analysis_spec(subgroup_plan)
         assert False
     except ValueError as exc:
@@ -170,9 +179,13 @@ def test_fixed_stopping_requires_completed_study(tmp_path):
 def test_missing_data_policy_is_executable_not_declarative(tmp_path):
     db=setup(tmp_path)
     plan=db.one("SELECT * FROM study_analysis_plans WHERE id='plan'")
-    spec=json.loads(plan["analysis_spec"])
+    payload=json.loads(plan["analysis_spec"])
+    spec=json.loads(payload["spec"])
     spec["missing_data_policy"]="last observation carried forward"
-    bad=dict(plan); bad["analysis_spec"]=json.dumps(spec)
+    bad_payload=dict(payload)
+    bad_payload["spec"]=json.dumps(spec,sort_keys=True,separators=(",",":"))
+    bad_payload["sha256"]=hashlib.sha256(bad_payload["spec"].encode()).hexdigest()
+    bad=dict(plan); bad["analysis_spec"]=json.dumps(bad_payload)
     try:
         ScientificAnalysisEngine(db).validate_analysis_spec(bad)
         assert False
