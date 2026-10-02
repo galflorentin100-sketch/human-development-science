@@ -100,7 +100,7 @@ class ScientificAdmissionGate:
             freshness_checks.append(("INTERVENTION",protocol["intervention_id"]))
         for entity_type,entity_id in freshness_checks:
             freshness=self.db.all(
-                "SELECT status FROM knowledge_freshness WHERE entity_type=? AND entity_id=?",
+                "SELECT status,next_review_at FROM knowledge_freshness WHERE entity_type=? AND entity_id=?",
                 (entity_type,entity_id),
             )
             if any(row["status"] in {"STALE","REVIEW_REQUIRED"} or (row["next_review_at"] and row["next_review_at"] < __import__("app.models", fromlist=["now"]).now()) for row in freshness):
