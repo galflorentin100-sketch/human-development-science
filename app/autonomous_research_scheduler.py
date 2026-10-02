@@ -10,6 +10,7 @@ from app.models import now
 from app.autonomous_research import AutonomousResearchPlanner
 from app.research_queue import ResearchQueue
 from app.research_agent import ResearchAgentService
+from app.research_action_selector import ResearchActionSelector
 
 class AutonomousResearchScheduler:
     DIGITAL_ONLY = "DIGITAL_RESEARCH"
@@ -50,6 +51,11 @@ class AutonomousResearchScheduler:
         if not candidate:
             return {"status":"NO_ELIGIBLE_DIGITAL_RESEARCH","candidate_count":plan["candidate_count"],"gap_report":gap_report}
 
+        route=ResearchActionSelector().select(candidate)
+        candidate={**candidate,"action_type":route["action"],"route":route}
+        # Only information-gathering is eligible for autonomous execution.
+        if not route["execution_authorized"]:
+            return {"status":"GOVERNED_REVIEW_REQUIRED","candidate":candidate,"gap_report":gap_report}
         question=str(candidate["title"]).strip()
         queue=ResearchQueue(self.db)
         item=queue.propose(
