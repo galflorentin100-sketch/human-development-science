@@ -551,15 +551,17 @@ class Database:
                 if name not in existing:
                     con.execute(f"ALTER TABLE hds_competition_participants ADD COLUMN {name} {definition}")
             _add_phase2_columns(con)
-            # Seed built-in agents again after legacy-column migration. This second,
-            # idempotent pass guarantees fresh and upgraded databases expose the
-            # complete agent registry before any project can reference an owner.
+            # Seed built-in agents again after all legacy columns are present.
+            # Use the stable nine-column core first, then set manager separately so
+            # fresh databases and older upgraded schemas both receive the identities.
             from app.registry import all_agents
             for agent in all_agents():
                 con.execute(
-                    "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at,manager) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    (agent.id,agent.name,agent.role,agent.role,"[]","[]","1","ACTIVE",now(),agent.manager),
+                    "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (agent.id,agent.name,agent.role,agent.role,"[]","[]","1","ACTIVE",now()),
                 )
+                if "manager" in {row[1] for row in con.execute("PRAGMA table_info(agents)").fetchall()}:
+                    con.execute("UPDATE agents SET manager=? WHERE id=?", (agent.manager,agent.id))
             existing_impact={row[1] for row in con.execute("PRAGMA table_info(knowledge_impact_reviews)")}
             if "impact_type" not in existing_impact:
                 con.execute("ALTER TABLE knowledge_impact_reviews ADD COLUMN impact_type TEXT NOT NULL DEFAULT 'DEPENDENCY'")
