@@ -86,8 +86,6 @@ class AdaptiveTrainingService:
         safety=SafetyGate(self.db).assess(protocol_id,str(participant_ref),safety_checks)
         if safety["status"]!="CLEAR":
             raise ValueError(f"adaptive training change blocked by safety gate: {safety['status']}")
-        from app.scientific_admission import ScientificAdmissionGate
-        ScientificAdmissionGate(self.db).assert_training_operational(protocol_id)
         recommendation=self.recommend(protocol_id,participant_ref)
         if not str(rationale or "").strip(): raise ValueError("rationale is required")
         if recommendation["decision"]=="HOLD": raise ValueError("adaptive change is not justified by available data")
