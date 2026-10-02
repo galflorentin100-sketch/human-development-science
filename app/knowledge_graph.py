@@ -21,7 +21,7 @@ class KnowledgeDependencyGraph:
 
     def add_edge(self,project_id,from_type,from_id,relation,to_type,to_id,provenance_refs=(),created_by="system"):
         if not self.db.one("SELECT 1 FROM projects WHERE id=?",(project_id,)): raise ValueError("project not found")
-        allowed={"CLAIM","INTERVENTION","TRAINING_PROTOCOL","FINDING","KNOWLEDGE_VERSION","QUESTION","EXPERIMENT","EVIDENCE","SOURCE","TRAINING_SESSION","EXPERIMENT_RESULT","PROJECT","HYPOTHESIS","ANALYSIS"}
+        allowed={"CLAIM","INTERVENTION","TRAINING_PROTOCOL","FINDING","KNOWLEDGE_VERSION","QUESTION","EXPERIMENT","EVIDENCE","SOURCE","TRAINING_SESSION","EXPERIMENT_RESULT","PROJECT","HYPOTHESIS","ANALYSIS","REPLICATION_PROPOSAL"}
         ownership_queries={
             "CLAIM":"SELECT project_id FROM claims WHERE id=?",
             "INTERVENTION":"SELECT project_id FROM interventions WHERE id=?",
@@ -39,6 +39,7 @@ class KnowledgeDependencyGraph:
             "SOURCE":"SELECT id AS source_id FROM sources WHERE id=?",
             "HYPOTHESIS":"SELECT project_id FROM hypotheses WHERE id=?",
             "ANALYSIS":"SELECT s.project_id FROM study_analysis_results ar JOIN studies s ON s.id=ar.study_id WHERE ar.id=?",
+            "REPLICATION_PROPOSAL":"SELECT project_id FROM hds_replication_proposals WHERE id=?",
         }
         for typ,nid in ((from_type,from_id),(to_type,to_id)):
             typ=str(typ).upper()
@@ -68,7 +69,7 @@ class KnowledgeDependencyGraph:
     def build(self,project_id=None):
         nodes=[]; edges=[]
         tables=[("claims","CLAIM"),("interventions","INTERVENTION"),("training_protocols","TRAINING_PROTOCOL"),
-                ("research_findings","FINDING"),("evidence","EVIDENCE"),("research_questions","QUESTION"),("hds_experiments","EXPERIMENT")]
+                ("research_findings","FINDING"),("evidence","EVIDENCE"),("research_questions","QUESTION"),("hds_experiments","EXPERIMENT"),("hds_replication_proposals","REPLICATION_PROPOSAL")]
         # Analysis results are immutable provenance nodes only when an audit exists.
         analysis_rows=self.db.all("""SELECT ar.* FROM study_analysis_results ar
                                      JOIN studies s ON s.id=ar.study_id
@@ -180,6 +181,8 @@ class KnowledgeDependencyGraph:
             edge("HYPOTHESIS",r.get("hypothesis"),"TESTED_BY","EXPERIMENT",r["id"])
         for r in self.db.all("SELECT er.id,er.experiment_id FROM experiment_results er JOIN experiments e ON e.id=er.experiment_id WHERE e.project_id=?",(project_id,)):
             edge("EXPERIMENT",r["experiment_id"],"HAS_RESULT","EXPERIMENT_RESULT",r["id"])
+        for r in self.db.all("SELECT id,source_experiment_id FROM hds_replication_proposals WHERE project_id=?",(project_id,)):
+            edge("REPLICATION_PROPOSAL",r["id"],"REPLICATES","EXPERIMENT",r["source_experiment_id"])
         return {"project_id":project_id,"created_edges":len(created),"edges":created,"policy":"only explicit, resolvable references are materialized"}
 
     def neighbors(self,project_id,node_type,node_id):
