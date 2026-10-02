@@ -8,6 +8,8 @@ import json
 from app.agent_output_gate import AgentOutputGate
 from app.research_agent import ResearchAgentService
 from app.research_review_agent import ResearchReviewAgentAdapter
+from app.knowledge_graph import KnowledgeDependencyGraph
+from app.research_question_generator import ResearchQuestionGenerator
 
 class ResearchHandoffCoordinator:
     def __init__(self,db):
@@ -40,6 +42,26 @@ class ResearchHandoffCoordinator:
             "review_id":review_id,
             "result":result,
             "next_gate":"synthesis readiness check"
+        }
+
+    def complete_accepted_synthesis(self,project_id,synthesis_id,actor="system"):
+        if not self.db.one(
+            """SELECT rs.id
+               FROM research_syntheses rs
+               JOIN research_workspaces rw ON rw.id=rs.workspace_id
+               WHERE rs.id=? AND rs.status='ACCEPTED' AND rw.project_id=?""",
+            (synthesis_id,project_id)):
+            raise ValueError("accepted synthesis not found in project")
+        graph=KnowledgeDependencyGraph(self.db).sync_project(project_id,actor=actor)
+        gaps=ResearchQuestionGenerator(self.db).generate(project_id)
+        return {
+            "status":"LOOP_CONTINUES",
+            "project_id":project_id,
+            "synthesis_id":synthesis_id,
+            "graph_sync":graph,
+            "gap_report":gaps,
+            "next_gate":"autonomous question selection",
+            "policy":"handoff discovers downstream work only; no scientific truth or sensitive execution is authorized"
         }
 
     def handoff(self,review_id,actor):
