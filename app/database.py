@@ -484,6 +484,23 @@ def _ensure_hds_schema(con):
         decision TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL
     )""")
 
+def _ensure_runtime_identities(con):
+    """Keep the root identities available on every runtime DB connection."""
+    has_agents=con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='agents'"
+    ).fetchone()
+    if not has_agents:
+        return
+    con.execute(
+        "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        ("ceo","CEO","strategy","board","[]","[]","1","ACTIVE",now()),
+    )
+    con.execute(
+        "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        ("researcher","Researcher","research","research","[]","[]","1","ACTIVE",now()),
+    )
+
+
 class Database:
     def __init__(self,path="company_os.db"):
         self.path=Path(path)
@@ -492,6 +509,7 @@ class Database:
     def connect(self)->Iterator[sqlite3.Connection]:
         con=sqlite3.connect(self.path,timeout=10); con.row_factory=sqlite3.Row
         con.execute("PRAGMA foreign_keys=ON"); con.execute("PRAGMA journal_mode=WAL"); con.execute("PRAGMA busy_timeout=10000")
+        _ensure_runtime_identities(con)
         try: yield con
         except BaseException: con.rollback(); raise
         else: con.commit()
