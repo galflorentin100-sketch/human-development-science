@@ -562,6 +562,13 @@ class Database:
                 )
                 if "manager" in {row[1] for row in con.execute("PRAGMA table_info(agents)").fetchall()}:
                     con.execute("UPDATE agents SET manager=? WHERE id=?", (agent.manager,agent.id))
+            # Explicit root-agent fallback: these two identities are foreign-key
+            # anchors used by legacy and scientific test/install paths.
+            for agent_id,agent_name,agent_role in (("ceo","CEO","strategy"),("researcher","Researcher","research")):
+                con.execute(
+                    "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (agent_id,agent_name,agent_role,agent_role,"[]","[]","1","ACTIVE",now()),
+                )
             existing_impact={row[1] for row in con.execute("PRAGMA table_info(knowledge_impact_reviews)")}
             if "impact_type" not in existing_impact:
                 con.execute("ALTER TABLE knowledge_impact_reviews ADD COLUMN impact_type TEXT NOT NULL DEFAULT 'DEPENDENCY'")
