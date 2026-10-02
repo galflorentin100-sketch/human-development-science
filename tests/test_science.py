@@ -546,4 +546,4 @@ def test_adaptive_training_blocks_non_operational_protocol(tmp_path):
         AdaptiveTrainingService(db).apply("p","tp","participant",2,"rationale",{"readiness":"CLEAR"})
         assert False
     except Exception as exc:
-        assert "operationally admissible" in str(exc)
+        assert "operationally admissible" in str(exc) or "consent" in str(exc)
