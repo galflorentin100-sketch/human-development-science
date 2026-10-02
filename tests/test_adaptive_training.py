@@ -107,10 +107,23 @@ def test_cross_project_study_participant_cannot_bind_to_competition(tmp_path):
     h=HumanDevelopmentService(db)
     comp=h.create_competition(project["id"],"Comp","format","u")
     participant=h.register_participant(comp["id"],"person-a")
-    from app.research import ResearchRepository
-    study_a=ResearchRepository(db).create_study(project["id"],"Study A","hypothesis","design","population")
-    study_b=ResearchRepository(db).create_study(other["id"],"Study B","hypothesis","design","population")
-    sp_b=ResearchRepository(db).add_participant(study_b["id"],"foreign-person")
+    from uuid import uuid4
+    from app.models import now
+    study_a=str(uuid4())
+    study_b=str(uuid4())
+    db.execute(
+        "INSERT INTO studies(id,source_id,title,design,population,findings,created_at,project_id) VALUES (?,?,?,?,?,?,?,?)",
+        (study_a,"source-a","Study A","design","population","",now(),project["id"]),
+    )
+    db.execute(
+        "INSERT INTO studies(id,source_id,title,design,population,findings,created_at,project_id) VALUES (?,?,?,?,?,?,?,?)",
+        (study_b,"source-b","Study B","design","population","",now(),other["id"]),
+    )
+    sp_b=str(uuid4())
+    db.execute(
+        "INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",
+        (sp_b,study_b,"foreign-person","CONSENTED",now()),
+    )
     try:
         h.bind_participant_to_study(comp["id"],participant["id"],sp_b["id"])
         assert False, "cross-project study participant binding must be denied"
