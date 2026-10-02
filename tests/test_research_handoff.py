@@ -20,9 +20,9 @@ def test_handoff_rejects_unaccepted_output(tmp_path):
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (task_id,project["project"]["id"],"test","PLANNED",None,1.0,"{}","now","now","test","[]",0))
     db.execute("""INSERT INTO agent_runs
-        (id,task_id,agent_id,project_id,status,output_payload,created_at,updated_at)
+        (id,agent_id,task_id,status,input_payload,output_payload,started_at,completed_at)
         VALUES (?,?,?,?,?,?,datetime('now'),datetime('now'))""",
-        ("run","task-handoff","agent",project["project"]["id"],"COMPLETED","{}"))
+        ("run","agent","task-handoff","COMPLETED","{}","{}"))
     db.execute("""INSERT INTO agent_output_reviews
         (id,agent_run_id,project_id,task_id,evidence_refs,provenance_hash,status,created_at)
         VALUES (?,?,?,?,?,?,?,datetime('now'))""",
