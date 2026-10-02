@@ -66,3 +66,53 @@ def test_adaptive_training_change_requires_project_scope_consent_and_safety_chec
         assert False
     except ValueError as exc:
         assert "safety checks" in str(exc)
+
+
+def test_cross_project_participant_cannot_execute_challenge(tmp_path):
+    db=Database(str(tmp_path/"cross-project-participant.db"))
+    project=ResearchCycle(db).run("project-a")["project"]
+    other=ResearchCycle(db).run("project-b")["project"]
+    h=HumanDevelopmentService(db)
+    p=h.create_program(project["id"],"P","O","RESILIENCE","u")
+    ch=h.create_challenge(p["id"],"C","D","physical",5,"stop","u")
+    comp=h.create_competition(project["id"],"Comp","format","u")
+    h.add_event(comp["id"],ch["id"],1,"points")
+    participant=h.register_participant(comp["id"],"person-a")
+    h.record_consent(participant["id"])
+    h.create_safety_control(project["id"],ch["id"],"LOW","stop")
+    h.approve_safety(ch["id"],"reviewer","APPROVED","reviewed")
+    h.update_participant_safety(participant["id"],"ELIGIBLE","ASSIGNED","NOT_REQUIRED")
+
+    foreign_program=h.create_program(other["id"],"P2","O2","RESILIENCE","u")
+    foreign_challenge=h.create_challenge(foreign_program["id"],"C2","D2","physical",5,"stop","u")
+    foreign_comp=h.create_competition(other["id"],"Comp2","format","u")
+    h.add_event(foreign_comp["id"],foreign_challenge["id"],1,"points")
+    foreign_participant=h.register_participant(foreign_comp["id"],"person-b")
+    h.record_consent(foreign_participant["id"])
+    h.create_safety_control(other["id"],foreign_challenge["id"],"LOW","stop")
+    h.approve_safety(foreign_challenge["id"],"reviewer","APPROVED","reviewed")
+    h.update_participant_safety(foreign_participant["id"],"ELIGIBLE","ASSIGNED","NOT_REQUIRED")
+
+    try:
+        ChallengeExecutionService(db).start(project["id"],ch["id"],foreign_participant["id"])
+        assert False, "cross-project participant execution must be denied"
+    except ValueError as exc:
+        assert "participant does not belong to project" in str(exc)
+
+
+def test_cross_project_study_participant_cannot_bind_to_competition(tmp_path):
+    db=Database(str(tmp_path/"cross-project-study-binding.db"))
+    project=ResearchCycle(db).run("project-a")["project"]
+    other=ResearchCycle(db).run("project-b")["project"]
+    h=HumanDevelopmentService(db)
+    comp=h.create_competition(project["id"],"Comp","format","u")
+    participant=h.register_participant(comp["id"],"person-a")
+    from app.research import ResearchRepository
+    study_a=ResearchRepository(db).create_study(project["id"],"Study A","hypothesis","design","population")
+    study_b=ResearchRepository(db).create_study(other["id"],"Study B","hypothesis","design","population")
+    sp_b=ResearchRepository(db).add_participant(study_b["id"],"foreign-person")
+    try:
+        h.bind_participant_to_study(comp["id"],participant["id"],sp_b["id"])
+        assert False, "cross-project study participant binding must be denied"
+    except ValueError as exc:
+        assert "same project" in str(exc)
