@@ -809,6 +809,25 @@ def _migrate_phase4(self):
             con.execute("ALTER TABLE hds_research_queue ADD COLUMN research_queue_workspace_id TEXT")
         _ensure_hds_schema(con)
         _ensure_hds_indexes(con)
+
+        # _migrate_phase4 is the authoritative migration entrypoint (the class
+        # method is rebound below), so root identities must be seeded here too.
+        # This keeps every fresh/test database FK-valid and makes the registry
+        # agents available to autonomous research services.
+        con.execute(
+            "INSERT OR IGNORE INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",
+            ("hds","Human Development Science","Scientific human development",
+             "Evidence-governed human development","Truth and scientific integrity above all else",now()),
+        )
+        from app.registry import all_agents
+        for agent in all_agents():
+            con.execute(
+                "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                (agent.id,agent.name,agent.role,agent.role,"[]","[]","1","ACTIVE",now()),
+            )
+            if "manager" in {row[1] for row in con.execute("PRAGMA table_info(agents)").fetchall()}:
+                con.execute("UPDATE agents SET manager=? WHERE id=?", (agent.manager,agent.id))
+
         con.executescript(_PHASE4_ANALYSIS_IMMUTABILITY_SQL)
         existing_studies={row[1] for row in con.execute("PRAGMA table_info(studies)")}
         if "project_id" not in existing_studies:
