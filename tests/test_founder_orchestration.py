@@ -33,3 +33,13 @@ def test_founder_snapshot_labels_scientific_knowledge_state(tmp_path):
     snap=FounderIntelligence(db).snapshot(pid)
     assert snap["scientific_knowledge"]["claims_by_status"]["CANDIDATE"] == 1
     assert snap["scientific_knowledge"]["interpretation"]["candidate_and_proposed_claims_are_not_active_knowledge"] is True
+
+
+def test_orchestrator_does_not_execute_tasks_for_completed_project(tmp_path):
+    from app.orchestrator import CompanyOrchestrator
+    from app.models import now
+    db=Database(str(tmp_path/"orchestrator-project-state.db")); ResearchCycle(db); pid=_setup(db)
+    db.execute("UPDATE projects SET status='COMPLETED' WHERE id=?",(pid,))
+    result=CompanyOrchestrator(db).execute_next(pid)
+    assert result["status"]=="PROJECT_NOT_EXECUTABLE"
+    assert result["project_status"]=="COMPLETED"

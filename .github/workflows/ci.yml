@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main, hds-scientific-provenance]
+    branches: [main, hds-scientific-provenance, verify-project-scoped-execution-gate]
   pull_request:
     branches: [main]
 permissions:

@@ -18,6 +18,8 @@ class TrainingProtocolService:
             raise ValueError("invalid training protocol evidence level")
         if status not in self.STATUSES:
             raise ValueError("invalid training protocol status")
+        if status != "DRAFT":
+            raise ValueError("new training protocols must start as DRAFT and use the lifecycle promotion gate")
         required={
             "name":name,"mechanism_hypothesis":mechanism_hypothesis,
             "challenge_domain":challenge_domain,"dosage":dosage,
@@ -53,6 +55,8 @@ class TrainingProtocolService:
     def link_basis(self,protocol_id,source_claim_id=None,intervention_id=None):
         protocol=self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
         if not protocol: raise ValueError("training protocol not found")
+        if protocol["status"] in {"PILOT","SUPPORTED","RETIRED"}:
+            raise ValueError("operational or admitted training protocols cannot change scientific basis")
         if source_claim_id is not None:
             claim=self.db.one("SELECT project_id FROM claims WHERE id=?",(source_claim_id,))
             if not claim: raise ValueError("source claim not found")
@@ -67,9 +71,11 @@ class TrainingProtocolService:
         return self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
 
     def attach_evidence(self,protocol_id,evidence_kind,evidence_ref,notes=""):
-        protocol=self.db.one("SELECT project_id FROM training_protocols WHERE id=?",(protocol_id,))
+        protocol=self.db.one("SELECT project_id,status FROM training_protocols WHERE id=?",(protocol_id,))
         if not protocol:
             raise ValueError("training protocol not found")
+        if protocol["status"] in {"PILOT","SUPPORTED","RETIRED"}:
+            raise ValueError("operational or admitted training protocols cannot change evidence")
         if not evidence_kind or not evidence_ref:
             raise ValueError("evidence kind and reference are required")
         evidence=self.db.one(
@@ -108,8 +114,12 @@ class TrainingProtocolService:
         safety=SafetyGate(self.db).assess(protocol_id,str(participant_ref),safety_checks)
         if safety["status"]!="CLEAR":
             raise ValueError(f"training session blocked by safety gate: {safety['status']}")
+        if protocol["status"] not in {"PILOT","SUPPORTED"}:
+            raise ValueError("training protocol is not operationally admissible")
         if protocol["status"]=="RETIRED":
             raise ValueError("retired training protocols cannot accept new sessions")
+        from app.scientific_admission import ScientificAdmissionGate
+        ScientificAdmissionGate(self.db).assert_training_operational(protocol_id)
         if int(session_number)<1:
             raise ValueError("session_number must be positive")
         if int(adherence) not in {0,1}:
@@ -118,6 +128,18 @@ class TrainingProtocolService:
             raise ValueError("load_note is required")
         i=str(uuid4()); ts=now()
         with self.db.transaction() as con:
+            participant=con.execute(
+                "SELECT consent_status,withdrawn_at FROM participant_governance WHERE participant_ref=?",
+                (str(participant_ref),),
+            ).fetchone()
+            if not participant or participant["consent_status"]!="CONSENTED" or participant["withdrawn_at"]:
+                raise ValueError("participant is not actively consented")
+            unresolved=con.execute(
+                "SELECT 1 FROM training_adverse_events WHERE participant_ref=? AND resolved=0 LIMIT 1",
+                (str(participant_ref),),
+            ).fetchone()
+            if unresolved:
+                raise ValueError("participant has an unresolved adverse event; training is blocked pending review")
             if con.execute("SELECT 1 FROM training_sessions WHERE protocol_id=? AND participant_ref=? AND session_number=?",
                            (protocol_id,str(participant_ref),int(session_number))).fetchone():
                 raise ValueError("training session already exists")

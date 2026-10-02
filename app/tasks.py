@@ -14,6 +14,13 @@ class TaskEngine:
 
     def create_task(self,title,description="",project_id=None,owner="coo",required_permissions=None,priority=1.0,retry_limit=2):
         with self.db.transaction() as con:
+            project=con.execute("SELECT status FROM projects WHERE id=?",(project_id,)).fetchone()
+            if project is None:
+                raise ValueError("project not found")
+            if project["status"]=="COMPLETED":
+                # Adding new governed work reopens a completed project explicitly.
+                # This keeps completion terminal only while no new work is being scheduled.
+                con.execute("UPDATE projects SET status='RUNNING',updated_at=? WHERE id=? AND status='COMPLETED'",(now(),project_id))
             row=self.create_task_in_transaction(con,title,description,project_id,owner,required_permissions,priority,retry_limit)
         return self.db.one("SELECT * FROM tasks WHERE id=?",(row["id"],))
     def get(self,i): return self.db.one("SELECT * FROM tasks WHERE id=?",(i,))
