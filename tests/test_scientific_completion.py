@@ -7,7 +7,7 @@ def test_completion_gate_blocks_conflicted_knowledge_evidence(tmp_path):
     db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p','hds','x','RUNNING','ceo',?,?)",(now(),now()))
     db.execute("INSERT INTO claims(id,project_id,statement,classification,status,confidence,review_required,created_at,updated_at) VALUES ('c','p','claim','SCIENTIFIC','SUPPORTED',0.9,0,?,?)",(now(),now()))
     db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES ('s','s','https://example.test','PAPER','','')")
-    db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,verified,created_by,excerpt_hash,created_at) VALUES ('e','c','s','SUPPORTS',1,'r','h',?)",(now(),))
+    db.execute("INSERT INTO evidence(id,claim_id,source_id,stance,verified,created_by,excerpt,excerpt_hash,created_at) VALUES ('e','c','s','SUPPORTS',1,'r','excerpt','h',?)",(now(),))
     db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES ('r1','e','a','VERIFIED','ok',?)",(now(),))
     db.execute("INSERT INTO evidence_reviews(id,evidence_id,reviewer,verdict,rationale,created_at) VALUES ('r2','e','b','REJECTED','not ok',?)",(now(),))
     out=ScientificCompletionGate(db).evaluate("p")
