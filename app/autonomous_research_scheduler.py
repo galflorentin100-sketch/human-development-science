@@ -11,6 +11,7 @@ from app.autonomous_research import AutonomousResearchPlanner
 from app.research_queue import ResearchQueue
 from app.research_agent import ResearchAgentService
 from app.research_action_selector import ResearchActionSelector
+from app.research_action_executor import ResearchActionExecutor
 
 class AutonomousResearchScheduler:
     DIGITAL_ONLY = "DIGITAL_RESEARCH"
