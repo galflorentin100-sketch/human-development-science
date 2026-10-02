@@ -44,6 +44,13 @@ class ResearchQuestionGenerator:
                 candidates.append(("Follow up on falsification challenge: "+r["challenge"],
                                    "A completed challenge should be independently reviewed before changing a hypothesis or claim.",
                                    "FALSIFICATION_REVIEW",[r["id"]]))
+        # Persist routing metadata on research questions so the planner can make
+        # deterministic strategy-aware selections without parsing prose.
+        cols=set(self.db.table_columns("research_questions"))
+        if "trigger_type" not in cols:
+            self.db.execute("ALTER TABLE research_questions ADD COLUMN trigger_type TEXT NOT NULL DEFAULT 'MANUAL'")
+        if "priority" not in cols:
+            self.db.execute("ALTER TABLE research_questions ADD COLUMN priority INTEGER NOT NULL DEFAULT 50")
         created=[]
         q=ResearchQueue(self.db)
         for question,rationale,trigger,refs in candidates:
@@ -55,8 +62,9 @@ class ResearchQuestionGenerator:
                 from uuid import uuid4
                 from app.models import now
                 self.db.execute(
-                    "INSERT INTO research_questions(id,project_id,question,status,created_at) VALUES (?,?,?,?,?)",
-                    (str(uuid4()),project_id,question,"OPEN",now()))
+                    "INSERT INTO research_questions(id,project_id,question,status,trigger_type,priority,created_at) VALUES (?,?,?,?,?,?,?)",
+                    (str(uuid4()),project_id,question,"OPEN",trigger,
+                     80 if trigger in {"FALSIFICATION_REVIEW","REPLICATION_REVIEW"} else 60,now()))
             item=q.propose(project_id,question,rationale,trigger_type="AUTONOMOUS_GAP_DETECTOR",
                            evidence_refs=[x for x in refs if self.db.one("SELECT 1 FROM evidence WHERE id=?",(x,))])
             created.append(item)
