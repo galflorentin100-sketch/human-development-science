@@ -18,7 +18,10 @@ class ResearchQuestionGenerator:
             FROM claims c JOIN evidence e ON e.claim_id=c.id
             WHERE c.project_id=? AND e.verified=1
             GROUP BY c.id,c.statement
-            HAVING SUM(CASE WHEN e.status='CONFLICTED' THEN 1 ELSE 0 END)>0""",(project_id,))
+            HAVING SUM(CASE WHEN EXISTS (
+                SELECT 1 FROM evidence_reviews er
+                WHERE er.evidence_id=e.id AND UPPER(er.verdict)='CONFLICTED'
+            ) THEN 1 ELSE 0 END)>0""",(project_id,))
         for r in rows:
             candidates.append(("Resolve conflicting evidence for claim: "+r["statement"],
                                "Conflicting evidence was explicitly recorded; investigate the source of disagreement.",
