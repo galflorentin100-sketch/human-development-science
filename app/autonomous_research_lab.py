@@ -11,6 +11,7 @@ from app.models import now
 from app.research_engine import ResearchEngine
 from app.research_agent import ResearchAgentService
 from app.orchestrator import CompanyOrchestrator
+from app.research_handoff import ResearchHandoffCoordinator
 
 
 class AutonomousResearchLab:
@@ -173,6 +174,10 @@ class AutonomousResearchLab:
             "task_id": task_info["task"]["id"],
             "result": result,
         }
+
+    def handoff_output(self, review_id, actor):
+        """Advance one accepted agent output through the governed research pipeline."""
+        return ResearchHandoffCoordinator(self.db).handoff(review_id, actor)
 
     def run_continuously(self, project_id, cycles=10):
         """Run bounded autonomous research cycles; an external scheduler can call this repeatedly."""
