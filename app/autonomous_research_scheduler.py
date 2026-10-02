@@ -41,10 +41,14 @@ class AutonomousResearchScheduler:
         if project["status"] not in {"ACTIVE","RUNNING"}:
             return {"status":"PROJECT_NOT_EXECUTABLE","project_status":project["status"]}
 
+        # Refresh deterministic research gaps before selection. This only creates
+        # OPEN questions; it never mutates claims or scientific truth.
+        from app.research_question_generator import ResearchQuestionGenerator
+        gap_report=ResearchQuestionGenerator(self.db).generate(project_id)
         plan=AutonomousResearchPlanner(self.db).next_work()
         candidate=next((x for x in plan["next"] if self._eligible(x)), None)
         if not candidate:
-            return {"status":"NO_ELIGIBLE_DIGITAL_RESEARCH","candidate_count":plan["candidate_count"]}
+            return {"status":"NO_ELIGIBLE_DIGITAL_RESEARCH","candidate_count":plan["candidate_count"],"gap_report":gap_report}
 
         question=str(candidate["title"]).strip()
         queue=ResearchQueue(self.db)
@@ -71,7 +75,7 @@ class AutonomousResearchScheduler:
         task=ResearchAgentService(self.db).create_task(workspace["id"],owner=actor)
         self.db.execute("UPDATE autonomous_research_runs SET status='TASK_CREATED',updated_at=? WHERE id=?",(now(),run_id))
         return {"status":"TASK_CREATED","run_id":run_id,"queue_item_id":item_id,
-                "workspace_id":workspace["id"],"task":task["task"],"candidate":candidate}
+                "workspace_id":workspace["id"],"task":task["task"],"candidate":candidate,"gap_report":gap_report}
 
     def run(self, project_id, cycles=1):
         if not 1 <= int(cycles) <= 25:
