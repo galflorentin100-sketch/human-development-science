@@ -60,32 +60,14 @@ class AutonomousResearchScheduler:
         if candidate.get("kind") not in {"RESEARCH","SCIENTIFIC_MAINTENANCE"}:
             raise ValueError("autonomous execution policy permits digital research only")
 
-        with self.db.transaction() as con:
-            ts=now()
-            workspace=con.execute(
-                "SELECT * FROM research_workspaces WHERE project_id=? AND question=? AND status IN ('DRAFT','ACTIVE','SYNTHESIS_READY','REVIEWED') LIMIT 1",
-                (project_id,question)).fetchone()
-            if workspace:
-                workspace=dict(workspace)
-            else:
-                wid=str(uuid4())
-                con.execute(
-                    "INSERT INTO research_workspaces(id,project_id,question,scope,inclusion_rules,exclusion_rules,status,owner,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    (wid,project_id,question,
-                     "Autonomous bounded digital research. No participants, intervention, publication, spending, or external contact.",
-                     "[]","[]","ACTIVE",actor,ts,ts))
-                workspace=dict(con.execute("SELECT * FROM research_workspaces WHERE id=?",(wid,)).fetchone())
-            con.execute(
-                "UPDATE research_workspaces SET research_queue_id=?,updated_at=? WHERE id=?",
-                (item_id,ts,workspace["id"]))
-            con.execute(
-                "UPDATE hds_research_queue SET research_queue_workspace_id=?,status='IN_PROGRESS',updated_at=? WHERE id=? AND status='PROPOSED'",
-                (workspace["id"],ts,item_id))
-            run_id=str(uuid4())
-            con.execute(
-                "INSERT INTO autonomous_research_runs(id,project_id,queue_item_id,workspace_id,mode,status,reason,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
-                (run_id,project_id,item_id,workspace["id"],self.DIGITAL_ONLY,"STARTED",
-                 "Autonomous digital research; governed gates remain in force.",ts,ts))
+        started=queue.autonomous_begin(item_id, actor, mode=self.DIGITAL_ONLY)
+        workspace=started["workspace"]
+        run_id=str(uuid4())
+        ts=now()
+        self.db.execute(
+            "INSERT INTO autonomous_research_runs(id,project_id,queue_item_id,workspace_id,mode,status,reason,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            (run_id,project_id,item_id,workspace["id"],self.DIGITAL_ONLY,"STARTED",
+             "Autonomous digital research; governed gates remain in force.",ts,ts))
         task=ResearchAgentService(self.db).create_task(workspace["id"],owner=actor)
         self.db.execute("UPDATE autonomous_research_runs SET status='TASK_CREATED',updated_at=? WHERE id=?",(now(),run_id))
         return {"status":"TASK_CREATED","run_id":run_id,"queue_item_id":item_id,
