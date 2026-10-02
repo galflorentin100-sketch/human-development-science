@@ -39,7 +39,6 @@ class KnowledgeDependencyGraph:
             "SOURCE":"SELECT id AS source_id FROM sources WHERE id=?",
             "HYPOTHESIS":"SELECT project_id FROM hypotheses WHERE id=?",
             "ANALYSIS":"SELECT s.project_id FROM study_analysis_results ar JOIN studies s ON s.id=ar.study_id WHERE ar.id=?",
-            "REPLICATION_PROPOSAL":"SELECT project_id FROM hds_replication_proposals WHERE id=?",
         }
         for typ,nid in ((from_type,from_id),(to_type,to_id)):
             typ=str(typ).upper()
@@ -69,7 +68,7 @@ class KnowledgeDependencyGraph:
     def build(self,project_id=None):
         nodes=[]; edges=[]
         tables=[("claims","CLAIM"),("interventions","INTERVENTION"),("training_protocols","TRAINING_PROTOCOL"),
-                ("research_findings","FINDING"),("evidence","EVIDENCE"),("research_questions","QUESTION"),("hds_experiments","EXPERIMENT"),("hds_replication_proposals","REPLICATION_PROPOSAL")]
+                ("research_findings","FINDING"),("evidence","EVIDENCE"),("research_questions","QUESTION"),("hds_experiments","EXPERIMENT")]
         # Analysis results are immutable provenance nodes only when an audit exists.
         analysis_rows=self.db.all("""SELECT ar.* FROM study_analysis_results ar
                                      JOIN studies s ON s.id=ar.study_id
@@ -181,8 +180,9 @@ class KnowledgeDependencyGraph:
             edge("HYPOTHESIS",r.get("hypothesis"),"TESTED_BY","EXPERIMENT",r["id"])
         for r in self.db.all("SELECT er.id,er.experiment_id FROM experiment_results er JOIN experiments e ON e.id=er.experiment_id WHERE e.project_id=?",(project_id,)):
             edge("EXPERIMENT",r["experiment_id"],"HAS_RESULT","EXPERIMENT_RESULT",r["id"])
-        for r in self.db.all("SELECT id,source_experiment_id FROM hds_replication_proposals WHERE project_id=?",(project_id,)):
-            edge("REPLICATION_PROPOSAL",r["id"],"REPLICATES","EXPERIMENT",r["source_experiment_id"])
+        if "hds_replication_proposals" in self.db.table_names():
+            for r in self.db.all("SELECT id,source_experiment_id FROM hds_replication_proposals WHERE project_id=?",(project_id,)):
+                edge("REPLICATION_PROPOSAL",r["id"],"REPLICATES","EXPERIMENT",r["source_experiment_id"])
         return {"project_id":project_id,"created_edges":len(created),"edges":created,"policy":"only explicit, resolvable references are materialized"}
 
     def neighbors(self,project_id,node_type,node_id):
