@@ -418,7 +418,7 @@ def test_training_operational_gate_blocks_conflicted_basis(tmp_path):
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
                (claim,project["id"],"basis","HYPOTHESIS","SUPPORTED",1.0,"SUPPORTED",now()))
     db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",
-               (source,"basis","https://example.com/"+source,"PAPER","","test"))
+               (source,"basis","https://example.com/"+source,"PAPER","test"))
     EvidencePipeline(db).ingest_text(source,"excerpt")
     EvidencePipeline(db).attach(claim,source,"excerpt")
     ev=db.one("SELECT id FROM evidence WHERE claim_id=?",(claim,))
