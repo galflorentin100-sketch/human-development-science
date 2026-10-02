@@ -75,13 +75,13 @@ class AdaptiveTrainingService:
             raise ValueError("training protocol not found")
         if str(protocol["project_id"])!=str(project_id):
             raise ValueError("training protocol belongs to another project")
+        # Validate explicit safety input before participant-specific execution.
+        if not isinstance(safety_checks,dict) or not safety_checks:
+            raise ValueError("current safety checks are required before adaptive training changes")
         from app.scientific_admission import ScientificAdmissionGate
-        # Reject scientifically non-operational protocols before participant-specific execution.
         ScientificAdmissionGate(self.db).assert_training_operational(protocol_id)
         from app.participant_governance import ParticipantGovernance
         ParticipantGovernance(self.db).assert_active(str(participant_ref))
-        if not isinstance(safety_checks,dict) or not safety_checks:
-            raise ValueError("current safety checks are required before adaptive training changes")
         from app.safety import SafetyGate
         safety=SafetyGate(self.db).assess(protocol_id,str(participant_ref),safety_checks)
         if safety["status"]!="CLEAR":
