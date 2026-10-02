@@ -103,7 +103,7 @@ class ScientificAdmissionGate:
                 "SELECT status FROM knowledge_freshness WHERE entity_type=? AND entity_id=?",
                 (entity_type,entity_id),
             )
-            if any(row["status"] in {"STALE","REVIEW_REQUIRED"} for row in freshness):
-                raise ValueError("training protocol execution blocked by stale scientific basis")
+            if any(row["status"] in {"STALE","REVIEW_REQUIRED"} or (row["next_review_at"] and row["next_review_at"] < __import__("app.models", fromlist=["now"]).now()) for row in freshness):
+                raise ValueError("training protocol execution blocked by stale scientific basis; freshness review required")
         return {"admissible":True,"protocol_id":protocol_id,"status":protocol["status"]}
 
