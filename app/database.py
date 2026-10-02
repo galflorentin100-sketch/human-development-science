@@ -510,7 +510,6 @@ class Database:
     def connect(self)->Iterator[sqlite3.Connection]:
         con=sqlite3.connect(self.path,timeout=10); con.row_factory=sqlite3.Row
         con.execute("PRAGMA foreign_keys=ON"); con.execute("PRAGMA journal_mode=WAL"); con.execute("PRAGMA busy_timeout=10000")
-        _ensure_runtime_identities(con)
         try: yield con
         except BaseException: con.rollback(); raise
         else: con.commit()
