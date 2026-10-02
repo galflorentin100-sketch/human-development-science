@@ -9,7 +9,6 @@ from uuid import uuid4
 from app.models import now
 from app.autonomous_research import AutonomousResearchPlanner
 from app.research_queue import ResearchQueue
-from app.research_agent import ResearchAgentService
 from app.research_action_selector import ResearchActionSelector
 from app.research_action_executor import ResearchActionExecutor
 
@@ -79,10 +78,14 @@ class AutonomousResearchScheduler:
             "INSERT INTO autonomous_research_runs(id,project_id,queue_item_id,workspace_id,mode,status,reason,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
             (run_id,project_id,item_id,workspace["id"],self.DIGITAL_ONLY,"STARTED",
              "Autonomous digital research; governed gates remain in force.",ts,ts))
-        task=ResearchAgentService(self.db).create_task(workspace["id"],owner=actor)
+        execution=ResearchActionExecutor(self.db).execute(workspace["id"],candidate["action_type"],actor=actor)
+        if execution["status"] != "TASK_CREATED":
+            self.db.execute("UPDATE autonomous_research_runs SET status='GOVERNED_REVIEW_REQUIRED',updated_at=? WHERE id=?",(now(),run_id))
+            return {"status":execution["status"],"run_id":run_id,"queue_item_id":item_id,
+                    "workspace_id":workspace["id"],"task":execution["task"],"candidate":candidate,"gap_report":gap_report}
         self.db.execute("UPDATE autonomous_research_runs SET status='TASK_CREATED',updated_at=? WHERE id=?",(now(),run_id))
         return {"status":"TASK_CREATED","run_id":run_id,"queue_item_id":item_id,
-                "workspace_id":workspace["id"],"task":task["task"],"candidate":candidate,"gap_report":gap_report}
+                "workspace_id":workspace["id"],"task":execution["task"],"candidate":candidate,"gap_report":gap_report}
 
     def run(self, project_id, cycles=1):
         if not 1 <= int(cycles) <= 25:
