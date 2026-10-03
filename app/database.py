@@ -346,6 +346,7 @@ CREATE INDEX IF NOT EXISTS idx_research_workspace_sources_workspace ON research_
 CREATE TABLE IF NOT EXISTS autonomous_lab_runs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), question TEXT NOT NULL, workspace_id TEXT, task_id TEXT, status TEXT NOT NULL, outcome TEXT, error TEXT, started_at TEXT NOT NULL, completed_at TEXT);
 CREATE INDEX IF NOT EXISTS idx_autonomous_lab_runs_project ON autonomous_lab_runs(project_id, started_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_hds_research_queue_active_question ON hds_research_queue(project_id,question) WHERE status IN ('PROPOSED','APPROVED','IN_PROGRESS');
+CREATE TABLE IF NOT EXISTS autonomous_research_runs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, queue_item_id TEXT, workspace_id TEXT, mode TEXT NOT NULL, status TEXT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 """
 
 def _ensure_hds_indexes(con):
