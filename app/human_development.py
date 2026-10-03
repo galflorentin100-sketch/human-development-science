@@ -261,12 +261,20 @@ class HumanDevelopmentService:
         return self.db.one("SELECT * FROM hds_competition_scores WHERE id=?", (i,))
 
     def bind_participant_to_study(self, competition_id, participant_id, study_participant_id):
-        participant=self.db.one("SELECT competition_id FROM hds_competition_participants WHERE id=?", (participant_id,))
-        study_participant=self.db.one("SELECT study_id FROM study_participants WHERE id=?", (study_participant_id,))
+        participant=self.db.one("""SELECT cp.competition_id, c.project_id
+            FROM hds_competition_participants cp
+            JOIN hds_competitions c ON c.id=cp.competition_id
+            WHERE cp.id=?""", (participant_id,))
+        study_participant=self.db.one("""SELECT sp.study_id, s.project_id
+            FROM study_participants sp
+            JOIN studies s ON s.id=sp.study_id
+            WHERE sp.id=?""", (study_participant_id,))
         if not participant or participant["competition_id"] != competition_id:
             raise ValueError("competition participant not found")
         if not study_participant:
             raise ValueError("study participant not found")
+        if participant["project_id"] != study_participant["project_id"]:
+            raise ValueError("competition and study participant must belong to the same project")
         existing=self.db.one("SELECT 1 FROM hds_competition_study_bindings WHERE competition_id=? AND participant_id=?", (competition_id,participant_id))
         if existing: raise ValueError("participant is already bound to a study")
         i=str(uuid4())
