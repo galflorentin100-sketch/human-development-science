@@ -341,6 +341,11 @@ CREATE TABLE IF NOT EXISTS knowledge_impact_reviews (id TEXT PRIMARY KEY, projec
 CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_impact_proposed_identity ON knowledge_impact_reviews(project_id,source_type,source_id,impact_type,affected_type,affected_id) WHERE status='PROPOSED';
 CREATE TABLE IF NOT EXISTS research_review_tasks (task_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, synthesis_id TEXT NOT NULL, role TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(workspace_id,synthesis_id,role));\nCREATE TABLE IF NOT EXISTS research_agent_tasks (task_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, agent_id TEXT NOT NULL REFERENCES agents(id), created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS company_memory (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, memory_type TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT, created_by TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS research_workspace_sources (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES research_workspaces(id), source_id TEXT NOT NULL REFERENCES sources(id), relevance TEXT NOT NULL, notes TEXT NOT NULL, content_hash TEXT, reviewed INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, UNIQUE(workspace_id,source_id));
+CREATE INDEX IF NOT EXISTS idx_research_workspace_sources_workspace ON research_workspace_sources(workspace_id);
+CREATE TABLE IF NOT EXISTS autonomous_lab_runs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), question TEXT NOT NULL, workspace_id TEXT, task_id TEXT, status TEXT NOT NULL, outcome TEXT, error TEXT, started_at TEXT NOT NULL, completed_at TEXT);
+CREATE INDEX IF NOT EXISTS idx_autonomous_lab_runs_project ON autonomous_lab_runs(project_id, started_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_hds_research_queue_active_question ON hds_research_queue(project_id,question) WHERE status IN ('PROPOSED','APPROVED','IN_PROGRESS');
 """
 
 def _ensure_hds_indexes(con):
