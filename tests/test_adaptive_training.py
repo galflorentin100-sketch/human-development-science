@@ -109,6 +109,16 @@ def test_cross_project_study_participant_cannot_bind_to_competition(tmp_path):
     participant=h.register_participant(comp["id"],"person-a")
     from uuid import uuid4
     from app.models import now
+    source_a=str(uuid4())
+    source_b=str(uuid4())
+    db.execute(
+        "INSERT INTO sources(id,title,url,authors,publication_year,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?,?,?)",
+        (source_a,"Source A","https://example.com/source-a","test",2026,"OTHER",now(),"test fixture"),
+    )
+    db.execute(
+        "INSERT INTO sources(id,title,url,authors,publication_year,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?,?,?)",
+        (source_b,"Source B","https://example.com/source-b","test",2026,"OTHER",now(),"test fixture"),
+    )
     study_a=str(uuid4())
     study_b=str(uuid4())
     db.execute(
