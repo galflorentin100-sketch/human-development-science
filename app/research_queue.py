@@ -11,28 +11,6 @@ class ResearchQueue:
 
     def __init__(self, db):
         self.db = db
-        self._ensure()
-
-    def _ensure(self):
-        self.db.execute("""CREATE TABLE IF NOT EXISTS hds_research_queue (
-            id TEXT PRIMARY KEY,
-            project_id TEXT NOT NULL,
-            research_queue_workspace_id TEXT,
-            question TEXT NOT NULL,
-            rationale TEXT NOT NULL,
-            trigger_type TEXT NOT NULL,
-            evidence_refs TEXT NOT NULL DEFAULT '[]',
-            priority TEXT NOT NULL DEFAULT 'NORMAL',
-            status TEXT NOT NULL DEFAULT 'PROPOSED',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )""")
-        # The authoritative migration owns the research_queue_workspace_id column.
-        # Runtime services must not mutate database schema.
-        # The application-level duplicate check is not sufficient under concurrent workers.
-        self.db.execute("""CREATE UNIQUE INDEX IF NOT EXISTS idx_hds_research_queue_active_question
-            ON hds_research_queue(project_id,question)
-            WHERE status IN ('PROPOSED','APPROVED','IN_PROGRESS')""")
 
     def propose(self, project_id, question, rationale, trigger_type="MANUAL",
                 evidence_refs=(), priority="NORMAL"):
