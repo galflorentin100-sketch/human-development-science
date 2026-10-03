@@ -18,24 +18,10 @@ class AutonomousResearchScheduler:
     def __init__(self, db):
         self.db = db
 
-    def _ensure(self):
-        self.db.execute("""CREATE TABLE IF NOT EXISTS autonomous_research_runs (
-            id TEXT PRIMARY KEY,
-            project_id TEXT NOT NULL,
-            queue_item_id TEXT,
-            workspace_id TEXT,
-            mode TEXT NOT NULL,
-            status TEXT NOT NULL,
-            reason TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )""")
-
     def _eligible(self, candidate):
         return candidate.get("kind") in {"RESEARCH", "SCIENTIFIC_MAINTENANCE"}
 
     def schedule_once(self, project_id, actor="autonomous-research"):
-        self._ensure()
         project=self.db.one("SELECT * FROM projects WHERE id=?",(project_id,))
         if not project:
             raise ValueError("project not found")
