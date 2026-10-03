@@ -68,6 +68,8 @@ class ResearchHandoffCoordinator:
         review=self.db.one("SELECT * FROM agent_output_reviews WHERE id=?",(review_id,))
         if not review:
             raise ValueError("output review not found")
+        if review["status"] != "ACCEPTED":
+            raise ValueError("accepted research output review required")
         link=self.db.one("SELECT * FROM research_agent_tasks WHERE task_id=?",(review["task_id"],))
         if link:
             return self.complete_research_output(review_id,actor)
