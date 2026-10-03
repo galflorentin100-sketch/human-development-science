@@ -125,7 +125,7 @@ def test_cross_project_study_participant_cannot_bind_to_competition(tmp_path):
         (sp_b,study_b,"foreign-person","CONSENTED",now()),
     )
     try:
-        h.bind_participant_to_study(comp["id"],participant["id"],sp_b["id"])
+        h.bind_participant_to_study(comp["id"],participant["id"],sp_b)
         assert False, "cross-project study participant binding must be denied"
     except ValueError as exc:
         assert "same project" in str(exc)
