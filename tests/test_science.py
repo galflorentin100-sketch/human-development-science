@@ -362,3 +362,188 @@ def test_agent_executor_enforces_task_agent_and_project_binding(tmp_path):
         assert False, "execution must remain bound to the task project"
     except PermissionError as exc:
         assert "project" in str(exc)
+
+
+def test_database_scientific_admission_guards(tmp_path):
+    from app.database import Database
+    db=Database(str(tmp_path/"admission-db.db"))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p1','hds','p1','RUNNING','ceo','2026','2026')")
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p2','hds','p2','RUNNING','ceo','2026','2026')")
+    db.execute("INSERT INTO interventions(id,project_id,name,rationale,mechanism,evidence_level,dosage,population,status,created_at) VALUES ('i','p1','i','r','m','UNTESTED','d','pop','EXPERIMENTAL','2026')")
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,status,confidence,created_at) VALUES ('c2','p2','claim','SCIENTIFIC','SUPPORTED',1.0,'2026')")
+    db.execute("INSERT INTO sources(id,title,url,authors,publication_year,source_type,verified_at,provenance_note) VALUES ('s2','s','https://example.org/s2','a',2026,'PAPER','','')")
+    db.execute("INSERT INTO evidence_sources(id,source_id,state,content_hash,content,fetched_at,parsed_at,created_at) VALUES ('es2','s2','PARSED','h','x','2026','2026','2026')")
+    db.execute("INSERT INTO evidence(id,claim_id,source_id,excerpt,stance,verified,created_at) VALUES ('e2','c2','s2','x','SUPPORTS',1,'2026')")
+    try:
+        db.execute("INSERT INTO intervention_evidence(id,intervention_id,evidence_kind,evidence_ref,notes,created_at) VALUES ('ie','i','PRIMARY','e2','','2026')")
+        assert False
+    except Exception as exc:
+        assert "another project" in str(exc)
+
+    db.execute("INSERT INTO training_protocols(id,project_id,name,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at) VALUES ('tp','p1','tp','m','d','d','p','t','r','s','UNTESTED','DRAFT',1,'2026')")
+    try:
+        db.execute("UPDATE training_protocols SET status='SUPPORTED' WHERE id='tp'")
+        assert False
+    except Exception as exc:
+        assert "admission" in str(exc)
+
+
+def test_training_operational_gate_blocks_cross_project_basis(tmp_path):
+    import uuid
+    from app.models import now
+    from app.scientific_admission import ScientificAdmissionGate
+    db=Database(str(tmp_path/"cross-project-gate.db")); ResearchCycle(db)
+    p1=ResearchCycle(db).run("cross-project gate")["project"]["id"]
+    p2=str(uuid.uuid4())
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",(p2,"hds","other","RUNNING","ceo",now()))
+    claim=str(uuid.uuid4()); protocol=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim,p2,"basis","HYPOTHESIS","SUPPORTED",1.0,"SUPPORTED",now()))
+    db.execute("""INSERT INTO training_protocols
+        (id,project_id,name,source_claim_id,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(protocol,p1,"p",claim,"m","d","dose","progress","transfer","retention","safety","SUPPORTED","PILOT",1,now()))
+    try:
+        ScientificAdmissionGate(db).assert_training_operational(protocol)
+        assert False
+    except ValueError as exc:
+        assert "belongs to another project" in str(exc)
+
+
+def test_training_operational_gate_blocks_conflicted_basis(tmp_path):
+    import uuid
+    from app.models import now
+    from app.scientific_admission import ScientificAdmissionGate
+    db=Database(str(tmp_path/"operational-gate.db")); ResearchCycle(db)
+    project=ResearchCycle(db).run("conflicted operational gate")["project"]
+    claim=str(uuid.uuid4()); source=str(uuid.uuid4()); evidence=str(uuid.uuid4()); protocol=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+               (claim,project["id"],"basis","HYPOTHESIS","SUPPORTED",1.0,"SUPPORTED",now()))
+    db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",
+               (source,"basis","https://example.com/"+source,"PAPER","","test"))
+    EvidencePipeline(db).ingest_text(source,"excerpt")
+    EvidencePipeline(db).attach(claim,source,"excerpt")
+    ev=db.one("SELECT id FROM evidence WHERE claim_id=?",(claim,))
+    EvidencePipeline(db).review(ev["id"],"reviewer-a","VERIFIED","support")
+    EvidencePipeline(db).review(ev["id"],"reviewer-b","REJECTED","contradiction")
+    db.execute("""INSERT INTO training_protocols
+        (id,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,
+         challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,
+         evidence_level,status,version,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (protocol,project["id"],"p",None,claim,None,"hypothesis","domain","dose","progress","transfer","retention","safety",
+         "SUPPORTED","PILOT",1,now()))
+    db.execute("""INSERT INTO training_protocol_evidence
+        (id,protocol_id,evidence_kind,evidence_ref,notes,created_at)
+        VALUES (?,?,?,?,?,?)""",(str(uuid.uuid4()),protocol,"PRIMARY",ev["id"],"",now()))
+    try:
+        ScientificAdmissionGate(db).assert_training_operational(protocol)
+        assert False
+    except ValueError as exc:
+        assert "non-verified or conflicted" in str(exc)
+
+
+def test_training_operational_gate_blocks_stale_basis(tmp_path):
+    import uuid
+    from app.models import now
+    from app.scientific_admission import ScientificAdmissionGate
+    db=Database(str(tmp_path/"stale-gate.db")); ResearchCycle(db)
+    project=ResearchCycle(db).run("stale operational gate")["project"]
+    claim=str(uuid.uuid4()); source=str(uuid.uuid4()); evidence=str(uuid.uuid4()); protocol=str(uuid.uuid4())
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+               (claim,project["id"],"basis","HYPOTHESIS","SUPPORTED",1.0,"SUPPORTED",now()))
+    db.execute("INSERT INTO sources(id,title,url,source_type,verified_at,provenance_note) VALUES (?,?,?,?,?,?)",
+               (source,"basis","https://example.com/"+source,"PAPER","","test"))
+    EvidencePipeline(db).ingest_text(source,"excerpt")
+    EvidencePipeline(db).attach(claim,source,"excerpt")
+    ev=db.one("SELECT id FROM evidence WHERE claim_id=?",(claim,))
+    EvidencePipeline(db).review(ev["id"],"reviewer-a","VERIFIED","support")
+    db.execute("""INSERT INTO training_protocols
+        (id,project_id,name,target_construct_id,source_claim_id,intervention_id,mechanism_hypothesis,
+         challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,
+         evidence_level,status,version,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (protocol,project["id"],"p",None,claim,None,"hypothesis","domain","dose","progress","transfer","retention","safety",
+         "SUPPORTED","PILOT",1,now()))
+    db.execute("""INSERT INTO training_protocol_evidence
+        (id,protocol_id,evidence_kind,evidence_ref,notes,created_at)
+        VALUES (?,?,?,?,?,?)""",(str(uuid.uuid4()),protocol,"PRIMARY",ev["id"],"",now()))
+    db.execute("""INSERT INTO knowledge_freshness
+        (id,entity_type,entity_id,review_interval_days,last_validated_at,next_review_at,status,owner,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        (str(uuid.uuid4()),"CLAIM",claim,30,now(),"2000-01-01T00:00:00+00:00","ACTIVE","test",now(),now()))
+    try:
+        ScientificAdmissionGate(db).assert_training_operational(protocol)
+        assert False
+    except ValueError as exc:
+        assert "freshness review" in str(exc)
+
+
+def test_database_blocks_direct_supported_inserts(tmp_path):
+    from app.database import Database
+    db=Database(str(tmp_path/"direct-supported.db"))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p','hds','p','RUNNING','ceo','2026','2026')")
+    try:
+        db.execute("""INSERT INTO interventions
+            (id,project_id,name,rationale,mechanism,evidence_level,dosage,population,status,created_at)
+            VALUES ('i','p','i','r','m','SUPPORTED','d','pop','SUPPORTED','2026')""")
+        assert False
+    except Exception as exc:
+        assert "lifecycle promotion" in str(exc)
+    try:
+        db.execute("""INSERT INTO training_protocols
+            (id,project_id,name,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at)
+            VALUES ('tp','p','tp','m','d','d','p','t','r','s','SUPPORTED','SUPPORTED',1,'2026')""")
+        assert False
+    except Exception as exc:
+        assert "lifecycle promotion" in str(exc)
+
+
+def test_admitted_protocol_basis_cannot_be_mutated_via_service(tmp_path):
+    from app.database import Database
+    from app.training import TrainingProtocolService
+    db=Database(str(tmp_path/"admitted-basis-service.db"))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p','hds','p','RUNNING','ceo','2026','2026')")
+    db.execute("""INSERT INTO training_protocols
+        (id,project_id,name,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at)
+        VALUES ('tp','p','tp','m','d','d','p','t','r','s','PRELIMINARY','PILOT',1,'2026')""")
+    db.execute("""INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at)
+        VALUES ('c','p','claim','HYPOTHESIS','PRELIMINARY',0.5,'PROPOSED','2026')""")
+    try:
+        TrainingProtocolService(db).link_basis("tp",source_claim_id="c")
+        assert False
+    except ValueError as exc:
+        assert "cannot change scientific basis" in str(exc)
+
+
+def test_admitted_protocol_basis_and_evidence_cannot_be_mutated(tmp_path):
+    from app.database import Database
+    db=Database(str(tmp_path/"admitted-mutation.db"))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p','hds','p','RUNNING','ceo','2026','2026')")
+    db.execute("""INSERT INTO training_protocols
+        (id,project_id,name,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at)
+        VALUES ('tp','p','tp','m','d','d','p','t','r','s','SUPPORTED','PILOT',1,'2026')""")
+    db.execute("UPDATE training_protocols SET status='RETIRED' WHERE id='tp'")
+    try:
+        db.execute("UPDATE training_protocols SET name='changed' WHERE id='tp'")
+        assert False
+    except Exception as exc:
+        assert "admitted training protocol is immutable" in str(exc)
+    try:
+        db.execute("INSERT INTO training_protocol_evidence(id,protocol_id,evidence_kind,evidence_ref,notes,created_at) VALUES ('x','tp','PRIMARY','missing','','2026')")
+        assert False
+    except Exception as exc:
+        assert "evidence cannot be changed" in str(exc)
+
+
+def test_adaptive_training_blocks_non_operational_protocol(tmp_path):
+    from app.database import Database
+    from app.adaptive_training import AdaptiveTrainingService
+    db=Database(str(tmp_path/"adaptive-gate.db"))
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES ('p','hds','p','RUNNING','ceo','2026','2026')")
+    db.execute("""INSERT INTO training_protocols
+        (id,project_id,name,mechanism_hypothesis,challenge_domain,dosage,progression_rule,transfer_target,retention_target,safety_constraints,evidence_level,status,version,created_at)
+        VALUES ('tp','p','tp','m','d','d','p','t','r','s','UNTESTED','DRAFT',1,'2026')""")
+    try:
+        AdaptiveTrainingService(db).apply("p","tp","participant",2,"rationale",{"readiness":"CLEAR"})
+        assert False
+    except Exception as exc:
+        assert "operationally admissible" in str(exc) or "consent" in str(exc)
