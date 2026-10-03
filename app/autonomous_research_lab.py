@@ -17,27 +17,6 @@ from app.research_handoff import ResearchHandoffCoordinator
 class AutonomousResearchLab:
     def __init__(self, db):
         self.db = db
-        self._ensure()
-
-    def _ensure(self):
-        self.db.execute(
-            """CREATE TABLE IF NOT EXISTS autonomous_lab_runs (
-                id TEXT PRIMARY KEY,
-                project_id TEXT NOT NULL REFERENCES projects(id),
-                question TEXT NOT NULL,
-                workspace_id TEXT,
-                task_id TEXT,
-                status TEXT NOT NULL,
-                outcome TEXT,
-                error TEXT,
-                started_at TEXT NOT NULL,
-                completed_at TEXT
-            )"""
-        )
-        self.db.execute(
-            """CREATE INDEX IF NOT EXISTS idx_autonomous_lab_runs_project
-               ON autonomous_lab_runs(project_id, started_at DESC)"""
-        )
 
     def _project(self, project_id):
         project = self.db.one("SELECT * FROM projects WHERE id=?", (project_id,))
