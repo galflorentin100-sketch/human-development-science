@@ -16,10 +16,9 @@ class ResearchAgentService:
         self._ensure()
     
     def _ensure(self):
-        self.db.execute("""CREATE TABLE IF NOT EXISTS research_agent_tasks (
-            task_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, agent_id TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        )""")
+        # research_agent_tasks is part of the authoritative database migration
+        # schema. Runtime services must not mutate database schema.
+        return None
 
     def create_task(self,workspace_id,agent_id=None,owner="researcher"):
         ws=self.db.one("SELECT * FROM research_workspaces WHERE id=?",(workspace_id,))
