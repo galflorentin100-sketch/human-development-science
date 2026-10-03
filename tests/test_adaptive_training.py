@@ -113,11 +113,11 @@ def test_cross_project_study_participant_cannot_bind_to_competition(tmp_path):
     study_b=str(uuid4())
     db.execute(
         "INSERT INTO studies(id,source_id,title,design,population,findings,created_at,project_id) VALUES (?,?,?,?,?,?,?,?)",
-        (study_a,"source-a","Study A","design","population","",now(),project["id"]),
+        (study_a,source_a,"Study A","design","population","",now(),project["id"]),
     )
     db.execute(
         "INSERT INTO studies(id,source_id,title,design,population,findings,created_at,project_id) VALUES (?,?,?,?,?,?,?,?)",
-        (study_b,"source-b","Study B","design","population","",now(),other["id"]),
+        (study_b,source_b,"Study B","design","population","",now(),other["id"]),
     )
     sp_b=str(uuid4())
     db.execute(
