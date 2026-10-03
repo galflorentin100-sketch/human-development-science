@@ -46,11 +46,6 @@ class ResearchQuestionGenerator:
                                    "FALSIFICATION_REVIEW",[r["id"]]))
         # Persist routing metadata on research questions so the planner can make
         # deterministic strategy-aware selections without parsing prose.
-        cols=set(self.db.table_columns("research_questions"))
-        if "trigger_type" not in cols:
-            self.db.execute("ALTER TABLE research_questions ADD COLUMN trigger_type TEXT NOT NULL DEFAULT 'MANUAL'")
-        if "priority" not in cols:
-            self.db.execute("ALTER TABLE research_questions ADD COLUMN priority INTEGER NOT NULL DEFAULT 50")
         created=[]
         q=ResearchQueue(self.db)
         for question,rationale,trigger,refs in candidates:
