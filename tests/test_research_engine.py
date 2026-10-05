@@ -152,6 +152,31 @@ def test_research_agent_task_is_governed(tmp_path):
     assert result["task"]["assigned_agent_id"]==aid
     assert result["workspace_id"]==ws["id"]
 
+def test_inference_causal_finding_cannot_be_promoted_to_claim(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    from app.research_engine import ResearchEngine
+    from app.finding_claim_bridge import FindingClaimBridge
+    import json
+    db=Database(str(tmp_path/"causal-bridge.db")); ResearchCycle(db); pid=_setup(db)
+    source=EvidencePipeline(db).register_source("Paper","https://example.org/causal","Author",2025)
+    claim_id=str(uuid.uuid4())
+    from app.models import now
+    db.execute("INSERT INTO claims(id,project_id,statement,status,classification,confidence,review_required,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+               (claim_id,pid,"source placeholder","SUPPORTED","INFERENCE",1.0,0,now(),now()))
+    ev=EvidencePipeline(db).attach(claim_id,source["id"],"excerpt","SUPPORTS",actor="researcher")
+    EvidencePipeline(db).review(ev["id"],"founder","VERIFIED","verified")
+    from app.research import ResearchFindingService
+    finding=ResearchFindingService(db).create(
+        pid,"The intervention causes improved resilience",
+        classification="INFERENCE",source_type="LITERATURE",source_id=None,
+        evidence_refs=[ev["id"]],created_by="researcher")
+    ResearchFindingService(db).review(finding["id"],"founder","ACCEPTED","evidence verified")
+    try:
+        FindingClaimBridge(db).propose_claim(finding["id"],"knowledge-manager")
+        assert False
+    except ValueError as exc:
+        assert "causal claim" in str(exc)
+
 def test_finding_promotion_requires_evidence_audit(tmp_path):
     import json
     from app.evidence_pipeline import EvidencePipeline
