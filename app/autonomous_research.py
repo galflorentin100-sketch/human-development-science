@@ -12,12 +12,12 @@ class AutonomousResearchPlanner:
         self.db=db
 
     def next_work(self):
-        # Keep routing metadata backward-compatible with existing databases.
-        cols=set(self.db.table_columns("research_questions"))
-        if "trigger_type" not in cols:
-            self.db.execute("ALTER TABLE research_questions ADD COLUMN trigger_type TEXT NOT NULL DEFAULT 'MANUAL'")
-        if "priority" not in cols:
-            self.db.execute("ALTER TABLE research_questions ADD COLUMN priority INTEGER NOT NULL DEFAULT 50")
+        # Routing metadata is owned by the database schema/migrations.
+        # Runtime planning must never mutate the schema.
+        required={"trigger_type","priority"}
+        missing=required-set(self.db.table_columns("research_questions"))
+        if missing:
+            raise RuntimeError("research_questions schema is missing required routing columns: "+", ".join(sorted(missing)))
         candidates=[]
         from app.self_audit import SelfAuditEngine
         audit=SelfAuditEngine(self.db).run()
