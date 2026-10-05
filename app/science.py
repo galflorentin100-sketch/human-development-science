@@ -43,6 +43,8 @@ class ScientificRegistry:
     def intervention_evidence(self, intervention_id, evidence_kind, evidence_ref, notes=""):
         intervention=self.db.one("SELECT * FROM interventions WHERE id=?",(intervention_id,))
         if not intervention: raise ValueError("intervention not found")
+        if intervention["status"] in {"PILOT","SUPPORTED","RETIRED"}:
+            raise ValueError("operational or admitted interventions cannot change evidence")
         valid_kinds={"PILOT","RCT","META_ANALYSIS","SYSTEMATIC_REVIEW","MECHANISTIC","OBSERVATIONAL","EXPERT_JUDGMENT"}
         if evidence_kind not in valid_kinds:
             raise ValueError("invalid intervention evidence kind")
