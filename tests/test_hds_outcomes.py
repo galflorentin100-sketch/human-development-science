@@ -49,3 +49,41 @@ def test_hds_outcome_rejects_unregistered_measure(tmp_path):
         assert False
     except ValueError as exc:
         assert "preregistered" in str(exc)
+
+
+def test_outcome_feedback_creates_candidate_finding_and_new_research_question(tmp_path):
+    db=Database(str(tmp_path/"feedback.db"))
+    from app.workflow import ResearchCycle
+    ResearchCycle(db)
+    from uuid import uuid4
+    from app.models import now
+    project=str(uuid4()); study=str(uuid4()); participant=str(uuid4()); measure=str(uuid4()); binding=str(uuid4())
+    db.execute("INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at) VALUES (?,?,?,?,?,?)",
+               (project,"hds","outcome feedback loop","RUNNING","chief-scientist",now()))
+    db.execute("INSERT INTO studies(id,project_id,title,design,findings,created_at) VALUES (?,?,?,?,?,?)",
+               (study,project,"Outcome Study","pilot","",now()))
+    db.execute("INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",
+               (participant,study,"p1","CONSENTED",now()))
+    db.execute("""INSERT INTO study_measure_definitions
+        (id,study_id,name,operational_definition,method,scale_type,reliability_note,validity_note,status,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)""",
+               (measure,study,"transfer_score","score","standardized test","CONTINUOUS",
+                "reliability recorded","validity recorded","PREREGISTERED",now()))
+    db.execute("""INSERT INTO study_measure_bindings
+        (id,study_id,measure_id,observation_type,timepoint,required)
+        VALUES (?,?,?,?,?,?)""",
+               (binding,study,measure,"NEAR_TRANSFER","POST",1))
+
+    from app.hds_outcomes import HDSOutcomeService
+    HDSOutcomeService(db).record(study,participant,"transfer_score",7.5,"points","NEAR_TRANSFER","POST")
+
+    from app.outcome_feedback import OutcomeFeedbackService
+    result=OutcomeFeedbackService(db).propose_research_from_study(
+        study,"transfer_score","NEAR_TRANSFER","system"
+    )
+    finding=db.one("SELECT * FROM research_findings WHERE id=?",(result["finding"]["finding_id"],))
+    assert finding["status"]=="CANDIDATE"
+    assert finding["classification"]=="INFERENCE"
+    assert result["research_proposal"]["status"]=="PROPOSED"
+    assert result["scientific_status"]=="CANDIDATE_ONLY"
+    assert "observed outcome pattern" in result["research_proposal"]["question"]
