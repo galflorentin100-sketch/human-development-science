@@ -94,6 +94,19 @@ class OutcomeFeedbackService:
             "OUTCOME_FEEDBACK",
             priority="NORMAL",
         )
+        # Materialize the proposal in the planner's research-question source.
+        # This creates work, not scientific truth, and leaves it OPEN for governed selection.
+        existing=self.db.one(
+            "SELECT id FROM research_questions WHERE project_id=? AND question=? AND status NOT IN ('RESOLVED','CLOSED')",
+            (protocol["project_id"],question),
+        )
+        if not existing:
+            from uuid import uuid4
+            from app.models import now
+            self.db.execute(
+                "INSERT INTO research_questions(id,project_id,question,status,trigger_type,priority,created_at) VALUES (?,?,?,?,?,?,?)",
+                (str(uuid4()),protocol["project_id"],question,"OPEN","OUTCOME_FEEDBACK",60,now()),
+            )
         return {
             "finding_id":finding["id"],
             "summary":summary,
