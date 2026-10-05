@@ -163,6 +163,7 @@ def test_inference_causal_finding_cannot_be_promoted_to_claim(tmp_path):
     from app.models import now
     db.execute("INSERT INTO claims(id,project_id,statement,status,classification,confidence,review_required,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
                (claim_id,pid,"source placeholder","SUPPORTED","INFERENCE",1.0,0,now(),now()))
+    EvidencePipeline(db).ingest_text(source["id"],"excerpt")
     ev=EvidencePipeline(db).attach(claim_id,source["id"],"excerpt","SUPPORTS",actor="researcher")
     EvidencePipeline(db).review(ev["id"],"founder","VERIFIED","verified")
     from app.research import ResearchFindingService
