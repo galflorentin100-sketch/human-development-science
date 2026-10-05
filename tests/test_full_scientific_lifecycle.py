@@ -33,8 +33,9 @@ def test_intervention_supported_requires_supported_parent_claim(tmp_path):
     evidence = EvidencePipeline(db).attach(claim_id, source["id"], "excerpt")
     EvidencePipeline(db).review(evidence["id"], "reviewer", "VERIFIED", "checked")
     registry.intervention_evidence(intervention["id"], "OBSERVATIONAL", evidence["id"])
+    InterventionLifecycle(db).promote(intervention["id"], "PILOT", "chief-scientist", "pilot")
     with pytest.raises(ValueError, match="supported claim"):
-        InterventionLifecycle(db).promote(intervention["id"], "PILOT", "chief-scientist", "pilot")
+        InterventionLifecycle(db).promote(intervention["id"], "SUPPORTED", "chief-scientist", "support")
 
 def test_full_scientific_lifecycle_requires_governed_transitions(tmp_path):
     db = Database(str(tmp_path / "full-lifecycle.db"))
