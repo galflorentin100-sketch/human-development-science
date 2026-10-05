@@ -85,9 +85,20 @@ class OutcomeFeedbackService:
             interpretation="Observed training measurements; no causal or generalization claim is made.",
             created_by=created_by,
         )
+        from app.research_queue import ResearchQueue
+        question=f"Investigate observed training outcomes for protocol {protocol_id}"
+        research_proposal=ResearchQueue(self.db).propose(
+            protocol["project_id"],
+            question,
+            "Training outcomes are descriptive observations; further research is required before causal or generalization claims.",
+            "OUTCOME_FEEDBACK",
+            priority="NORMAL",
+        )
         return {
             "finding_id":finding["id"],
             "summary":summary,
             "provenance":{"protocol_id":protocol_id,"participant_ref":participant_ref},
             "status":finding["status"],
+            "research_proposal":research_proposal,
+            "scientific_status":"CANDIDATE_ONLY",
         }
