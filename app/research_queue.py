@@ -72,11 +72,11 @@ class ResearchQueue:
             raise ValueError("actor is required")
         with self.db.transaction() as con:
             row=con.execute(
-                "SELECT * FROM hds_research_queue WHERE id=? AND status='PROPOSED' AND trigger_type='AUTONOMOUS_SCHEDULER'",
+                "SELECT * FROM hds_research_queue WHERE id=? AND status='PROPOSED' AND trigger_type IN ('AUTONOMOUS_SCHEDULER','AUTONOMOUS_GAP_DETECTOR')",
                 (item_id,),
             ).fetchone()
             if not row:
-                raise ValueError("autonomous item must be a proposed scheduler item")
+                raise ValueError("autonomous item must be a proposed governed digital-research item")
             row=dict(row)
             existing=con.execute(
                 "SELECT * FROM research_workspaces WHERE project_id=? AND question=? AND status IN ('DRAFT','ACTIVE','SYNTHESIS_READY','REVIEWED') AND (research_queue_id IS NULL OR research_queue_id=?) LIMIT 1",
