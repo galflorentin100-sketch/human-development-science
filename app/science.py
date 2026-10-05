@@ -35,6 +35,7 @@ class ScientificRegistry:
             if project_id is not None and construct["project_id"] is not None and str(construct["project_id"]) != str(project_id): raise ValueError("target construct project mismatch")
         if evidence_level not in {"UNTESTED","PLAUSIBLE","PRELIMINARY","SUPPORTED","WELL_SUPPORTED"}: raise ValueError("invalid evidence level")
         if status not in {"EXPERIMENTAL","PILOT","SUPPORTED","RETIRED"}: raise ValueError("invalid intervention status")
+        if status != "EXPERIMENTAL": raise ValueError("new interventions must start as EXPERIMENTAL and use the lifecycle promotion gate")
         i=str(uuid4())
         self.db.execute("INSERT INTO interventions(id,project_id,name,target_construct_id,rationale,mechanism,evidence_level,dosage,population,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",(i,project_id,name,target_construct_id,rationale,mechanism,evidence_level,dosage,population,status,now()))
         return self.db.one("SELECT * FROM interventions WHERE id=?",(i,))
