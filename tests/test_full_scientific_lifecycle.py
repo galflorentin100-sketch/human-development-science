@@ -22,6 +22,20 @@ def test_new_intervention_cannot_bypass_lifecycle(tmp_path):
         registry.intervention("Bypass", "rationale", "mechanism", "SUPPORTED", "daily", "adults", status="SUPPORTED")
 
 
+def test_intervention_supported_requires_supported_parent_claim(tmp_path):
+    db = Database(str(tmp_path / "intervention-parent-claim.db"))
+    project = ResearchCycle(db).run("intervention parent claim")["project"]
+    registry = ScientificRegistry(db)
+    intervention = registry.intervention("I", "rationale", "mechanism", "SUPPORTED", "daily", "adults", project_id=project["id"])
+    claim_id = "claim-parent-1"
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?)",(claim_id,project["id"],"candidate","HYPOTHESIS","PRELIMINARY",0.5,"PROPOSED",project["created_at"]))
+    source = EvidencePipeline(db).register_source("source","https://example.org/source")
+    evidence = EvidencePipeline(db).attach(claim_id, source["id"], "excerpt")
+    EvidencePipeline(db).review(evidence["id"], "reviewer", "VERIFIED", "checked")
+    registry.intervention_evidence(intervention["id"], "OBSERVATIONAL", evidence["id"])
+    with pytest.raises(ValueError, match="supported claim"):
+        InterventionLifecycle(db).promote(intervention["id"], "PILOT", "chief-scientist", "pilot")
+
 def test_full_scientific_lifecycle_requires_governed_transitions(tmp_path):
     db = Database(str(tmp_path / "full-lifecycle.db"))
     project = ResearchCycle(db).run("full scientific lifecycle")["project"]
