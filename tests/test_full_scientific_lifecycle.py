@@ -141,6 +141,12 @@ def test_full_scientific_lifecycle_requires_governed_transitions(tmp_path):
     assert feedback["scientific_status"] == "CANDIDATE_ONLY"
     assert feedback["research_proposal"]["status"] == "PROPOSED"
     assert "Investigate observed training outcomes" in feedback["research_proposal"]["question"]
+    next_question=db.one(
+        "SELECT * FROM research_questions WHERE project_id=? AND question=?",
+        (pid, feedback["research_proposal"]["question"]),
+    )
+    assert next_question["status"] == "OPEN"
+    assert next_question["trigger_type"] == "OUTCOME_FEEDBACK"
 
     candidate = db.one(
         "SELECT * FROM research_findings WHERE id=?",
