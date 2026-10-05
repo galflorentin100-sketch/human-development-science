@@ -23,6 +23,14 @@ class InterventionLifecycle:
             for r in refs:
                 try: states.append(EvidencePipeline(self.db).resolve(r["evidence_ref"])["state"])
                 except ValueError: states.append("MISSING")
+            for ref in refs:
+                evidence_row=self.db.one("SELECT e.id,e.claim_id,c.status AS claim_status,c.project_id AS claim_project_id FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(str(ref["evidence_ref"]),))
+                if not evidence_row:
+                    raise ValueError("SUPPORTED intervention requires all attached evidence to exist")
+                if row["project_id"] is not None and str(evidence_row["claim_project_id"]) != str(row["project_id"]):
+                    raise ValueError("SUPPORTED intervention evidence belongs to another project")
+                if evidence_row["claim_status"] != "SUPPORTED":
+                    raise ValueError("SUPPORTED intervention requires evidence attached to a supported claim")
             if any(s!="VERIFIED" for s in states): raise ValueError("SUPPORTED intervention requires all attached evidence to be VERIFIED")
             if row["evidence_level"] not in {"SUPPORTED","WELL_SUPPORTED"}: raise ValueError("SUPPORTED intervention requires supported evidence level")
         old=row["status"]; ts=now()
