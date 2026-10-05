@@ -138,6 +138,9 @@ def test_full_scientific_lifecycle_requires_governed_transitions(tmp_path):
         protocol["id"], participant_ref=participant, created_by="researcher"
     )
     assert feedback["status"] == "CANDIDATE"
+    assert feedback["scientific_status"] == "CANDIDATE_ONLY"
+    assert feedback["research_proposal"]["status"] == "PROPOSED"
+    assert "Investigate observed training outcomes" in feedback["research_proposal"]["question"]
 
     candidate = db.one(
         "SELECT * FROM research_findings WHERE id=?",
