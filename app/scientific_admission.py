@@ -27,13 +27,23 @@ class ScientificAdmissionGate:
         rows=self.db.all("SELECT evidence_ref,evidence_kind FROM intervention_evidence WHERE intervention_id=?",(intervention_id,))
         from app.evidence_pipeline import EvidencePipeline
         states=[]
+        parent_claims=[]
         for r in rows:
+            evidence=self.db.one("SELECT e.id,e.claim_id,c.project_id,c.status AS claim_status FROM evidence e JOIN claims c ON c.id=e.claim_id WHERE e.id=?",(str(r["evidence_ref"]),))
+            if not evidence:
+                states.append("MISSING"); parent_claims.append(None); continue
+            if intervention["project_id"] is not None and str(evidence["project_id"]) != str(intervention["project_id"]):
+                states.append("CROSS_PROJECT"); parent_claims.append(dict(evidence)); continue
             try: states.append(EvidencePipeline(self.db).resolve(r["evidence_ref"])["state"])
             except ValueError: states.append("MISSING")
+            parent_claims.append(dict(evidence))
+        supported_basis=(intervention["status"]=="SUPPORTED" and bool(states)
+                         and all(s=="VERIFIED" for s in states)
+                         and all(c is not None and c["claim_status"]=="SUPPORTED" for c in parent_claims))
         return {"intervention":intervention,"evidence_count":len(states),
                 "verified_evidence":sum(s=="VERIFIED" for s in states),
                 "conflicts":sum(s=="CONFLICTED" for s in states),
-                "supported":intervention["status"]=="SUPPORTED" and bool(states) and all(s=="VERIFIED" for s in states)}
+                "supported":supported_basis}
 
     def training(self,protocol_id):
         from app.scientific_training_pipeline import ScientificTrainingPipeline
