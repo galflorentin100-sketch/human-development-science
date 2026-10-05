@@ -14,6 +14,14 @@ from app.outcome_feedback import OutcomeFeedbackService
 from app.training_outcomes import TrainingOutcomeAnalyzer
 
 
+def test_new_intervention_cannot_bypass_lifecycle(tmp_path):
+    db = Database(str(tmp_path / "intervention-gate.db"))
+    ResearchCycle(db).run("intervention gate")
+    registry = ScientificRegistry(db)
+    with pytest.raises(ValueError, match="must start as EXPERIMENTAL"):
+        registry.intervention("Bypass", "rationale", "mechanism", "SUPPORTED", "daily", "adults", status="SUPPORTED")
+
+
 def test_full_scientific_lifecycle_requires_governed_transitions(tmp_path):
     db = Database(str(tmp_path / "full-lifecycle.db"))
     project = ResearchCycle(db).run("full scientific lifecycle")["project"]
