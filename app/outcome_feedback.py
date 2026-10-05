@@ -20,7 +20,29 @@ class OutcomeFeedbackService:
             finding["project_id"], question,
             "Outcome feedback created a descriptive candidate finding; further research is required before causal or generalization claims.",
             "OUTCOME_FEEDBACK", priority="NORMAL")
-        return {"finding":candidate,"research_proposal":queue,"scientific_status":"CANDIDATE_ONLY"}
+        question_row=self._materialize_research_question(
+            finding["project_id"], question, trigger_type="OUTCOME_FEEDBACK"
+        )
+        return {"finding":candidate,"research_proposal":queue,
+                "research_question":question_row,"scientific_status":"CANDIDATE_ONLY"}
+
+    def _materialize_research_question(self, project_id, question, trigger_type="OUTCOME_FEEDBACK"):
+        existing=self.db.one(
+            "SELECT * FROM research_questions WHERE project_id=? AND question=? AND status NOT IN ('RESOLVED','CLOSED')",
+            (project_id,question),
+        )
+        if existing:
+            return existing
+        from uuid import uuid4
+        from app.models import now
+        self.db.execute(
+            "INSERT INTO research_questions(id,project_id,question,status,trigger_type,priority,created_at) VALUES (?,?,?,?,?,?,?)",
+            (str(uuid4()),project_id,question,"OPEN",trigger_type,60,now()),
+        )
+        return self.db.one(
+            "SELECT * FROM research_questions WHERE project_id=? AND question=?",
+            (project_id,question),
+        )
 
     def propose_from_study(self, study_id, outcome_name, observation_type="TRAINING", created_by="system"):
         study=self.db.one("SELECT * FROM studies WHERE id=?",(study_id,))
@@ -96,22 +118,15 @@ class OutcomeFeedbackService:
         )
         # Materialize the proposal in the planner's research-question source.
         # This creates work, not scientific truth, and leaves it OPEN for governed selection.
-        existing=self.db.one(
-            "SELECT id FROM research_questions WHERE project_id=? AND question=? AND status NOT IN ('RESOLVED','CLOSED')",
-            (protocol["project_id"],question),
+        question_row=self._materialize_research_question(
+            protocol["project_id"], question, trigger_type="OUTCOME_FEEDBACK"
         )
-        if not existing:
-            from uuid import uuid4
-            from app.models import now
-            self.db.execute(
-                "INSERT INTO research_questions(id,project_id,question,status,trigger_type,priority,created_at) VALUES (?,?,?,?,?,?,?)",
-                (str(uuid4()),protocol["project_id"],question,"OPEN","OUTCOME_FEEDBACK",60,now()),
-            )
         return {
             "finding_id":finding["id"],
             "summary":summary,
             "provenance":{"protocol_id":protocol_id,"participant_ref":participant_ref},
             "status":finding["status"],
             "research_proposal":research_proposal,
+            "research_question":question_row,
             "scientific_status":"CANDIDATE_ONLY",
         }
