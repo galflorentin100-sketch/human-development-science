@@ -46,3 +46,27 @@ def test_scheduler_consumes_generated_replication_gap(tmp_path):
     assert result["candidate"]["action_type"]=="REPLICATION_REVIEW"
     assert result["candidate"]["route"]["execution_authorized"] is False
     assert "Clarify the replication outcome" in result["candidate"]["title"]
+
+
+def test_scheduler_reuses_generated_gap_queue_item_for_digital_research(tmp_path):
+    db=Database(str(tmp_path/"scheduler-generated-gap.db"))
+    project=ResearchCycle(db).run("Generated gap scheduler")["project"]
+    db.execute("UPDATE projects SET status='RUNNING' WHERE id=?",(project["id"],))
+
+    question="What evidence gaps exist in a measurable human-development construct?"
+    db.execute(
+        "INSERT INTO research_questions(id,project_id,question,status,trigger_type,priority,created_at) "
+        "VALUES (?,?,?,?,?,?,datetime('now'))",
+        ("q-generated",project["id"],question,"OPEN","AUTONOMOUS_GAP_DETECTOR",80),
+    )
+    from app.research_queue import ResearchQueue
+    generated=ResearchQueue(db).propose(
+        project["id"],question,"Gap detector proposal","AUTONOMOUS_GAP_DETECTOR"
+    )
+    result=AutonomousResearchScheduler(db).schedule_once(project["id"])
+
+    assert result["status"]=="TASK_CREATED"
+    assert result["queue_item_id"]==generated["id"]
+    queue=db.one("SELECT * FROM hds_research_queue WHERE id=?",(generated["id"],))
+    assert queue["status"]=="IN_PROGRESS"
+    assert queue["trigger_type"]=="AUTONOMOUS_GAP_DETECTOR"
