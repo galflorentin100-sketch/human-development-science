@@ -17,7 +17,7 @@ class FindingClaimBridge:
             if not refs: raise ValueError("accepted finding must have evidence references")
             statement=(finding["statement"] or "").lower()
             causal_markers=("causes ","caused ","causal ","leads to ","results in ","effect of ","effect on ")
-            if finding["classification"] in {"INFERENCE","HYPOTHESIS"} and any(marker in statement for marker in causal_markers):
+            if finding["classification"] in {"DESCRIPTIVE","INFERENCE","HYPOTHESIS"} and any(marker in statement for marker in causal_markers):
                 raise ValueError("causal claim requires an explicitly approved causal basis; descriptive findings cannot be promoted directly")
             for ref in refs:
                 evidence=con.execute(
