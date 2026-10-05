@@ -86,4 +86,6 @@ def test_outcome_feedback_creates_candidate_finding_and_new_research_question(tm
     assert finding["classification"]=="INFERENCE"
     assert result["research_proposal"]["status"]=="PROPOSED"
     assert result["scientific_status"]=="CANDIDATE_ONLY"
+    assert result["research_question"]["status"]=="OPEN"
+    assert result["research_question"]["trigger_type"]=="OUTCOME_FEEDBACK"
     assert "observed outcome pattern" in result["research_proposal"]["question"]
