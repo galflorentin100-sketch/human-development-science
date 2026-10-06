@@ -3,7 +3,6 @@
 This service only advances workflow state. It never bypasses evidence review or
 claim governance, and every transition is project-scoped.
 """
-import json
 from uuid import uuid4
 from app.models import now
 from app.research_engine import ResearchEngine
@@ -18,11 +17,26 @@ class AutonomousResearchLoop:
         return self.get(i)
     def start_research(self,run_id,owner="system"):
         run=self.get(run_id)
-        if run["status"]!="GAP_IDENTIFIED": raise ValueError("research can only start from GAP_IDENTIFIED")
-        ws=ResearchEngine(self.db).create(run["project_id"],run["gap"],scope="HDS knowledge gap",owner=owner)
-        ResearchEngine(self.db).activate(ws["id"],owner)
-        self.db.execute("UPDATE research_loop_runs SET workspace_id=?,status='RESEARCH_ACTIVE',updated_at=? WHERE id=? AND status='GAP_IDENTIFIED'",(ws["id"],now(),run_id))
-        return self.get(run_id)
+        claimed=self.db.execute(
+            "UPDATE research_loop_runs SET status='RESEARCH_STARTING',updated_at=? WHERE id=? AND status='GAP_IDENTIFIED'",
+            (now(),run_id),
+        ).rowcount
+        if claimed != 1:
+            raise ValueError("research can only start from GAP_IDENTIFIED")
+        try:
+            ws=ResearchEngine(self.db).create(run["project_id"],run["gap"],scope="HDS knowledge gap",owner=owner)
+            ResearchEngine(self.db).activate(ws["id"],owner)
+            self.db.execute(
+                "UPDATE research_loop_runs SET workspace_id=?,status='RESEARCH_ACTIVE',updated_at=? WHERE id=? AND status='RESEARCH_STARTING'",
+                (ws["id"],now(),run_id),
+            )
+            return self.get(run_id)
+        except Exception:
+            self.db.execute(
+                "UPDATE research_loop_runs SET status='GAP_IDENTIFIED',updated_at=? WHERE id=? AND status='RESEARCH_STARTING'",
+                (now(),run_id),
+            )
+            raise
     def attach_synthesis(self,run_id,synthesis_id):
         run=self.get(run_id); syn=self.db.one("SELECT rs.*,rw.project_id FROM research_syntheses rs JOIN research_workspaces rw ON rw.id=rs.workspace_id WHERE rs.id=?",(synthesis_id,))
         if not syn or syn["project_id"]!=run["project_id"] or syn["workspace_id"]!=run["workspace_id"]: raise ValueError("synthesis is outside this research loop")
