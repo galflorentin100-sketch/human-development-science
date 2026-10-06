@@ -10,14 +10,7 @@ from app.research_engine import ResearchEngine
 
 class AutonomousResearchLoop:
     def __init__(self,db): self.db=db
-    def _ensure(self):
-        self.db.execute("""CREATE TABLE IF NOT EXISTS research_loop_runs (
-            id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
-            gap TEXT NOT NULL, workspace_id TEXT, synthesis_id TEXT, finding_id TEXT,
-            claim_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-        )""")
     def create_gap(self,project_id,gap,owner="system"):
-        self._ensure()
         if not self.db.one("SELECT id FROM projects WHERE id=?",(project_id,)): raise ValueError("project not found")
         if not str(gap or "").strip(): raise ValueError("knowledge gap is required")
         i=str(uuid4()); ts=now()
@@ -72,7 +65,6 @@ class AutonomousResearchLoop:
         if claim["classification"] not in {"FACT","INTERPRETATION"}: return {"ready":False,"reason":"claim classification is not intervention-eligible"}
         return {"ready":True,"claim":claim,"policy":"eligibility gate only; does not imply efficacy"}
     def get(self,run_id):
-        self._ensure()
         row=self.db.one("SELECT * FROM research_loop_runs WHERE id=?",(run_id,))
         if not row: raise ValueError("research loop not found")
         return row
