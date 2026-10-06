@@ -2122,6 +2122,54 @@ def get_hds_research_loop(run_id: str, principal: Principal = Depends(principal_
         run=AutonomousResearchLoop(db).get(run_id); require_project(principal,run["project_id"],"READ"); return run
     except ValueError as exc: raise HTTPException(404,str(exc)) from exc
 
+@app.post("/api/hds/research-loops/{run_id}/synthesis")
+def attach_hds_research_synthesis(run_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"EXECUTE")
+        return AutonomousResearchLoop(db).attach_synthesis(run_id,body["synthesis_id"])
+    except KeyError as exc:
+        raise HTTPException(400,f"missing field: {exc.args[0]}") from exc
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/research-loops/{run_id}/finding")
+def promote_hds_research_finding(run_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"EXECUTE")
+        return AutonomousResearchLoop(db).promote_reviewed_synthesis_to_finding(run_id,principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/research-loops/{run_id}/claim")
+def link_hds_research_claim(run_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"WRITE")
+        return AutonomousResearchLoop(db).mark_claimed(run_id,body["claim_id"])
+    except KeyError as exc:
+        raise HTTPException(400,f"missing field: {exc.args[0]}") from exc
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.get("/api/hds/research-loops/{run_id}/intervention-readiness")
+def hds_research_intervention_readiness(run_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"READ")
+        return AutonomousResearchLoop(db).ready_for_intervention(run_id)
+    except ValueError as exc:
+        raise HTTPException(404,str(exc)) from exc
+
 @app.get("/api/hds/company/{project_id}/analytics")
 def hds_company_analytics(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal); require_project(principal,project_id,"READ")
