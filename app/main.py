@@ -2114,6 +2114,14 @@ def start_hds_research_loop(run_id: str, principal: Principal = Depends(principa
         return AutonomousResearchLoop(db).start_research(run_id,principal.user_id)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
 
+@app.get("/api/hds/research-loops/project/{project_id}")
+def list_hds_research_loops(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    require_project(principal,project_id,"READ")
+    if status:
+        return {"items":db.all("SELECT * FROM research_loop_runs WHERE project_id=? AND status=? ORDER BY updated_at DESC",(project_id,status))}
+    return {"items":db.all("SELECT * FROM research_loop_runs WHERE project_id=? ORDER BY updated_at DESC",(project_id,))}
+
 @app.get("/api/hds/research-loops/{run_id}")
 def get_hds_research_loop(run_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
