@@ -76,8 +76,19 @@ class AutonomousResearchLoop:
         claim=self.db.one("SELECT status,classification,confidence FROM claims WHERE id=?",(run["claim_id"],))
         if not claim: return {"ready":False,"reason":"claim missing"}
         if claim["status"]!="SUPPORTED": return {"ready":False,"reason":"claim is not SUPPORTED"}
-        if claim["classification"] not in {"FACT","INTERPRETATION"}: return {"ready":False,"reason":"claim classification is not intervention-eligible"}
+        if claim["classification"] not in {"FACT","INFERENCE"}: return {"ready":False,"reason":"claim classification is not intervention-eligible"}
         return {"ready":True,"claim":claim,"policy":"eligibility gate only; does not imply efficacy"}
+    def next_action(self,run_id):
+        run=self.get(run_id)
+        actions={
+            "GAP_IDENTIFIED":"START_RESEARCH",
+            "RESEARCH_ACTIVE":"COMPLETE_RESEARCH_AND_SUBMIT_REVIEWED_SYNTHESIS",
+            "SYNTHESIS_READY":"PROMOTE_TO_CANDIDATE_FINDING",
+            "FINDING_CANDIDATE":"CREATE_CLAIM_WITH_FINDING_PROVENANCE",
+            "CLAIM_CANDIDATE":"SCIENTIFIC_ADMISSION_RECHECK",
+        }
+        action=actions.get(run["status"],"OBSERVE")
+        return {"run":run,"next_action":action,"terminal":run["status"] in {"INTERVENTION_READY","CLOSED","FAILED"}}
     def get(self,run_id):
         row=self.db.one("SELECT * FROM research_loop_runs WHERE id=?",(run_id,))
         if not row: raise ValueError("research loop not found")
