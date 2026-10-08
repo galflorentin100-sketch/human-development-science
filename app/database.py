@@ -702,6 +702,20 @@ CREATE TABLE IF NOT EXISTS evidence_reviews (id TEXT PRIMARY KEY, evidence_id TE
 CREATE UNIQUE INDEX IF NOT EXISTS idx_evidence_review_reviewer ON evidence_reviews(evidence_id,reviewer);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id);"""
 PHASE5_SCHEMA = """CREATE TABLE IF NOT EXISTS study_protocol_versions (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), version INTEGER NOT NULL, snapshot TEXT NOT NULL, content_hash TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(study_id,version)); """
+RESEARCH_AUTONOMY_SCHEMA = """
+CREATE TABLE IF NOT EXISTS research_evidence_review_tasks (
+ id TEXT PRIMARY KEY,
+ evidence_id TEXT NOT NULL REFERENCES evidence(id),
+ workspace_id TEXT NOT NULL REFERENCES research_workspaces(id),
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ reviewer_agent_id TEXT NOT NULL REFERENCES agents(id),
+ status TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ completed_at TEXT,
+ UNIQUE(evidence_id,reviewer_agent_id)
+);
+CREATE INDEX IF NOT EXISTS idx_research_evidence_review_workspace ON research_evidence_review_tasks(workspace_id,status);
+"""
 PHASE_AGENT_OUTPUT_SCHEMA = """CREATE TABLE IF NOT EXISTS agent_output_reviews (id TEXT PRIMARY KEY, agent_run_id TEXT NOT NULL REFERENCES agent_runs(id), project_id TEXT REFERENCES projects(id), task_id TEXT REFERENCES tasks(id), evidence_refs TEXT NOT NULL, provenance_hash TEXT NOT NULL, status TEXT NOT NULL, reviewer TEXT, rationale TEXT, created_at TEXT NOT NULL, reviewed_at TEXT);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_output_reviews_run ON agent_output_reviews(agent_run_id);
 """
@@ -1006,7 +1020,7 @@ class PostgreSQLDatabase:
     def audit(self,event_type,entity_type,entity_id,actor,payload,created_at,audit_id): self.execute("INSERT INTO audit_logs VALUES (?, ?, ?, ?, ?, ?, ?)",(audit_id,event_type,entity_type,entity_id,actor,json.dumps(payload),created_at))
     def migrate(self):
         statements=[]
-        for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE_AGENT_OUTPUT_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA,PHASE6_SCHEMA,PHASE7_SCHEMA,OPTIONAL_SCIENCE_SCHEMA,HUMAN_DEVELOPMENT_SCHEMA):
+        for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE_AGENT_OUTPUT_SCHEMA,RESEARCH_AUTONOMY_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA,PHASE6_SCHEMA,PHASE7_SCHEMA,OPTIONAL_SCIENCE_SCHEMA,HUMAN_DEVELOPMENT_SCHEMA):
             in_trigger=False
             for raw in schema.split(";"):
                 statement=raw.strip()
