@@ -2109,6 +2109,15 @@ def create_hds_research_loop(body: dict, principal: Principal = Depends(principa
     try: return AutonomousResearchLoop(db).create_gap(body["project_id"],body["gap"],principal.user_id)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
 
+@app.post("/api/hds/research-loops/bootstrap")
+def bootstrap_hds_research(body: ResearchRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        return AutonomousResearchLoop(db).bootstrap_research(body.question, principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
 @app.post("/api/hds/research-loops/{run_id}/start")
 def start_hds_research_loop(run_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
