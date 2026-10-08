@@ -769,6 +769,30 @@ CREATE TABLE IF NOT EXISTS autonomy_iterations (id TEXT PRIMARY KEY, project_id 
 CREATE TABLE IF NOT EXISTS research_loop_runs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), gap TEXT NOT NULL, workspace_id TEXT, synthesis_id TEXT, finding_id TEXT, claim_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_research_loop_runs_project_status ON research_loop_runs(project_id,status,updated_at);
 CREATE INDEX IF NOT EXISTS idx_research_loop_runs_workspace ON research_loop_runs(workspace_id);
+CREATE TABLE IF NOT EXISTS research_retrieval_runs (
+ id TEXT PRIMARY KEY,
+ workspace_id TEXT NOT NULL REFERENCES research_workspaces(id),
+ provider TEXT NOT NULL,
+ query TEXT NOT NULL,
+ status TEXT NOT NULL,
+ result_count INTEGER NOT NULL DEFAULT 0,
+ error TEXT,
+ created_at TEXT NOT NULL,
+ completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_research_retrieval_runs_workspace ON research_retrieval_runs(workspace_id,created_at);
+CREATE TABLE IF NOT EXISTS research_retrieval_results (
+ id TEXT PRIMARY KEY,
+ retrieval_run_id TEXT NOT NULL REFERENCES research_retrieval_runs(id),
+ workspace_id TEXT NOT NULL REFERENCES research_workspaces(id),
+ source_id TEXT NOT NULL REFERENCES sources(id),
+ provider_record_id TEXT NOT NULL,
+ rank INTEGER NOT NULL,
+ metadata TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(retrieval_run_id,provider_record_id)
+);
+CREATE INDEX IF NOT EXISTS idx_research_retrieval_results_workspace ON research_retrieval_results(workspace_id,rank);
 """
 
 _PHASE3_COLUMNS={"evidence":{"created_by":"TEXT NOT NULL DEFAULT 'system'","excerpt_hash":"TEXT NOT NULL DEFAULT ''"},"claim_revisions":{"source_finding_id":"TEXT","previous_statement":"TEXT NOT NULL DEFAULT ''","new_statement":"TEXT NOT NULL DEFAULT ''","previous_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","new_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","rationale":"TEXT NOT NULL DEFAULT ''","evidence_refs":"TEXT NOT NULL DEFAULT '[]'","revised_by":"TEXT NOT NULL DEFAULT 'system'","status":"TEXT NOT NULL DEFAULT 'PROPOSED'","prior_classification":"TEXT NOT NULL DEFAULT ''","prior_confidence":"REAL NOT NULL DEFAULT 0","new_classification":"TEXT NOT NULL DEFAULT ''","new_confidence":"REAL NOT NULL DEFAULT 0","reason":"TEXT NOT NULL DEFAULT ''","evidence_id":"TEXT","review_required":"INTEGER NOT NULL DEFAULT 1"},"idempotency_keys":{"status":"TEXT NOT NULL DEFAULT 'COMPLETED'","claim_token":"TEXT","lease_expires_at":"TEXT"},"approvals":{"reason":"TEXT","evidence":"TEXT NOT NULL DEFAULT '[]'","expected_outcome":"TEXT","expires_at":"TEXT","approved_by":"TEXT","resolved_at":"TEXT","correlation_id":"TEXT"},"sources":{"state":"TEXT NOT NULL DEFAULT 'DISCOVERED'","fetched_at":"TEXT","parsed_at":"TEXT","content_hash":"TEXT","rejection_reason":"TEXT"},"evidence_sources":{"content":"TEXT"},"claims":{"updated_at":"TEXT","interpretation":"TEXT","review_required":"INTEGER NOT NULL DEFAULT 0"},"studies":{"status":"TEXT NOT NULL DEFAULT 'APPROVED'","protocol_snapshot":"TEXT","protocol_hash":"TEXT","approval_id":"TEXT","project_id":"TEXT"}}
