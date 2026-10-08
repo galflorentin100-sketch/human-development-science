@@ -80,9 +80,18 @@ class AutonomousResearchLoop:
         return {"ready":True,"claim":claim,"policy":"eligibility gate only; does not imply efficacy"}
     def next_action(self,run_id):
         run=self.get(run_id)
+        if run["status"]=="RESEARCH_ACTIVE":
+            retrieved=self.db.one(
+                "SELECT id,status,result_count FROM research_retrieval_runs WHERE workspace_id=? ORDER BY created_at DESC LIMIT 1",
+                (run["workspace_id"],),
+            )
+            if not retrieved or retrieved["status"] not in {"COMPLETED","PARTIAL"} or int(retrieved["result_count"] or 0) == 0:
+                return {"run":run,"next_action":"RETRIEVE_SCIENTIFIC_SOURCES","terminal":False,
+                        "retrieval":retrieved,"policy":"discovery only; retrieved sources remain unverified"}
+            return {"run":run,"next_action":"EXECUTE_RESEARCH_AGENT","terminal":False,
+                    "retrieval":retrieved,"policy":"agent receives only retrieved, explicitly unverified source material"}
         actions={
             "GAP_IDENTIFIED":"START_RESEARCH",
-            "RESEARCH_ACTIVE":"COMPLETE_RESEARCH_AND_SUBMIT_REVIEWED_SYNTHESIS",
             "SYNTHESIS_READY":"PROMOTE_TO_CANDIDATE_FINDING",
             "FINDING_CANDIDATE":"CREATE_CLAIM_WITH_FINDING_PROVENANCE",
             "CLAIM_CANDIDATE":"SCIENTIFIC_ADMISSION_RECHECK",
