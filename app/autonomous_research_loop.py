@@ -129,7 +129,7 @@ class AutonomousResearchLoop:
                         "retrieval":retrieved,"task":task}
             review=self.db.one("SELECT * FROM agent_output_reviews WHERE agent_run_id=?",(task["agent_run_id"],))
             if not review:
-                return {"run":run,"next_action":"MATERIALIZE_CANDIDATE_EVIDENCE","terminal":False,
+                return {"run":run,"next_action":"SUBMIT_AGENT_OUTPUT_FOR_GOVERNED_REVIEW","terminal":False,
                         "retrieval":retrieved,"agent_run_id":task["agent_run_id"]}
             evidence=self.db.all(
                 """SELECT ret.id,ret.status,e.verified
