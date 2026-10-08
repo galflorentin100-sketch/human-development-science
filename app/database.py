@@ -705,6 +705,7 @@ PHASE5_SCHEMA = """CREATE TABLE IF NOT EXISTS study_protocol_versions (id TEXT P
 RESEARCH_AUTONOMY_SCHEMA = """
 CREATE TABLE IF NOT EXISTS research_evidence_review_tasks (
  id TEXT PRIMARY KEY,
+ task_id TEXT UNIQUE,
  evidence_id TEXT NOT NULL REFERENCES evidence(id),
  workspace_id TEXT NOT NULL REFERENCES research_workspaces(id),
  project_id TEXT NOT NULL REFERENCES projects(id),
@@ -1036,7 +1037,7 @@ class PostgreSQLDatabase:
                 statements.append(statement)
         with self.connect() as con:
             for statement in statements: con.execute(self._sql(statement))
-            for table,columns in {**_PHASE2_COLUMNS,**_PHASE3_COLUMNS,**{'study_outcomes':{'observation_type':"TEXT NOT NULL DEFAULT 'TRAINING'","timepoint":"TEXT"},"idempotency_keys":{"status":"TEXT NOT NULL DEFAULT 'COMPLETED'","claim_token":"TEXT","lease_expires_at":"TEXT"},"code_change_proposals":{"approval_id":"TEXT"}}}.items():
+            for table,columns in {**_PHASE2_COLUMNS,**_PHASE3_COLUMNS,**{'research_evidence_review_tasks':{'task_id':'TEXT UNIQUE'},'study_outcomes':{'observation_type':"TEXT NOT NULL DEFAULT 'TRAINING'","timepoint":"TEXT"},"idempotency_keys":{"status":"TEXT NOT NULL DEFAULT 'COMPLETED'","claim_token":"TEXT","lease_expires_at":"TEXT"},"code_change_proposals":{"approval_id":"TEXT"}}}.items():
                 existing={row["column_name"] for row in con.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=%s",(table,)).fetchall()}
                 for name,definition in columns.items():
                     if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
