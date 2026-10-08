@@ -113,8 +113,42 @@ class AutonomousResearchLoop:
             if not retrieved or retrieved["status"] not in {"COMPLETED","PARTIAL"} or int(retrieved["result_count"] or 0) == 0:
                 return {"run":run,"next_action":"RETRIEVE_SCIENTIFIC_SOURCES","terminal":False,
                         "retrieval":retrieved,"policy":"discovery only; retrieved sources remain unverified"}
-            return {"run":run,"next_action":"EXECUTE_RESEARCH_AGENT","terminal":False,
-                    "retrieval":retrieved,"policy":"agent receives only retrieved, explicitly unverified source material"}
+            task=self.db.one(
+                """SELECT t.*,r.agent_run_id,r.status AS output_review_status
+                   FROM research_agent_tasks rat
+                   JOIN tasks t ON t.id=rat.task_id
+                   LEFT JOIN agent_runs r ON r.task_id=t.id
+                   WHERE rat.workspace_id=? ORDER BY rat.created_at DESC LIMIT 1""",
+                (run["workspace_id"],),
+            )
+            if not task:
+                return {"run":run,"next_action":"EXECUTE_RESEARCH_AGENT","terminal":False,
+                        "retrieval":retrieved,"policy":"agent receives only retrieved, explicitly unverified source material"}
+            if not task.get("agent_run_id"):
+                return {"run":run,"next_action":"WAIT_RESEARCH_AGENT_EXECUTION","terminal":False,
+                        "retrieval":retrieved,"task":task}
+            review=self.db.one("SELECT * FROM agent_output_reviews WHERE agent_run_id=?",(task["agent_run_id"],))
+            if not review:
+                return {"run":run,"next_action":"MATERIALIZE_CANDIDATE_EVIDENCE","terminal":False,
+                        "retrieval":retrieved,"agent_run_id":task["agent_run_id"]}
+            evidence=self.db.all(
+                """SELECT ret.id,ret.status,e.verified
+                   FROM research_evidence_review_tasks ret
+                   JOIN evidence e ON e.id=ret.evidence_id
+                   WHERE ret.workspace_id=? ORDER BY ret.created_at""",
+                (run["workspace_id"],),
+            )
+            if evidence and any(str(x["status"])!="COMPLETED" or int(x["verified"] or 0)!=1 for x in evidence):
+                return {"run":run,"next_action":"INDEPENDENT_EVIDENCE_REVIEW","terminal":False,
+                        "evidence_reviews":evidence}
+            if review["status"]=="NEEDS_EVIDENCE":
+                return {"run":run,"next_action":"SUBMIT_VERIFIED_EVIDENCE_TO_AGENT_GATE","terminal":False,
+                        "agent_output_review_id":review["id"]}
+            if review["status"]=="READY_FOR_REVIEW":
+                return {"run":run,"next_action":"REVIEW_AGENT_OUTPUT","terminal":False,
+                        "agent_output_review_id":review["id"]}
+            return {"run":run,"next_action":"BUILD_REVIEWED_SYNTHESIS","terminal":False,
+                    "agent_output_review_id":review["id"]}
         actions={
             "GAP_IDENTIFIED":"START_RESEARCH",
             "SYNTHESIS_READY":"PROMOTE_TO_CANDIDATE_FINDING",
