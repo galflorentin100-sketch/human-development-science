@@ -34,9 +34,16 @@ class ResearchEvidenceMaterializer:
 
         payload=self._payload(run["output_payload"])
         candidates=payload.get("candidate_claims",[])
-        if isinstance(payload.get("result"),dict):
-            result=payload["result"]
+        result=payload.get("result")
+        if isinstance(result,dict):
             candidates=result.get("candidate_claims",candidates)
+        elif isinstance(result,str) and result.strip():
+            try:
+                parsed_result=json.loads(result)
+            except (TypeError,ValueError):
+                parsed_result={}
+            if isinstance(parsed_result,dict):
+                candidates=parsed_result.get("candidate_claims",candidates)
         if not isinstance(candidates,list):
             raise ValueError("candidate_claims must be a JSON list")
 
