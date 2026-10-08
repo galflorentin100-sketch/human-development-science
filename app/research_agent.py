@@ -26,12 +26,53 @@ class ResearchAgentService:
         if ws["status"]!="ACTIVE": raise ValueError("research workspace must be ACTIVE")
         agent=agent_id or self._researcher_agent()
         if not agent: raise ValueError("researcher agent not found")
+        source_rows=self.db.all(
+            """SELECT r.source_id,r.provider_record_id,r.rank,s.title,s.url,s.authors,s.publication_year,s.source_type,
+                      COALESCE(es.content,'') AS content
+               FROM research_retrieval_results r
+               JOIN sources s ON s.id=r.source_id
+               LEFT JOIN evidence_sources es ON es.source_id=r.source_id AND es.state='PARSED'
+               WHERE r.workspace_id=?
+               AND r.retrieval_run_id=(SELECT id FROM research_retrieval_runs WHERE workspace_id=? ORDER BY created_at DESC LIMIT 1)
+               ORDER BY r.rank
+               LIMIT 50""",
+            (workspace_id,workspace_id),
+        )
+        source_packet=[]
+        for row in source_rows:
+            source_packet.append({
+                "source_id":row["source_id"],
+                "provider_record_id":row["provider_record_id"],
+                "rank":row["rank"],
+                "title":row["title"],
+                "url":row["url"],
+                "authors":row["authors"],
+                "publication_year":row["publication_year"],
+                "source_type":row["source_type"],
+                "abstract":(row["content"] or "")[:12000],
+                "verified":False,
+            })
+        if not source_packet:
+            raise ValueError("scientific retrieval must produce source material before researcher execution")
         payload={
             "action":"research","workspace_id":workspace_id,"question":ws["question"],
             "scope":ws["scope"],"inclusion_rules":json.loads(ws["inclusion_rules"] or "[]"),
             "exclusion_rules":json.loads(ws["exclusion_rules"] or "[]"),
-            "required_output":{"sources":"source IDs with relevance and provenance","synthesis":"evidence-grounded synthesis","limitations":"known limitations","uncertainty":"explicit uncertainty","evidence_refs":"IDs only for evidence actually used"},
-            "guardrails":["Do not invent sources or evidence IDs.","Do not claim causality from descriptive evidence.","Separate evidence from interpretation.","Return insufficient-evidence when support is missing."]
+            "source_packet":source_packet,
+            "required_output":{
+                "candidate_claims":"JSON list; each item must contain statement, classification, source_id, exact_excerpt, stance",
+                "synthesis":"evidence-grounded synthesis using only the supplied source packet",
+                "limitations":"known limitations and missing evidence",
+                "uncertainty":"explicit uncertainty and contradictions",
+            },
+            "guardrails":[
+                "Do not invent sources, studies, evidence IDs, quotations, samples, statistics, or results.",
+                "Every candidate claim must cite one supplied source_id and an exact excerpt copied from that source packet.",
+                "If the supplied material is insufficient, return an empty candidate_claims list and say so.",
+                "Do not claim causality from observational or correlational evidence.",
+                "Separate source observations from interpretation.",
+                "All supplied source material is unverified until an independent evidence review accepts it.",
+            ]
         }
         from uuid import uuid4
         task_id=str(uuid4()); ts=now()
