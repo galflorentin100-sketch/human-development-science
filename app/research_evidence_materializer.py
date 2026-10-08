@@ -170,7 +170,7 @@ class ResearchEvidenceMaterializer:
             rid=str(uuid4())
             con.execute(
                 """INSERT INTO research_evidence_review_tasks
-                   (id,evidence_id,workspace_id,project_id,reviewer_agent_id,status,created_at)
-                   VALUES (?,?,?,?,?,?,?)""",
-                (rid,evidence_id,workspace_id,project_id,reviewer["id"],"PLANNED",ts))
+                   (id,task_id,evidence_id,workspace_id,project_id,reviewer_agent_id,status,created_at)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (rid,task_id,evidence_id,workspace_id,project_id,reviewer["id"],"PLANNED",ts))
         return self.db.one("SELECT * FROM research_evidence_review_tasks WHERE id=?",(rid,))
