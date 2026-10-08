@@ -15,6 +15,31 @@ class AutonomousResearchLoop:
         i=str(uuid4()); ts=now()
         self.db.execute("INSERT INTO research_loop_runs(id,project_id,gap,status,created_at,updated_at) VALUES (?,?,?,?,?,?)",(i,project_id,gap.strip(),"GAP_IDENTIFIED",ts,ts))
         return self.get(i)
+
+    def bootstrap_research(self, question, owner="system"):
+        question=str(question or "").strip()
+        if not question:
+            raise ValueError("research question is required")
+        project_id=str(uuid4())
+        ts=now()
+        owner_agent=self.db.one(
+            "SELECT id FROM agents WHERE status='ACTIVE' AND (id='chief-scientist' OR role='chief-scientist') ORDER BY created_at LIMIT 1"
+        )
+        if not owner_agent:
+            raise ValueError("chief-scientist agent not found")
+        with self.db.transaction() as con:
+            con.execute(
+                "INSERT INTO projects(id,company_id,objective,status,owner_agent_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
+                (project_id,"hds",question,"RUNNING",owner_agent["id"],ts,ts),
+            )
+            loop_id=str(uuid4())
+            con.execute(
+                "INSERT INTO research_loop_runs(id,project_id,gap,status,created_at,updated_at) VALUES (?,?,?,?,?,?)",
+                (loop_id,project_id,question,"GAP_IDENTIFIED",ts,ts),
+            )
+        return {"project":self.db.one("SELECT * FROM projects WHERE id=?",(project_id,)),
+                "run":self.get(loop_id),
+                "next_action":"START_RESEARCH"}
     def start_research(self,run_id,owner="system"):
         run=self.get(run_id)
         claimed=self.db.execute(
