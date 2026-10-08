@@ -14,32 +14,6 @@ class ResearchEngine:
 
     def __init__(self,db):
         self.db=db
-        self._ensure()
-
-    def _ensure(self):
-        self.db.execute("""CREATE TABLE IF NOT EXISTS research_workspaces (
-            id TEXT PRIMARY KEY, project_id TEXT NOT NULL, question TEXT NOT NULL,
-            scope TEXT NOT NULL, inclusion_rules TEXT NOT NULL, exclusion_rules TEXT NOT NULL,
-            status TEXT NOT NULL, owner TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-        )""")
-        self.db.execute("""CREATE TABLE IF NOT EXISTS research_workspace_sources (
-            id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES research_workspaces(id),
-            source_id TEXT NOT NULL REFERENCES sources(id), relevance TEXT NOT NULL,
-            notes TEXT NOT NULL, content_hash TEXT, reviewed INTEGER NOT NULL DEFAULT 0,
-            created_at TEXT NOT NULL, UNIQUE(workspace_id,source_id)
-        )""")
-        self.db.execute("""CREATE TABLE IF NOT EXISTS research_syntheses (
-            id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES research_workspaces(id),
-            synthesis TEXT NOT NULL, limitations TEXT NOT NULL, uncertainty TEXT NOT NULL,
-            provenance_hash TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]',
-            status TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL
-        )""")
-        cols=set(self.db.table_columns("research_workspaces"))
-        if "research_queue_id" not in cols:
-            self.db.execute("ALTER TABLE research_workspaces ADD COLUMN research_queue_id TEXT")
-        cols=set(self.db.table_columns("research_syntheses"))
-        if "evidence_refs" not in cols:
-            self.db.execute("ALTER TABLE research_syntheses ADD COLUMN evidence_refs TEXT NOT NULL DEFAULT '[]'")
 
     def create(self,project_id,question,scope="",inclusion_rules=(),exclusion_rules=(),owner="system"):
         if not str(project_id or "").strip(): raise ValueError("project_id is required")
@@ -193,7 +167,14 @@ class ResearchEngine:
             con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
                         (str(uuid4()),"research_synthesis.reviewed","research_synthesis",synthesis_id,reviewer,
                          json.dumps({"decision":decision,"rationale":rationale,"research_queue_completed":queue_completed},sort_keys=True),ts))
-        return self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
+        result=self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
+        if decision=="ACCEPTED":
+            from app.research_handoff import ResearchHandoffCoordinator
+            handoff=ResearchHandoffCoordinator(self.db).complete_accepted_synthesis(
+                workspace["project_id"],synthesis_id,actor=reviewer)
+            result=dict(result)
+            result["handoff"]=handoff
+        return result
 
     def readiness(self,synthesis_id):
         syn=self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))

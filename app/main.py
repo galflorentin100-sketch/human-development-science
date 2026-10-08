@@ -95,6 +95,10 @@ class ResearchSynthesisRequest(BaseModel):
     synthesis: str = Field(min_length=1, max_length=20000)
     limitations: str = ""
     uncertainty: str = ""
+class ScientificRetrievalRequest(BaseModel):
+    query: str | None = Field(default=None, max_length=4000)
+    providers: list[str] = Field(default_factory=lambda: ["pubmed", "crossref"])
+    limit: int = Field(default=20, ge=1, le=50)
 class ExperimentRequest(BaseModel):
     project_id: str; hypothesis: str = Field(min_length=1); design: str = Field(min_length=1)
 class ConstructRequest(BaseModel):
@@ -848,7 +852,7 @@ def attach_training_protocol_evidence(protocol_id: str, body: dict, principal: P
 
 @app.post("/api/science/training-protocols/{protocol_id}/sessions")
 def record_training_session(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     require_resource_project(principal, "training_protocol", protocol_id, "WRITE")
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).session(
@@ -2038,7 +2042,7 @@ def hds_training_progression(protocol_id: str, participant_ref: str, principal: 
 
 @app.post("/api/hds/challenges/{challenge_id}/participants/{participant_id}/start")
 def start_hds_challenge(challenge_id: str, participant_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     from app.adaptive_training import ChallengeExecutionService
     project_id=body.get("project_id")
     if not project_id: raise HTTPException(400,"project_id is required")
@@ -2048,7 +2052,7 @@ def start_hds_challenge(challenge_id: str, participant_id: str, body: dict, prin
 
 @app.post("/api/hds/challenge-executions/{execution_id}/stop")
 def stop_hds_challenge(execution_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     row=db.one("SELECT project_id FROM hds_challenge_executions WHERE id=?",(execution_id,))
     if not row: raise HTTPException(404,"challenge execution not found")
     require_project(principal,row["project_id"],"WRITE")
@@ -2058,7 +2062,7 @@ def stop_hds_challenge(execution_id: str, body: dict, principal: Principal = Dep
 
 @app.post("/api/hds/projects/{project_id}/challenge-executions/emergency-stop")
 def emergency_stop_hds_challenges(project_id: str, body: dict, challenge_id: str | None = None, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     require_project(principal, project_id, "WRITE")
     from app.adaptive_training import ChallengeExecutionService
     try:
@@ -2070,7 +2074,7 @@ def emergency_stop_hds_challenges(project_id: str, body: dict, challenge_id: str
 
 @app.post("/api/hds/challenge-executions/{execution_id}/complete")
 def complete_hds_challenge(execution_id: str, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     row=db.one("SELECT project_id FROM hds_challenge_executions WHERE id=?",(execution_id,))
     if not row: raise HTTPException(404,"challenge execution not found")
     require_project(principal,row["project_id"],"WRITE")
@@ -2090,7 +2094,7 @@ def adaptive_hds_training(protocol_id: str, participant_ref: str, principal: Pri
 
 @app.post("/api/hds/training/{protocol_id}/participants/{participant_ref}/adaptive")
 def apply_adaptive_hds_training(protocol_id: str, participant_ref: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     protocol=db.one("SELECT project_id FROM training_protocols WHERE id=?",(protocol_id,))
     if not protocol: raise HTTPException(404,"training protocol not found")
     require_project(principal,protocol["project_id"],"WRITE")
@@ -2105,6 +2109,15 @@ def create_hds_research_loop(body: dict, principal: Principal = Depends(principa
     try: return AutonomousResearchLoop(db).create_gap(body["project_id"],body["gap"],principal.user_id)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
 
+@app.post("/api/hds/research-loops/bootstrap")
+def bootstrap_hds_research(body: ResearchRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        return AutonomousResearchLoop(db).bootstrap_research(body.question, principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
 @app.post("/api/hds/research-loops/{run_id}/start")
 def start_hds_research_loop(run_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
@@ -2114,6 +2127,60 @@ def start_hds_research_loop(run_id: str, principal: Principal = Depends(principa
         return AutonomousResearchLoop(db).start_research(run_id,principal.user_id)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
 
+@app.post("/api/hds/research-loops/{run_id}/retrieve")
+def retrieve_hds_research_sources(run_id: str, body: ScientificRetrievalRequest, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    from app.scientific_retrieval import ScientificRetrievalService
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"EXECUTE")
+        if not run["workspace_id"]:
+            raise ValueError("research loop has no active workspace")
+        if run["status"]!="RESEARCH_ACTIVE":
+            raise ValueError("research retrieval requires an active research loop")
+        return ScientificRetrievalService(db).retrieve(
+            run["workspace_id"],
+            body.query,
+            tuple(body.providers),
+            body.limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.get("/api/hds/research-loops/{run_id}/sources")
+def list_hds_research_sources(run_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    from app.scientific_retrieval import ScientificRetrievalService
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"READ")
+        if not run["workspace_id"]:
+            raise ValueError("research loop has no research workspace")
+        return {"items": ScientificRetrievalService(db).list_results(run["workspace_id"])}
+    except ValueError as exc:
+        raise HTTPException(404,str(exc)) from exc
+
+@app.get("/api/hds/research-loops/project/{project_id}")
+def list_hds_research_loops(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    require_project(principal,project_id,"READ")
+    if status:
+        return {"items":db.all("SELECT * FROM research_loop_runs WHERE project_id=? AND status=? ORDER BY updated_at DESC",(project_id,status))}
+    return {"items":db.all("SELECT * FROM research_loop_runs WHERE project_id=? ORDER BY updated_at DESC",(project_id,))}
+
+@app.get("/api/hds/research-loops/{run_id}/next-action")
+def next_hds_research_loop_action(run_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"READ")
+        return AutonomousResearchLoop(db).next_action(run_id)
+    except ValueError as exc:
+        raise HTTPException(404,str(exc)) from exc
+
 @app.get("/api/hds/research-loops/{run_id}")
 def get_hds_research_loop(run_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
@@ -2121,6 +2188,54 @@ def get_hds_research_loop(run_id: str, principal: Principal = Depends(principal_
     try:
         run=AutonomousResearchLoop(db).get(run_id); require_project(principal,run["project_id"],"READ"); return run
     except ValueError as exc: raise HTTPException(404,str(exc)) from exc
+
+@app.post("/api/hds/research-loops/{run_id}/synthesis")
+def attach_hds_research_synthesis(run_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"EXECUTE")
+        return AutonomousResearchLoop(db).attach_synthesis(run_id,body["synthesis_id"])
+    except KeyError as exc:
+        raise HTTPException(400,f"missing field: {exc.args[0]}") from exc
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/research-loops/{run_id}/finding")
+def promote_hds_research_finding(run_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"EXECUTE")
+        return AutonomousResearchLoop(db).promote_reviewed_synthesis_to_finding(run_id,principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/research-loops/{run_id}/claim")
+def link_hds_research_claim(run_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"WRITE")
+        return AutonomousResearchLoop(db).mark_claimed(run_id,body["claim_id"])
+    except KeyError as exc:
+        raise HTTPException(400,f"missing field: {exc.args[0]}") from exc
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.get("/api/hds/research-loops/{run_id}/intervention-readiness")
+def hds_research_intervention_readiness(run_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"READ")
+        return AutonomousResearchLoop(db).ready_for_intervention(run_id)
+    except ValueError as exc:
+        raise HTTPException(404,str(exc)) from exc
 
 @app.get("/api/hds/company/{project_id}/analytics")
 def hds_company_analytics(project_id: str, principal: Principal = Depends(principal_from_header)):

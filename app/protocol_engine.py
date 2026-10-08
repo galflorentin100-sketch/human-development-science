@@ -4,6 +4,8 @@ class ProtocolEngine:
     def next_session(self,protocol_id,participant_ref):
         p=self.db.one("SELECT * FROM training_protocols WHERE id=?",(protocol_id,))
         if not p: raise ValueError("training protocol not found")
+        from app.scientific_admission import ScientificAdmissionGate
+        ScientificAdmissionGate(self.db).assert_training_operational(protocol_id)
         rows=self.db.all("SELECT * FROM training_sessions WHERE protocol_id=? AND participant_ref=? ORDER BY session_number DESC LIMIT 1",(protocol_id,str(participant_ref)))
         last=rows[0] if rows else None
         n=(int(last["session_number"])+1) if last else 1

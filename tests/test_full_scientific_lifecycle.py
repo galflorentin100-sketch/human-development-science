@@ -14,6 +14,29 @@ from app.outcome_feedback import OutcomeFeedbackService
 from app.training_outcomes import TrainingOutcomeAnalyzer
 
 
+def test_new_intervention_cannot_bypass_lifecycle(tmp_path):
+    db = Database(str(tmp_path / "intervention-gate.db"))
+    ResearchCycle(db).run("intervention gate")
+    registry = ScientificRegistry(db)
+    with pytest.raises(ValueError, match="must start as EXPERIMENTAL"):
+        registry.intervention("Bypass", "rationale", "mechanism", "SUPPORTED", "daily", "adults", status="SUPPORTED")
+
+
+def test_intervention_supported_requires_supported_parent_claim(tmp_path):
+    db = Database(str(tmp_path / "intervention-parent-claim.db"))
+    project = ResearchCycle(db).run("intervention parent claim")["project"]
+    registry = ScientificRegistry(db)
+    intervention = registry.intervention("I", "rationale", "mechanism", "SUPPORTED", "daily", "adults", project_id=project["id"])
+    claim_id = "claim-parent-1"
+    db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?)",(claim_id,project["id"],"candidate","HYPOTHESIS","PRELIMINARY",0.5,"PROPOSED",project["created_at"]))
+    source = EvidencePipeline(db).register_source("source","https://example.org/source")
+    evidence = EvidencePipeline(db).attach(claim_id, source["id"], "excerpt")
+    EvidencePipeline(db).review(evidence["id"], "reviewer", "VERIFIED", "checked")
+    registry.intervention_evidence(intervention["id"], "OBSERVATIONAL", evidence["id"])
+    InterventionLifecycle(db).promote(intervention["id"], "PILOT", "chief-scientist", "pilot")
+    with pytest.raises(ValueError, match="supported claim"):
+        InterventionLifecycle(db).promote(intervention["id"], "SUPPORTED", "chief-scientist", "support")
+
 def test_full_scientific_lifecycle_requires_governed_transitions(tmp_path):
     db = Database(str(tmp_path / "full-lifecycle.db"))
     project = ResearchCycle(db).run("full scientific lifecycle")["project"]
@@ -138,6 +161,15 @@ def test_full_scientific_lifecycle_requires_governed_transitions(tmp_path):
         protocol["id"], participant_ref=participant, created_by="researcher"
     )
     assert feedback["status"] == "CANDIDATE"
+    assert feedback["scientific_status"] == "CANDIDATE_ONLY"
+    assert feedback["research_proposal"]["status"] == "PROPOSED"
+    assert "Investigate observed training outcomes" in feedback["research_proposal"]["question"]
+    next_question=db.one(
+        "SELECT * FROM research_questions WHERE project_id=? AND question=?",
+        (pid, feedback["research_proposal"]["question"]),
+    )
+    assert next_question["status"] == "OPEN"
+    assert next_question["trigger_type"] == "OUTCOME_FEEDBACK"
 
     candidate = db.one(
         "SELECT * FROM research_findings WHERE id=?",
@@ -152,3 +184,48 @@ def test_full_scientific_lifecycle_requires_governed_transitions(tmp_path):
         ResearchFindingService(db).review(
             candidate["id"], "independent-reviewer-4", "ACCEPTED", "accept"
         )
+
+
+def test_supported_intervention_admission_rechecks_parent_claim_state(tmp_path):
+    db = Database(str(tmp_path / "intervention-admission-recheck.db"))
+    project = ResearchCycle(db).run("intervention admission recheck")["project"]
+    pid = project["id"]
+    registry = ScientificRegistry(db)
+    claim_id = "supported-parent-recheck"
+    db.execute(
+        "INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (claim_id, pid, "supported basis", "HYPOTHESIS", "PRELIMINARY", 0.8, "PROPOSED", project["created_at"]),
+    )
+    source = EvidencePipeline(db).register_source("source", "https://example.org/recheck")
+    EvidencePipeline(db).ingest_text(source["id"], "recheck excerpt")
+    evidence = EvidencePipeline(db).attach(claim_id, source["id"], "recheck excerpt")
+    EvidencePipeline(db).review(evidence["id"], "reviewer", "VERIFIED", "checked")
+    ClaimStateService(db).transition(claim_id, "SUPPORTED", "chief-scientist", "verified support", evidence_id=evidence["id"])
+    intervention = registry.intervention("Recheck intervention", "rationale", "mechanism", "SUPPORTED", "daily", "adults", project_id=pid)
+    registry.intervention_evidence(intervention["id"], "OBSERVATIONAL", evidence["id"])
+    InterventionLifecycle(db).promote(intervention["id"], "PILOT", "chief-scientist", "pilot")
+    InterventionLifecycle(db).promote(intervention["id"], "SUPPORTED", "chief-scientist", "support")
+    from app.scientific_admission import ScientificAdmissionGate
+    assert ScientificAdmissionGate(db).intervention(intervention["id"])["supported"] is True
+    ClaimStateService(db).transition(claim_id, "UNCERTAIN", "chief-scientist", "new uncertainty")
+    assert ScientificAdmissionGate(db).intervention(intervention["id"])["supported"] is False
+
+
+def test_intervention_evidence_cannot_change_after_pilot(tmp_path):
+    db = Database(str(tmp_path / "intervention-evidence-freeze.db"))
+    project = ResearchCycle(db).run("intervention evidence freeze")["project"]
+    pid = project["id"]
+    registry = ScientificRegistry(db)
+    intervention = registry.intervention("Frozen intervention", "rationale", "mechanism", "PRELIMINARY", "daily", "adults", project_id=pid)
+    source = EvidencePipeline(db).register_source("source", "https://example.org/freeze")
+    EvidencePipeline(db).ingest_text(source["id"], "freeze excerpt")
+    claim_id = "freeze-claim"
+    db.execute(
+        "INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (claim_id, pid, "basis", "HYPOTHESIS", "PRELIMINARY", 0.2, "PROPOSED", project["created_at"]),
+    )
+    evidence = EvidencePipeline(db).attach(claim_id, source["id"], "freeze excerpt")
+    registry.intervention_evidence(intervention["id"], "OBSERVATIONAL", evidence["id"])
+    InterventionLifecycle(db).promote(intervention["id"], "PILOT", "chief-scientist", "pilot")
+    with pytest.raises(ValueError, match="cannot change evidence"):
+        registry.intervention_evidence(intervention["id"], "OBSERVATIONAL", evidence["id"])

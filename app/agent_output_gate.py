@@ -22,6 +22,14 @@ class AgentOutputGate:
         payload=json.loads(run["output_payload"] or "{}")
         refs=payload.get("evidence_refs") or []
         if not isinstance(refs,list): refs=[]
+        # Research-agent outputs may contain only candidate_claims at first.
+        # Materialize those into unverified evidence before creating the output review.
+        if not refs and payload.get("candidate_claims"):
+            from app.research_evidence_materializer import ResearchEvidenceMaterializer
+            materialized=ResearchEvidenceMaterializer(self.db).materialize(agent_run_id)
+            refs=[item["evidence_id"] for item in materialized["created"]]
+            payload=dict(payload)
+            payload["materialized_evidence_refs"]=refs
         canonical=json.dumps(payload,sort_keys=True,separators=(",",":"))
         digest=hashlib.sha256(canonical.encode()).hexdigest()
         status="READY_FOR_REVIEW" if refs else "NEEDS_EVIDENCE"
