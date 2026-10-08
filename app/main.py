@@ -95,6 +95,10 @@ class ResearchSynthesisRequest(BaseModel):
     synthesis: str = Field(min_length=1, max_length=20000)
     limitations: str = ""
     uncertainty: str = ""
+class ScientificRetrievalRequest(BaseModel):
+    query: str | None = Field(default=None, max_length=4000)
+    providers: list[str] = Field(default_factory=lambda: ["pubmed", "crossref"])
+    limit: int = Field(default=20, ge=1, le=50)
 class ExperimentRequest(BaseModel):
     project_id: str; hypothesis: str = Field(min_length=1); design: str = Field(min_length=1)
 class ConstructRequest(BaseModel):
@@ -2113,6 +2117,41 @@ def start_hds_research_loop(run_id: str, principal: Principal = Depends(principa
         run=AutonomousResearchLoop(db).get(run_id); require_project(principal,run["project_id"],"WRITE")
         return AutonomousResearchLoop(db).start_research(run_id,principal.user_id)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/research-loops/{run_id}/retrieve")
+def retrieve_hds_research_sources(run_id: str, body: ScientificRetrievalRequest, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    from app.scientific_retrieval import ScientificRetrievalService
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"EXECUTE")
+        if not run["workspace_id"]:
+            raise ValueError("research loop has no active workspace")
+        if run["status"]!="RESEARCH_ACTIVE":
+            raise ValueError("research retrieval requires an active research loop")
+        return ScientificRetrievalService(db).retrieve(
+            run["workspace_id"],
+            body.query,
+            tuple(body.providers),
+            body.limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.get("/api/hds/research-loops/{run_id}/sources")
+def list_hds_research_sources(run_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    from app.scientific_retrieval import ScientificRetrievalService
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"READ")
+        if not run["workspace_id"]:
+            raise ValueError("research loop has no research workspace")
+        return {"items": ScientificRetrievalService(db).list_results(run["workspace_id"])}
+    except ValueError as exc:
+        raise HTTPException(404,str(exc)) from exc
 
 @app.get("/api/hds/research-loops/project/{project_id}")
 def list_hds_research_loops(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
