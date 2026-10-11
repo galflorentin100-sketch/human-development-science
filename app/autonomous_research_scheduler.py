@@ -92,4 +92,17 @@ class AutonomousResearchScheduler:
             results.append(result)
             if result["status"] != "TASK_CREATED":
                 break
-        return {"status":"COMPLETED","cycles":len(results),"results":results}
+            # A prepared task must be executed and reviewed before scheduling
+            # another one. The scheduler itself does not yet run the agent.
+            break
+        last_status=results[-1]["status"] if results else "NO_WORK"
+        # This scheduler currently prepares a governed researcher task; it does
+        # not execute an agent/model run or finish evidence review. Never label
+        # task preparation as a completed research run.
+        if last_status == "TASK_CREATED":
+            status="TASKS_PREPARED"
+        elif last_status == "BLOCKED_NO_SOURCES":
+            status="BLOCKED_NO_SOURCES"
+        else:
+            status=last_status
+        return {"status":status,"cycles":len(results),"results":results}
