@@ -2126,7 +2126,9 @@ def bootstrap_hds_research(body: ResearchRequest, principal: Principal = Depends
                 role="founder",
             )
         return result
-    except (ValueError, PermissionError) as exc:
+    except PermissionError as exc:
+        raise HTTPException(403,str(exc)) from exc
+    except ValueError as exc:
         raise HTTPException(400,str(exc)) from exc
 
 @app.post("/api/hds/research-loops/{run_id}/start")
