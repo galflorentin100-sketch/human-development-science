@@ -21,3 +21,10 @@ def test_evidence_level_is_conservative():
     assert guard.evidence_level(0,0,0)=="UNTESTED"
     assert guard.evidence_level(1,1,0)=="SUPPORTED"
     assert guard.evidence_level(1,1,1)=="WELL_SUPPORTED"
+
+def test_local_provider_fails_closed_instead_of_emitting_placeholder_as_research():
+    from app.providers import LocalProvider, ModelRequest
+    import pytest
+
+    with pytest.raises(RuntimeError, match="No research-capable model is configured"):
+        LocalProvider().complete(ModelRequest("research", "Investigate self-discipline"))
