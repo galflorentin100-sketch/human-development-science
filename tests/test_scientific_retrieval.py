@@ -12,7 +12,7 @@ from app.workflow import ResearchCycle
 
 def _active_workspace(tmp_path):
     db = Database(str(tmp_path / "scientific-retrieval.db"))
-    project = ResearchCycle(db).run("self-discipline research")["project"]
+    ResearchCycle(db)
     run = AutonomousResearchLoop(db).bootstrap_research(
         "What is self-discipline, what components comprise it, and how can it be developed?"
     )
