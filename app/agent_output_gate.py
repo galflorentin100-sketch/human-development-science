@@ -22,6 +22,18 @@ class AgentOutputGate:
         payload=json.loads(run["output_payload"] or "{}")
         if not isinstance(payload,dict):
             payload={}
+        # AgentExecutor stores a CompanyMessage envelope; unwrap its payload before
+        # looking for structured research JSON. Preserve the envelope metadata for
+        # provenance, but never treat it as scientific evidence.
+        if isinstance(payload.get("payload"),dict) and "from_agent" in payload and "task_id" in payload:
+            envelope=payload
+            payload=dict(envelope["payload"])
+            payload["_agent_message_metadata"]={
+                "message_id":envelope.get("id"),
+                "from_agent":envelope.get("from_agent"),
+                "task_id":envelope.get("task_id"),
+                "created_at":envelope.get("created_at"),
+            }
         # Normalize the common wrapped-output shape without changing or inventing evidence.
         result_payload=payload.get("result")
         if isinstance(result_payload,str) and result_payload.strip():
