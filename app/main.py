@@ -2195,7 +2195,22 @@ def run_hds_research_first_pass(run_id: str, body: ScientificRetrievalRequest, p
             "SELECT * FROM research_retrieval_runs WHERE workspace_id=? ORDER BY created_at DESC LIMIT 1",
             (run["workspace_id"],),
         )
-        if not latest_retrieval or latest_retrieval["status"] not in {"COMPLETED", "PARTIAL"} or int(latest_retrieval["result_count"] or 0) == 0:
+        readable_material = db.one(
+            """SELECT 1 AS readable
+               FROM research_retrieval_results r
+               JOIN evidence_sources es ON es.source_id=r.source_id AND es.state='PARSED'
+               WHERE r.workspace_id=? AND TRIM(COALESCE(es.content,'')) <> ''
+               LIMIT 1""",
+            (run["workspace_id"],),
+        )
+        if (
+            not latest_retrieval
+            or latest_retrieval["status"] not in {"COMPLETED", "PARTIAL"}
+            or int(latest_retrieval["result_count"] or 0) == 0
+            or not readable_material
+        ):
+            # A fresh explicit pass may retry retrieval when prior discovery
+            # produced metadata but no readable abstracts.
             retrieval = retrieval_service.retrieve(
                 run["workspace_id"], body.query or run["gap"], tuple(body.providers), body.limit
             )
@@ -2228,6 +2243,10 @@ def run_hds_research_first_pass(run_id: str, body: ScientificRetrievalRequest, p
         # A blocked task may have been created before abstracts became available.
         # Do not leave the loop permanently blocked: create a fresh bounded task
         # only when the latest retrieval now contains readable source material.
+        if task and task["status"] in {"FAILED", "CANCELLED"}:
+            # A new explicit API call is a bounded retry after the operator has
+            # repaired configuration or a transient execution failure.
+            task = None
         if task and task["status"] == "BLOCKED":
             readable = db.one(
                 """SELECT 1 AS readable
