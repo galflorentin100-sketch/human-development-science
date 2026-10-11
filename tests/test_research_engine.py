@@ -329,3 +329,29 @@ def test_research_agent_prompt_requires_source_grounded_json():
     assert "source-123" in prompt
     assert "Self-regulation involves monitoring and adjusting behavior toward a goal." in prompt
     assert "Do not say independent review has happened" in prompt
+
+def test_research_agent_blocks_metadata_only_sources_without_readable_text(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    from app.research_agent import ResearchAgentService
+    from app.research_engine import ResearchEngine
+    from app.models import now
+    db=Database(str(tmp_path/"metadata-only-source.db")); ResearchCycle(db); pid=_setup(db)
+    aid=str(uuid.uuid4())
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+               (aid,"researcher","researcher","research","[]","[\"READ\"]","1","ACTIVE",now()))
+    engine=ResearchEngine(db)
+    ws=engine.create(pid,"What is self-discipline?",owner="founder")
+    engine.activate(ws["id"],"founder")
+    source=EvidencePipeline(db).register_source("Metadata-only paper","https://example.org/metadata-only","Author",2024)
+    db.execute("INSERT INTO research_retrieval_runs(id,workspace_id,provider,query,status,result_count,created_at) VALUES (?,?,?,?,?,?,?)",
+               ("metadata-only-run",ws["id"],"crossref","self discipline","COMPLETED",1,now()))
+    db.execute("INSERT INTO research_retrieval_results(id,retrieval_run_id,workspace_id,source_id,provider_record_id,rank,metadata,created_at) VALUES (?,?,?,?,?,?,?,?)",
+               ("metadata-only-result","metadata-only-run",ws["id"],source["id"],"doi:10.1000/metadata-only",1,"{} ",now()))
+
+    result=ResearchAgentService(db).create_task(ws["id"],agent_id=aid)
+    payload=json.loads(result["task"]["success_criteria"])
+
+    assert result["task"]["status"]=="BLOCKED"
+    assert payload["execution_authorized"] is False
+    assert payload["action"]=="FETCH_READABLE_SOURCE_TEXT"
+    assert "no readable abstract/source text" in payload["execution_blocked_reason"]
