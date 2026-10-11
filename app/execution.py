@@ -10,6 +10,45 @@ from app.cost_controls import CostControl
 @dataclass(frozen=True)
 class ExecutionResult:
     message:CompanyMessage; verified:bool; cost_metadata:dict; error:str|None=None
+def build_agent_prompt(task, task_input, context):
+    """Build an explicit evidence-bounded prompt for scientific researcher tasks."""
+    raw_criteria = task.get("success_criteria") if hasattr(task, "get") else None
+    try:
+        criteria = json.loads(raw_criteria or "{}")
+    except (TypeError, ValueError):
+        criteria = {}
+    title = str(task.get("title") or "") if hasattr(task, "get") else ""
+    if not title.startswith("[RESEARCH]") or not isinstance(criteria, dict) or "source_packet" not in criteria:
+        return json.dumps({"input": task_input, "context": context}, sort_keys=True)
+
+    research_input = {
+        "question": criteria.get("question") or title.removeprefix("[RESEARCH]").strip(),
+        "scope": criteria.get("scope"),
+        "inclusion_rules": criteria.get("inclusion_rules", []),
+        "exclusion_rules": criteria.get("exclusion_rules", []),
+        "source_packet": criteria.get("source_packet", []),
+        "required_output": criteria.get("required_output", {}),
+    }
+    return (
+        "You are the HDS scientific literature research agent. Perform only the bounded "
+        "digital research described in INPUT_JSON. Use ONLY the supplied source_packet; "
+        "do not browse or claim to have searched any additional source. Source records are "
+        "discovery-only and unverified. Never invent studies, authors, quotations, methods, "
+        "sample sizes, statistics, findings, or source IDs.\n"
+        "Return ONLY one valid JSON object with keys candidate_claims, result, limitations, "
+        "uncertainty. candidate_claims must be a list of objects with statement, classification "
+        "(FACT, INFERENCE, HYPOTHESIS, or OPINION), source_id, exact_excerpt, and stance "
+        "(SUPPORTS, CONTRADICTS, or NEUTRAL). Every exact_excerpt must be copied verbatim as a "
+        "substring of that source's supplied abstract. Every source_id must exactly match a "
+        "source_packet item. FACT means the source explicitly reports the statement, not that "
+        "the claim has been independently verified. Do not label an inference as a fact. If "
+        "the source packet has no usable abstracts or cannot support a claim, return an empty "
+        "candidate_claims list and clearly state the limitation. Do not say independent review "
+        "has happened. Keep contradictions and uncertainty explicit.\n"
+        "INPUT_JSON:\n" + json.dumps(research_input, ensure_ascii=False, sort_keys=True)
+    )
+
+
 class AgentExecutor:
     def __init__(self,db:Database,provider:ModelProvider|None=None,permissions:PermissionService|None=None):
         self.db=db; self.permissions=permissions or PermissionService(db); self.provider=ObservableProvider(provider or configured_provider(),db); self.costs=CostControl(db)
@@ -51,7 +90,7 @@ class AgentExecutor:
         run_id=str(uuid4()); started=now(); error=None
         try:
             correlation_id=str(uuid4())
-            request=ModelRequest("agent-task",json.dumps({"input":task_input,"context":context}),"local-safe",correlation_id)
+            request=ModelRequest("agent-task",build_agent_prompt(task,task_input,context),"research-safe" if str(task["title"]).startswith("[RESEARCH]") else "local-safe",correlation_id)
             preflight_cost=self.provider.preflight(request)
             if preflight_cost > 0:
                 self.costs.reserve(correlation_id,preflight_cost,"preflight","estimated","agent-task",agent_id,metadata={"task_id":task_id})
