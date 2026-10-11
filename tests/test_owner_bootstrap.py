@@ -52,3 +52,27 @@ def test_owner_provisioning_does_not_silently_escalate_existing_operator(tmp_pat
         assert False, "existing operator must not be silently escalated"
     except RuntimeError as exc:
         assert "without active founder membership" in str(exc)
+
+def test_bootstrapped_research_project_can_be_granted_to_configured_founder(tmp_path):
+    from app.autonomous_research_loop import AutonomousResearchLoop
+
+    db = Database(str(tmp_path / "owner-project-access.db"))
+    ResearchCycle(db)
+    owner_subject = "idp|owner-456"
+    provision_owner(db, owner_subject, "owner@example.org", owner_subject)
+    result = AutonomousResearchLoop(db).bootstrap_research(
+        "What is self-discipline?"
+    )
+    service = AuthService(db, owner_subject)
+    access = service.grant_project_access(
+        owner_subject,
+        owner_subject,
+        result["project"]["id"],
+        role="founder",
+    )
+    assert access.user_id
+    assert access.can("WRITE")
+    assert service.project_authorize(
+        owner_subject, result["project"]["id"], "EXECUTE"
+    ).can("EXECUTE")
+
