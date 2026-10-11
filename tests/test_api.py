@@ -628,3 +628,43 @@ def test_agent_output_gate_unwraps_company_message_envelope(tmp_path):
     review=AgentOutputGate(db).submit(run_id,project["id"])
     assert review["status"]=="READY_FOR_REVIEW"
     assert json.loads(review["evidence_refs"])==["evidence-placeholder"]
+
+def test_ollama_provider_is_explicit_and_returns_model_output(monkeypatch):
+    import json
+    from app.providers import configured_provider, ModelRequest, OllamaProvider
+    monkeypatch.setenv("HDS_MODEL_PROVIDER","ollama")
+    monkeypatch.setenv("HDS_OLLAMA_BASE_URL","http://ollama.test:11434")
+    monkeypatch.setenv("HDS_OLLAMA_MODEL","test-model")
+    provider=configured_provider()
+    assert isinstance(provider,OllamaProvider)
+    captured={}
+    class Response:
+        status_code=200
+        text=""
+        def json(self):
+            return {"message":{"content":"Evidence-bounded synthesis."},"prompt_eval_count":12,"eval_count":7}
+    def fake_post(url,**kwargs):
+        captured["url"]=url
+        captured["kwargs"]=kwargs
+        return Response()
+    monkeypatch.setattr("httpx.post",fake_post)
+    result=provider.complete(ModelRequest("research","Use only supplied source text."))
+    assert captured["url"]=="http://ollama.test:11434/api/chat"
+    assert captured["kwargs"]["json"]["model"]=="test-model"
+    assert captured["kwargs"]["json"]["stream"] is False
+    assert result.content=="Evidence-bounded synthesis."
+    assert result.provider=="ollama"
+    assert result.input_tokens==12 and result.output_tokens==7
+    assert result.estimated_cost==0.0
+
+
+def test_ollama_provider_rejects_empty_output(monkeypatch):
+    import pytest
+    from app.providers import OllamaProvider, ModelRequest
+    class Response:
+        status_code=200
+        text=""
+        def json(self): return {"message":{"content":"  "}}
+    monkeypatch.setattr("httpx.post",lambda *args,**kwargs:Response())
+    with pytest.raises(RuntimeError,match="empty model response"):
+        OllamaProvider(base_url="http://ollama.test",model="test-model").complete(ModelRequest("research","prompt"))
