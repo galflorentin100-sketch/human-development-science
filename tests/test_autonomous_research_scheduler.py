@@ -130,3 +130,34 @@ def test_self_discipline_query_plan_covers_definitions_reviews_and_trials():
     assert "measurement" in queries[1]
     assert "meta-analysis" in queries[2]
     assert "randomized" in queries[3]
+
+def test_scheduler_distinguishes_metadata_only_results_from_zero_sources(tmp_path, monkeypatch):
+    record = {
+        "record_id": "doi:10.5555/hds.metadata-only",
+        "title": "Metadata-only research record",
+        "url": "https://doi.org/10.5555/hds.metadata-only",
+        "authors": "Test Author",
+        "year": 2024,
+        "source_type": "PAPER",
+        "abstract": "",
+        "doi": "10.5555/hds.metadata-only",
+    }
+    monkeypatch.setattr(ScientificRetrievalService, "_pubmed", lambda self, query, limit: [record])
+    monkeypatch.setattr(ScientificRetrievalService, "_crossref", lambda self, query, limit: [])
+    db=Database(str(tmp_path/"scheduler-metadata-only.db"))
+    project=ResearchCycle(db).run("Self-discipline metadata-only test")["project"]
+    db.execute("UPDATE projects SET status='RUNNING' WHERE id=?",(project["id"],))
+    db.execute(
+        "INSERT INTO research_questions(id,project_id,question,status,trigger_type,priority,created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+        ("q-metadata-only",project["id"],"What is self-discipline and how is it measured?","OPEN","MANUAL",100),
+    )
+
+    result=AutonomousResearchScheduler(db).schedule_once(project["id"])
+
+    assert result["status"]=="BLOCKED_NO_READABLE_SOURCE_TEXT"
+    assert result["task"]["status"]=="BLOCKED"
+    payload=__import__("json").loads(result["task"]["success_criteria"])
+    assert payload["execution_authorized"] is False
+    run=db.one("SELECT status,reason FROM autonomous_research_runs WHERE id=?",(result["run_id"],))
+    assert run["status"]=="BLOCKED_NO_READABLE_SOURCE_TEXT"
+    assert "no readable abstract/source text" in run["reason"]
