@@ -269,3 +269,37 @@ def test_research_review_pipeline_rolls_back_partial_task_creation(tmp_path):
         assert "review agent" in str(exc)
     assert db.one("SELECT COUNT(*) AS n FROM research_review_tasks WHERE synthesis_id=?",(syn["id"],))["n"]==0
     assert db.one("SELECT COUNT(*) AS n FROM tasks WHERE project_id=? AND title LIKE ?",(pid,"%"+syn["id"]))["n"]==0
+
+def test_research_agent_packet_keeps_sources_from_multiple_retrieval_runs(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    from app.research_agent import ResearchAgentService
+    from app.research_engine import ResearchEngine
+    from app.models import now
+    db=Database(str(tmp_path/"multi-retrieval-packet.db")); ResearchCycle(db); pid=_setup(db)
+    aid=str(uuid.uuid4())
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+               (aid,"researcher","researcher","research","[]","[\"READ\"]","1","ACTIVE",now()))
+    engine=ResearchEngine(db)
+    ws=engine.create(pid,"What is self-discipline?",owner="founder")
+    engine.activate(ws["id"],"founder")
+    sources=[]
+    for idx in (1,2):
+        source=EvidencePipeline(db).register_source(
+            f"Self-discipline paper {idx}",f"https://example.org/self-discipline-{idx}",f"Author {idx}",2020+idx)
+        EvidencePipeline(db).ingest_text(source["id"],f"Exact abstract text for source {idx}.")
+        sources.append(source["id"])
+    db.execute("INSERT INTO research_retrieval_runs(id,workspace_id,provider,query,status,result_count,created_at) VALUES (?,?,?,?,?,?,?)",
+               ("retrieval-old",ws["id"],"pubmed","self discipline","COMPLETED",1,"2026-01-01T00:00:00+00:00"))
+    db.execute("INSERT INTO research_retrieval_runs(id,workspace_id,provider,query,status,result_count,created_at) VALUES (?,?,?,?,?,?,?)",
+               ("retrieval-new",ws["id"],"crossref","self-regulation","COMPLETED",1,"2026-01-02T00:00:00+00:00"))
+    db.execute("INSERT INTO research_retrieval_results(id,retrieval_run_id,workspace_id,source_id,provider_record_id,rank,metadata,created_at) VALUES (?,?,?,?,?,?,?,?)",
+               ("result-old","retrieval-old",ws["id"],sources[0],"pubmed:one",1,"{}","2026-01-01T00:00:00+00:00"))
+    db.execute("INSERT INTO research_retrieval_results(id,retrieval_run_id,workspace_id,source_id,provider_record_id,rank,metadata,created_at) VALUES (?,?,?,?,?,?,?,?)",
+               ("result-new","retrieval-new",ws["id"],sources[1],"crossref:two",1,"{}","2026-01-02T00:00:00+00:00"))
+
+    result=ResearchAgentService(db).create_task(ws["id"],agent_id=aid)
+    payload=json.loads(result["task"]["success_criteria"])
+    packet=payload["source_packet"]
+
+    assert {item["source_id"] for item in packet}==set(sources)
+    assert all(item["verified"] is False for item in packet)
