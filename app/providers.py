@@ -13,8 +13,17 @@ class ModelProvider(Protocol):
     def complete(self,request:ModelRequest)->ModelResponse: ...
     def estimate_cost(self,request:ModelRequest)->float: ...
 class LocalProvider:
+    """Fail-closed placeholder: never masquerade as a functioning language model."""
+    name="local"
+
     def estimate_cost(self,request): return 0.0
-    def complete(self,request): return ModelResponse("LOCAL_PROVIDER: no external model configured. Treat this output as unverified.","local","none")
+
+    def complete(self,request):
+        raise RuntimeError(
+            "No research-capable model is configured. Set HDS_MODEL_PROVIDER to an "
+            "explicitly approved provider, or implement and configure a real local model. "
+            "HDS must not treat placeholder text as research output."
+        )
 class ProviderRouter:
     TRANSIENT_ERRORS=(TimeoutError, ConnectionError)
     def __init__(self,providers=None,retries=2):
