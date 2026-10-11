@@ -2225,8 +2225,44 @@ def run_hds_research_first_pass(run_id: str, body: ScientificRetrievalRequest, p
                WHERE rat.workspace_id=? ORDER BY rat.created_at DESC LIMIT 1""",
             (run["workspace_id"],),
         )
+        # A blocked task may have been created before abstracts became available.
+        # Do not leave the loop permanently blocked: create a fresh bounded task
+        # only when the latest retrieval now contains readable source material.
+        if task and task["status"] == "BLOCKED":
+            readable = db.one(
+                """SELECT 1 AS readable
+                   FROM research_retrieval_results r
+                   JOIN evidence_sources es ON es.source_id=r.source_id AND es.state='PARSED'
+                   WHERE r.workspace_id=? AND TRIM(COALESCE(es.content,'')) <> ''
+                   LIMIT 1""",
+                (run["workspace_id"],),
+            )
+            if readable:
+                task = None
+
         if not task:
-            created = ResearchAgentService(db).create_task(run["workspace_id"], owner=principal.user_id)
+            researcher = db.one(
+                """SELECT id,status FROM agents
+                   WHERE id='researcher' OR role='researcher'
+                   ORDER BY CASE status WHEN 'ACTIVE' THEN 0 WHEN 'IDLE' THEN 1 ELSE 2 END
+                   LIMIT 1"""
+            )
+            if not researcher or researcher["status"] not in {"ACTIVE", "IDLE"}:
+                return {
+                    "status": "RESEARCH_AGENT_BLOCKED",
+                    "run": loop.get(run_id),
+                    "retrieval": latest_retrieval,
+                    "reason": "No eligible researcher agent is available; the agent is missing or disabled.",
+                    "scientific_status": "DISCOVERY_ONLY_UNVERIFIED",
+                }
+            if researcher["status"] == "IDLE":
+                db.execute(
+                    "UPDATE agents SET status='ACTIVE' WHERE id=? AND status='IDLE'",
+                    (researcher["id"],),
+                )
+            created = ResearchAgentService(db).create_task(
+                run["workspace_id"], agent_id=researcher["id"], owner=principal.user_id
+            )
             task = created["task"]
 
         if task["status"] == "BLOCKED":
