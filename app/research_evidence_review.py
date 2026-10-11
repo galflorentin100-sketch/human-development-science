@@ -14,6 +14,12 @@ class ResearchEvidenceReviewService:
         if not run: raise ValueError("agent run not found")
         task=self.db.one("SELECT * FROM research_evidence_review_tasks WHERE task_id=?",(run["task_id"],))
         if not task: raise ValueError("research evidence review task not found")
+        # The audit must be finalized by the independently assigned reviewer,
+        # never by a different agent that happens to have a run for this task.
+        if str(run["agent_id"]) != str(task["reviewer_agent_id"]):
+            raise ValueError("evidence audit run does not belong to the assigned independent reviewer")
+        if str(task["status"]) == "COMPLETED":
+            raise ValueError("evidence audit has already been finalized")
         payload=self._parse(run["output_payload"])
         result=payload.get("result",payload)
         if isinstance(result,str):
