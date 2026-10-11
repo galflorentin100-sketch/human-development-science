@@ -39,7 +39,7 @@ The production container should run the application server from the repository's
 1. Confirm the deployment is HTTPS-only and the gateway requires sign-in.
 2. Confirm unauthenticated requests to `/api/intelligence` return HTTP 401.
 3. Confirm a valid signed owner request succeeds and an invalid signature returns HTTP 401.
-4. Confirm `/api/health` (or the health route documented by the deployed app) returns healthy without leaking secrets or database credentials.
+4. Confirm `/health` returns healthy without leaking secrets or database credentials.
 5. From the authenticated owner session, create a research loop with:
    `POST /api/hds/research-loops/bootstrap`
    JSON body:
