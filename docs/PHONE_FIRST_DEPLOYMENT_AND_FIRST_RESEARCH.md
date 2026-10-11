@@ -29,11 +29,20 @@ Set these as managed environment variables/secrets in the hosting platform:
 - `DATABASE_URL` — PostgreSQL connection string
 - `HDS_AUTH_HMAC_SECRET` — long random secret, not checked into source control
 - `HDS_OWNER_EXTERNAL_SUBJECT` — stable owner identity issued by the trusted gateway
-- `HDS_MODEL_PROVIDER=local` unless paid model use has been explicitly approved
-- `HDS_INPUT_COST_PER_MILLION_TOKENS` and `HDS_OUTPUT_COST_PER_MILLION_TOKENS` only if external model spend is intentionally enabled
+- `HDS_MODEL_PROVIDER=ollama` only after a self-hosted Ollama server is deployed and reachable from the HDS API runtime; configure `HDS_OLLAMA_BASE_URL` and `HDS_OLLAMA_MODEL`. The `local` provider deliberately fails closed and is not a language model.
+- Alternatively, `HDS_MODEL_PROVIDER=anthropic` only after explicit approval of external processing and spend; set `ANTHROPIC_API_KEY`, `HDS_INPUT_COST_PER_MILLION_TOKENS`, and `HDS_OUTPUT_COST_PER_MILLION_TOKENS` using current rates.
 
 The production container should run the application server from the repository's production Docker configuration. Follow the current `docker-compose.production.yml` and deployment scripts; do not substitute a development command for production.
 
+## Research-capable model configuration
+
+HDS must not claim to have analyzed literature unless a real model response is recorded. The default `local` provider is intentionally fail-closed. For a self-hosted deployment, the repository now supports an explicitly configured Ollama chat endpoint:
+
+- `HDS_MODEL_PROVIDER=ollama`
+- `HDS_OLLAMA_BASE_URL` — URL reachable from the API container, not merely from a developer laptop
+- `HDS_OLLAMA_MODEL` — model already installed in the Ollama server
+
+The adapter sends one bounded chat request and records the provider/model and token counts through the existing observability wrapper. It does not download models, deploy Ollama, or guarantee scientific correctness. A real response is only a candidate analysis: source verification, exact excerpt matching, claim gating, and independent review remain mandatory. In production, do not expose an unauthenticated Ollama endpoint to the public internet. Validate latency, context capacity, Hebrew/English handling, and research-task quality before selecting a model for routine use.
 ## First-run verification
 
 1. Confirm the deployment is HTTPS-only and the gateway requires sign-in.
