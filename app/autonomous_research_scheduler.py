@@ -69,7 +69,7 @@ class AutonomousResearchScheduler:
         # source material, but the autonomous loop would never make progress.
         from app.scientific_retrieval import ScientificRetrievalService
         retrieval_service=ScientificRetrievalService(self.db)
-        retrieval_queries=self._retrieval_queries(question)
+        retrieval_queries=self._retrieval_queries(question + " " + project["objective"])
         retrieval_runs=[
             retrieval_service.retrieve(
                 workspace["id"], query=query, providers=("pubmed","crossref"), limit=20
