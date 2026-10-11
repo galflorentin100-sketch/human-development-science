@@ -274,7 +274,7 @@ class ScientificRetrievalService:
         if not doi and record_id.startswith("doi:"):
             doi = record_id[4:]
         if not doi and url:
-            match = re.search(r"(?:doi\\.org/|[?&]doi=)(10\\.\\d{4,9}/[^\\s?#]+)", url, re.IGNORECASE)
+            match = re.search(r"(?:doi\.org/|[?&]doi=)(10\.\d{4,9}/[^\s?#]+)", url, re.IGNORECASE)
             if match:
                 doi = urllib.parse.unquote(match.group(1)).rstrip(".,;)")
         if doi:
