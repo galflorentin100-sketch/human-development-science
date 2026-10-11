@@ -83,7 +83,9 @@ class AutonomousResearchScheduler:
         if execution["status"] != "TASK_CREATED":
             self.db.execute("UPDATE autonomous_research_runs SET status='GOVERNED_REVIEW_REQUIRED',updated_at=? WHERE id=?",(now(),run_id))
             return {"status":execution["status"],"run_id":run_id,"queue_item_id":item_id,
-                    "workspace_id":workspace["id"],"task":execution["task"],"candidate":candidate,"gap_report":gap_report}
+                    "workspace_id":workspace["id"],"task":execution["task"],"retrieval":retrieval,
+                    "retrieval_runs":retrieval_runs,"retrieval_queries":retrieval_queries,
+                    "candidate":candidate,"gap_report":gap_report}
         task_status=str(execution["task"].get("status") or "")
         run_status="BLOCKED_NO_SOURCES" if task_status=="BLOCKED" else "TASK_CREATED"
         self.db.execute("UPDATE autonomous_research_runs SET status=?,updated_at=? WHERE id=?",(run_status,now(),run_id))
