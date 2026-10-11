@@ -64,14 +64,24 @@ class AutonomousResearchScheduler:
             "INSERT INTO autonomous_research_runs(id,project_id,queue_item_id,workspace_id,mode,status,reason,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
             (run_id,project_id,item_id,workspace["id"],self.DIGITAL_ONLY,"STARTED",
              "Autonomous digital research; governed gates remain in force.",ts,ts))
+        # The scheduler must retrieve actual literature before preparing a research
+        # task. Without this step the researcher is correctly blocked for lacking
+        # source material, but the autonomous loop would never make progress.
+        from app.scientific_retrieval import ScientificRetrievalService
+        retrieval=ScientificRetrievalService(self.db).retrieve(
+            workspace["id"], query=question, providers=("pubmed","crossref"), limit=20
+        )
         execution=ResearchActionExecutor(self.db).execute(workspace["id"],candidate["action_type"],actor=actor)
         if execution["status"] != "TASK_CREATED":
             self.db.execute("UPDATE autonomous_research_runs SET status='GOVERNED_REVIEW_REQUIRED',updated_at=? WHERE id=?",(now(),run_id))
             return {"status":execution["status"],"run_id":run_id,"queue_item_id":item_id,
                     "workspace_id":workspace["id"],"task":execution["task"],"candidate":candidate,"gap_report":gap_report}
-        self.db.execute("UPDATE autonomous_research_runs SET status='TASK_CREATED',updated_at=? WHERE id=?",(now(),run_id))
-        return {"status":"TASK_CREATED","run_id":run_id,"queue_item_id":item_id,
-                "workspace_id":workspace["id"],"task":execution["task"],"candidate":candidate,"gap_report":gap_report}
+        task_status=str(execution["task"].get("status") or "")
+        run_status="BLOCKED_NO_SOURCES" if task_status=="BLOCKED" else "TASK_CREATED"
+        self.db.execute("UPDATE autonomous_research_runs SET status=?,updated_at=? WHERE id=?",(run_status,now(),run_id))
+        return {"status":run_status,"run_id":run_id,"queue_item_id":item_id,
+                "workspace_id":workspace["id"],"task":execution["task"],"retrieval":retrieval,
+                "candidate":candidate,"gap_report":gap_report}
 
     def run(self, project_id, cycles=1):
         if not 1 <= int(cycles) <= 25:
