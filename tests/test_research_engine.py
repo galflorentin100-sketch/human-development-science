@@ -303,3 +303,29 @@ def test_research_agent_packet_keeps_sources_from_multiple_retrieval_runs(tmp_pa
 
     assert {item["source_id"] for item in packet}==set(sources)
     assert all(item["verified"] is False for item in packet)
+
+def test_research_agent_prompt_requires_source_grounded_json():
+    from app.execution import build_agent_prompt
+    source_id="source-123"
+    task={
+        "title":"[RESEARCH] What is self-discipline?",
+        "success_criteria":json.dumps({
+            "question":"What is self-discipline?",
+            "scope":"systematic digital literature scan",
+            "inclusion_rules":["peer-reviewed empirical or review literature"],
+            "exclusion_rules":["unsupported popular claims"],
+            "source_packet":[{
+                "source_id":source_id,
+                "title":"Example paper",
+                "abstract":"Self-regulation involves monitoring and adjusting behavior toward a goal.",
+                "verified":False,
+            }],
+            "required_output":{"candidate_claims":"JSON list"},
+        }),
+    }
+    prompt=build_agent_prompt(task,{"title":task["title"]},{"project_id":"project-1"})
+    assert "Return ONLY one valid JSON object" in prompt
+    assert "exact_excerpt" in prompt
+    assert "source-123" in prompt
+    assert "Self-regulation involves monitoring and adjusting behavior toward a goal." in prompt
+    assert "Do not say independent review has happened" in prompt
