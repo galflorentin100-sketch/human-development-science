@@ -106,3 +106,43 @@ class AutonomousResearchScheduler:
         else:
             status=last_status
         return {"status":status,"cycles":len(results),"results":results}
+
+    def run_and_execute_once(self, project_id, actor="autonomous-research"):
+        """Prepare and execute exactly one bounded research task, stopping at review gates."""
+        prepared=self.schedule_once(project_id,actor=actor)
+        if prepared.get("status") != "TASK_CREATED":
+            return prepared
+        task=prepared.get("task") or {}
+        task_id=task.get("id")
+        if not task_id:
+            raise RuntimeError("scheduler created a research task without an ID")
+
+        # Execute only the task this research run prepared; never accidentally run
+        # a different, higher-priority project task.
+        from app.orchestrator import CompanyOrchestrator
+        execution=CompanyOrchestrator(self.db).execute_next(project_id,task_id=task_id)
+        execution_status=str(execution.get("status") or "UNKNOWN")
+        if execution_status in {"WAITING_FOR_OUTPUT_REVIEW","WAITING_FOR_APPROVAL"}:
+            run_status=execution_status
+        elif execution_status in {"EXECUTION_FAILED","EXECUTION_PREFLIGHT_FAILED","EXECUTION_RECORD_MISSING","FAILED"}:
+            run_status=execution_status
+        elif execution_status=="COMPLETED":
+            # Task completion is not equivalent to scientific completion.
+            run_status="AGENT_EXECUTION_RECORDED"
+        else:
+            run_status=execution_status
+        self.db.execute(
+            "UPDATE autonomous_research_runs SET status=?,updated_at=? WHERE id=?",
+            (run_status,now(),prepared["run_id"]),
+        )
+        return {
+            **prepared,
+            "status":run_status,
+            "execution":execution,
+            "research_completed":False,
+            "next_gate":(
+                "independent evidence review"
+                if execution_status=="WAITING_FOR_OUTPUT_REVIEW"
+                else "inspect execution result and satisfy the applicable scientific review gates"
+            ),
+        }
