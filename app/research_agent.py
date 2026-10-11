@@ -59,15 +59,23 @@ class ResearchAgentService:
                 "abstract":(row["content"] or "")[:12000],
                 "verified":False,
             })
-        # Preparing a task is not permission to research without sources. Legacy
-        # schedulers may create the task before retrieval has run, so persist it as
-        # BLOCKED with an explicit retrieval prerequisite instead of failing task
-        # creation or allowing a source-free research run.
+        # Metadata-only records are not enough for evidence-grounded analysis:
+        # the researcher must receive readable abstract/source text from which exact
+        # excerpts can be cited. Retrieval remains discovery-only and unverified.
+        has_readable_text=any(str(item.get("abstract") or "").strip() for item in source_packet)
         waiting_for_sources=not bool(source_packet)
+        waiting_for_readable_text=bool(source_packet) and not has_readable_text
+        execution_blocked=waiting_for_sources or waiting_for_readable_text
+        blocked_reason=(
+            "No retrieved source packet is available; retrieve and persist source material before running the researcher."
+            if waiting_for_sources else
+            "Retrieved records contain no readable abstract/source text; obtain readable source text before running the researcher."
+            if waiting_for_readable_text else None
+        )
         payload={
-            "action":"RETRIEVE_SCIENTIFIC_SOURCES" if waiting_for_sources else "research",
-            "execution_authorized":not waiting_for_sources,
-            "execution_blocked_reason":"No retrieved source packet is available; retrieve and persist source material before running the researcher." if waiting_for_sources else None,
+            "action":"RETRIEVE_SCIENTIFIC_SOURCES" if waiting_for_sources else ("FETCH_READABLE_SOURCE_TEXT" if waiting_for_readable_text else "research"),
+            "execution_authorized":not execution_blocked,
+            "execution_blocked_reason":blocked_reason,
             "workspace_id":workspace_id,"question":ws["question"],
             "scope":ws["scope"],"inclusion_rules":json.loads(ws["inclusion_rules"] or "[]"),
             "exclusion_rules":json.loads(ws["exclusion_rules"] or "[]"),
@@ -93,7 +101,7 @@ class ResearchAgentService:
             con.execute(
                 "INSERT INTO tasks(id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at,owner,required_permissions,retry_limit) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (task_id,ws["project_id"],f"[RESEARCH] {ws['question']}",
-                 "BLOCKED" if waiting_for_sources else "PLANNED",agent,2.0,
+                 "BLOCKED" if execution_blocked else "PLANNED",agent,2.0,
                  json.dumps(payload,sort_keys=True),ts,ts,owner,json.dumps(["READ"]),1))
             con.execute(
                 "INSERT INTO research_agent_tasks(task_id,workspace_id,agent_id,created_at) VALUES (?,?,?,?) ON CONFLICT(task_id) DO UPDATE SET workspace_id=excluded.workspace_id,agent_id=excluded.agent_id,created_at=excluded.created_at",
