@@ -19,7 +19,7 @@ class CompanyOrchestrator:
         self.db.execute("UPDATE goals SET actual_outcome=? WHERE id=?",(f"Project {project_id} created and planned",goal_id))
         self.db.audit("company.goal_started","goal",goal_id,"ceo",{"project_id":project_id,"task_count":len(tasks)},now(),str(uuid4()))
         return {"goal":goal,"project":self.db.one("SELECT * FROM projects WHERE id=?",(project_id,)),"tasks":tasks}
-    def execute_next(self,project_id):
+    def execute_next(self,project_id,task_id=None):
         project=self.db.one("SELECT status FROM projects WHERE id=?",(project_id,))
         if not project: raise ValueError("project not found")
         if project["status"] not in {"ACTIVE","RUNNING"}:
@@ -38,7 +38,10 @@ class CompanyOrchestrator:
         if pending_decision:
             return {"status":"WAITING_FOR_APPROVAL","approval":pending_decision}
         with self.db.transaction() as con:
-            cur=con.execute("SELECT * FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED') ORDER BY priority DESC LIMIT 1",(project_id,))
+            if task_id is not None:
+                cur=con.execute("SELECT * FROM tasks WHERE project_id=? AND id=? AND status IN ('PLANNED','ASSIGNED') LIMIT 1",(project_id,task_id))
+            else:
+                cur=con.execute("SELECT * FROM tasks WHERE project_id=? AND status IN ('PLANNED','ASSIGNED') ORDER BY priority DESC LIMIT 1",(project_id,))
             row=cur.fetchone()
             if row is None:
                 return {"status":"NO_EXECUTABLE_TASK"}
