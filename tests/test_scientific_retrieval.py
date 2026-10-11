@@ -109,3 +109,17 @@ def test_retrieval_deduplicates_same_doi_across_different_landing_pages(tmp_path
     assert result["retrieval_run"]["result_count"] == 1
     assert len(result["results"]) == 1
     assert result["results"][0]["provider_record_id"] == "pubmed:12345"
+
+def test_canonical_record_key_normalizes_doi_from_landing_url():
+    first = {
+        "record_id": "provider-a:1",
+        "url": "https://dx.doi.org/10.5555/AbC.2",
+    }
+    second = {
+        "record_id": "provider-b:2",
+        "url": "https://doi.org/10.5555/abc.2",
+    }
+
+    assert ScientificRetrievalService._canonical_record_key(first) == "doi:10.5555/abc.2"
+    assert ScientificRetrievalService._canonical_record_key(first) == ScientificRetrievalService._canonical_record_key(second)
+
