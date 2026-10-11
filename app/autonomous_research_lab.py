@@ -113,11 +113,38 @@ class AutonomousResearchLab:
             raise ValueError("research question is required")
 
         workspace = self._workspace_for(project_id, str(question).strip())
+        # A research run must collect source material before task preparation.
+        # Retrieval is discovery-only: these records remain unverified until the
+        # independent evidence-review pipeline accepts them.
+        from app.scientific_retrieval import ScientificRetrievalService
+        retrieval = ScientificRetrievalService(self.db).retrieve(
+            workspace["id"], query=str(question).strip(),
+            providers=("pubmed", "crossref"), limit=20,
+        )
         task_info = ResearchAgentService(self.db).create_task(
             workspace["id"], owner="autonomous-research-lab"
         )
         run_id = str(uuid4())
         started = now()
+        if task_info["task"]["status"] == "BLOCKED":
+            self.db.execute(
+                """INSERT INTO autonomous_lab_runs
+                   (id,project_id,question,workspace_id,task_id,status,started_at,outcome,error,completed_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (run_id, project_id, question.strip(), workspace["id"], task_info["task"]["id"],
+                 "BLOCKED_NO_SOURCES", started,
+                 json.dumps({"retrieval": retrieval}, default=str, sort_keys=True),
+                 "No sources were retrieved; researcher execution remains blocked.", now()),
+            )
+            return {
+                "status": "BLOCKED_NO_SOURCES",
+                "run_id": run_id,
+                "workspace_id": workspace["id"],
+                "task_id": task_info["task"]["id"],
+                "retrieval": retrieval,
+                "result": {"status": "BLOCKED_NO_SOURCES",
+                           "reason": "No source packet available; no researcher execution was attempted."},
+            }
         self.db.execute(
             """INSERT INTO autonomous_lab_runs
                (id,project_id,question,workspace_id,task_id,status,started_at)
@@ -126,7 +153,9 @@ class AutonomousResearchLab:
              "RUNNING", started),
         )
 
-        result = CompanyOrchestrator(self.db).execute_next(project_id)
+        # Scope execution to the exact task created for this research question.
+        # Never let a higher-priority unrelated project task be executed instead.
+        result = CompanyOrchestrator(self.db).execute_next(project_id, task_id=task_info["task"]["id"])
         status = result.get("status", "UNKNOWN")
         terminal = status in {
             "COMPLETED", "EXECUTION_FAILED", "EXECUTION_PREFLIGHT_FAILED",
