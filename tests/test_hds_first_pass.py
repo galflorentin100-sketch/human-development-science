@@ -119,5 +119,5 @@ def test_first_pass_reports_missing_real_model_provider_without_fake_research(tm
     assert body["status"] == "MODEL_EXECUTION_FAILED"
     assert body["scientific_status"] == "NO_SYNTHESIS"
     assert "No research-capable model" in body["error"]
-    assert db_count := _db.one("SELECT COUNT(*) AS n FROM research_syntheses")["n"]
+    db_count = _db.one("SELECT COUNT(*) AS n FROM research_syntheses")["n"]
     assert db_count == 0
