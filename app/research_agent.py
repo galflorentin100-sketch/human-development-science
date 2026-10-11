@@ -52,10 +52,16 @@ class ResearchAgentService:
                 "abstract":(row["content"] or "")[:12000],
                 "verified":False,
             })
-        if not source_packet:
-            raise ValueError("scientific retrieval must produce source material before researcher execution")
+        # Preparing a task is not permission to research without sources. Legacy
+        # schedulers may create the task before retrieval has run, so persist it as
+        # BLOCKED with an explicit retrieval prerequisite instead of failing task
+        # creation or allowing a source-free research run.
+        waiting_for_sources=not bool(source_packet)
         payload={
-            "action":"research","workspace_id":workspace_id,"question":ws["question"],
+            "action":"RETRIEVE_SCIENTIFIC_SOURCES" if waiting_for_sources else "research",
+            "execution_authorized":not waiting_for_sources,
+            "execution_blocked_reason":"No retrieved source packet is available; retrieve and persist source material before running the researcher." if waiting_for_sources else None,
+            "workspace_id":workspace_id,"question":ws["question"],
             "scope":ws["scope"],"inclusion_rules":json.loads(ws["inclusion_rules"] or "[]"),
             "exclusion_rules":json.loads(ws["exclusion_rules"] or "[]"),
             "source_packet":source_packet,
@@ -79,7 +85,9 @@ class ResearchAgentService:
         with self.db.transaction() as con:
             con.execute(
                 "INSERT INTO tasks(id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at,owner,required_permissions,retry_limit) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                (task_id,ws["project_id"],f"[RESEARCH] {ws['question']}","PLANNED",agent,2.0,json.dumps(payload,sort_keys=True),ts,ts,owner,json.dumps(["READ"]),1))
+                (task_id,ws["project_id"],f"[RESEARCH] {ws['question']}",
+                 "BLOCKED" if waiting_for_sources else "PLANNED",agent,2.0,
+                 json.dumps(payload,sort_keys=True),ts,ts,owner,json.dumps(["READ"]),1))
             con.execute(
                 "INSERT INTO research_agent_tasks(task_id,workspace_id,agent_id,created_at) VALUES (?,?,?,?) ON CONFLICT(task_id) DO UPDATE SET workspace_id=excluded.workspace_id,agent_id=excluded.agent_id,created_at=excluded.created_at",
                 (task_id,workspace_id,agent,ts))
