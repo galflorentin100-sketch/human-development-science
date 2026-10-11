@@ -2351,6 +2351,22 @@ def run_hds_research_first_pass(run_id: str, body: ScientificRetrievalRequest, p
                 "scientific_status": "UNVERIFIED_OUTPUT_NOT_PROMOTED",
             }
 
+        # Return the persisted researcher payload in a clearly unverified form
+        # so a client can display the actual work without querying internal tables.
+        try:
+            agent_output = json.loads(agent_run.get("output_payload") or "{}")
+        except (TypeError, ValueError):
+            agent_output = {"raw_unparsed_output": agent_run.get("output_payload") or ""}
+        if isinstance(agent_output, dict) and isinstance(agent_output.get("payload"), dict):
+            agent_output = dict(agent_output["payload"])
+        if isinstance(agent_output, dict) and isinstance(agent_output.get("result"), str):
+            try:
+                parsed_result = json.loads(agent_output["result"])
+                if isinstance(parsed_result, dict):
+                    agent_output = parsed_result
+            except (TypeError, ValueError):
+                pass
+
         return {
             "status": "RESEARCH_PASS_RECORDED",
             "run": loop.get(run_id),
@@ -2363,6 +2379,8 @@ def run_hds_research_first_pass(run_id: str, body: ScientificRetrievalRequest, p
             },
             "task": task,
             "agent_run_id": agent_run["id"],
+            "agent_output": agent_output,
+            "agent_output_is_unverified": True,
             "output_review": output_review,
             "next_action": "INDEPENDENT_EVIDENCE_AND_OUTPUT_REVIEW",
             "scientific_status": "UNVERIFIED_REVIEW_REQUIRED",
