@@ -332,6 +332,19 @@ OPTIONAL_SCIENCE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS hds_experiments (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, research_question TEXT NOT NULL, hypothesis TEXT NOT NULL, design TEXT NOT NULL, population TEXT NOT NULL, intervention TEXT NOT NULL, comparison TEXT NOT NULL, outcomes TEXT NOT NULL, analysis_plan TEXT NOT NULL, status TEXT NOT NULL, preregistered INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS hds_experiment_results (id TEXT PRIMARY KEY, experiment_id TEXT NOT NULL, outcome TEXT NOT NULL, interpretation TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS research_workspaces (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, question TEXT NOT NULL, scope TEXT NOT NULL, inclusion_rules TEXT NOT NULL, exclusion_rules TEXT NOT NULL, status TEXT NOT NULL, owner TEXT NOT NULL, research_queue_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS research_evidence_review_tasks (
+ id TEXT PRIMARY KEY,
+ task_id TEXT UNIQUE,
+ evidence_id TEXT NOT NULL REFERENCES evidence(id),
+ workspace_id TEXT NOT NULL REFERENCES research_workspaces(id),
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ reviewer_agent_id TEXT NOT NULL REFERENCES agents(id),
+ status TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ completed_at TEXT,
+ UNIQUE(evidence_id,reviewer_agent_id)
+);
+CREATE INDEX IF NOT EXISTS idx_research_evidence_review_workspace ON research_evidence_review_tasks(workspace_id,status);
 CREATE TABLE IF NOT EXISTS research_syntheses (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, synthesis TEXT NOT NULL, limitations TEXT NOT NULL, uncertainty TEXT NOT NULL, provenance_hash TEXT NOT NULL, evidence_refs TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS research_skeptic_reviews (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, synthesis_id TEXT, project_id TEXT NOT NULL, reviewer_agent_id TEXT, status TEXT NOT NULL, objections TEXT NOT NULL, missing_evidence TEXT NOT NULL, alternative_explanations TEXT NOT NULL, created_at TEXT NOT NULL, reviewed_at TEXT);
 CREATE TABLE IF NOT EXISTS organizational_decisions (id TEXT PRIMARY KEY, project_id TEXT, decision_type TEXT NOT NULL, decision TEXT NOT NULL, evidence TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL, created_at TEXT NOT NULL);
@@ -704,19 +717,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_evidence_review_reviewer ON evidence_revie
 CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id);"""
 PHASE5_SCHEMA = """CREATE TABLE IF NOT EXISTS study_protocol_versions (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), version INTEGER NOT NULL, snapshot TEXT NOT NULL, content_hash TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(study_id,version)); """
 RESEARCH_AUTONOMY_SCHEMA = """
-CREATE TABLE IF NOT EXISTS research_evidence_review_tasks (
- id TEXT PRIMARY KEY,
- task_id TEXT UNIQUE,
- evidence_id TEXT NOT NULL REFERENCES evidence(id),
- workspace_id TEXT NOT NULL REFERENCES research_workspaces(id),
- project_id TEXT NOT NULL REFERENCES projects(id),
- reviewer_agent_id TEXT NOT NULL REFERENCES agents(id),
- status TEXT NOT NULL,
- created_at TEXT NOT NULL,
- completed_at TEXT,
- UNIQUE(evidence_id,reviewer_agent_id)
-);
-CREATE INDEX IF NOT EXISTS idx_research_evidence_review_workspace ON research_evidence_review_tasks(workspace_id,status);
+-- Research evidence review tasks are declared in OPTIONAL_SCIENCE_SCHEMA
+-- after research_workspaces, to preserve PostgreSQL foreign-key creation order.
 """
 PHASE_AGENT_OUTPUT_SCHEMA = """CREATE TABLE IF NOT EXISTS agent_output_reviews (id TEXT PRIMARY KEY, agent_run_id TEXT NOT NULL REFERENCES agent_runs(id), project_id TEXT REFERENCES projects(id), task_id TEXT REFERENCES tasks(id), evidence_refs TEXT NOT NULL, provenance_hash TEXT NOT NULL, status TEXT NOT NULL, reviewer TEXT, rationale TEXT, created_at TEXT NOT NULL, reviewed_at TEXT);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_output_reviews_run ON agent_output_reviews(agent_run_id);
