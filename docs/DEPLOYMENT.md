@@ -26,6 +26,8 @@ Set these in the hosting provider's secret/environment settings; do not commit r
 
 Do not use SQLite for production. Do not enable a paid model provider until API credentials and explicit token-rate limits are configured.
 
+For self-hosted model inference, set `HDS_MODEL_PROVIDER=ollama`, `HDS_OLLAMA_BASE_URL` to an Ollama server reachable from the API process, and `HDS_OLLAMA_MODEL` to a model already pulled on that server. The default `127.0.0.1:11434` works only when Ollama is reachable on the same network namespace; inside a container, `127.0.0.1` refers to that container. HDS does not download models or silently fall back when a provider is unavailable.
+
 ## One-time founder provisioning
 
 After setting the production environment and applying migrations, run this command once from a trusted administrative shell/container with access to the production database:
@@ -49,7 +51,8 @@ After deployment, verify:
 5. Create a research loop using `POST /api/hds/research-loops/bootstrap`.
 6. Start it using `POST /api/hds/research-loops/{run_id}/start`.
 7. Retrieve candidate literature using `POST /api/hds/research-loops/{run_id}/retrieve` with PubMed and Crossref.
-8. Check `GET /api/hds/research-loops/{run_id}/sources`. Discovery results must remain unverified until the separate review workflow is completed.
+8. To execute a bounded researcher-model pass, call `POST /api/hds/research-loops/{run_id}/run-first-pass` with `{"query":"self-discipline interventions","providers":["pubmed","crossref"],"limit":20}`. This performs retrieval if needed, executes one configured researcher task, and submits its output to the output gate. It does not verify evidence or approve conclusions.
+9. Check `GET /api/hds/research-loops/{run_id}/sources` and the returned output-review status. Discovery results and model output remain unverified until the separate evidence and independent review workflows are completed.
 
 Retrieval is discovery, not scientific verification. Do not report a research conclusion until source content has been reviewed and the synthesis has passed the required independent review and evidence gates.
 
