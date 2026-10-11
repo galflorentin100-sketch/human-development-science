@@ -20,6 +20,19 @@ class AgentOutputGate:
         existing=self.db.one("SELECT * FROM agent_output_reviews WHERE agent_run_id=?",(agent_run_id,))
         if existing: return existing
         payload=json.loads(run["output_payload"] or "{}")
+        if not isinstance(payload,dict):
+            payload={}
+        # Normalize the common wrapped-output shape without changing or inventing evidence.
+        result_payload=payload.get("result")
+        if isinstance(result_payload,str) and result_payload.strip():
+            try:
+                result_payload=json.loads(result_payload)
+            except (TypeError,ValueError):
+                result_payload=None
+        if isinstance(result_payload,dict):
+            normalized=dict(result_payload)
+            normalized.update({k:v for k,v in payload.items() if k!="result"})
+            payload=normalized
         refs=payload.get("evidence_refs") or []
         if not isinstance(refs,list): refs=[]
         # Research-agent outputs may contain only candidate_claims at first.
