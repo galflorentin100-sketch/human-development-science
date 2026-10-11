@@ -33,10 +33,17 @@ class ResearchAgentService:
                JOIN sources s ON s.id=r.source_id
                LEFT JOIN evidence_sources es ON es.source_id=r.source_id AND es.state='PARSED'
                WHERE r.workspace_id=?
-               AND r.retrieval_run_id=(SELECT id FROM research_retrieval_runs WHERE workspace_id=? ORDER BY created_at DESC LIMIT 1)
-               ORDER BY r.rank
+               AND r.id=(
+                   SELECT r2.id
+                   FROM research_retrieval_results r2
+                   WHERE r2.workspace_id=r.workspace_id
+                     AND r2.source_id=r.source_id
+                   ORDER BY r2.created_at DESC,r2.rank ASC
+                   LIMIT 1
+               )
+               ORDER BY r.rank,r.created_at DESC
                LIMIT 50""",
-            (workspace_id,workspace_id),
+            (workspace_id,),
         )
         source_packet=[]
         for row in source_rows:
