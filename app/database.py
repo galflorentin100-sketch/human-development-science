@@ -787,6 +787,20 @@ CREATE TABLE IF NOT EXISTS autonomy_iterations (id TEXT PRIMARY KEY, project_id 
 CREATE TABLE IF NOT EXISTS research_loop_runs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), gap TEXT NOT NULL, workspace_id TEXT, synthesis_id TEXT, finding_id TEXT, claim_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_research_loop_runs_project_status ON research_loop_runs(project_id,status,updated_at);
 CREATE INDEX IF NOT EXISTS idx_research_loop_runs_workspace ON research_loop_runs(workspace_id);
+-- This table must exist before retrieval-run tables declare their foreign keys.
+CREATE TABLE IF NOT EXISTS research_workspaces (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL,
+ question TEXT NOT NULL,
+ scope TEXT NOT NULL,
+ inclusion_rules TEXT NOT NULL,
+ exclusion_rules TEXT NOT NULL,
+ status TEXT NOT NULL,
+ owner TEXT NOT NULL,
+ research_queue_id TEXT,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS research_retrieval_runs (
  id TEXT PRIMARY KEY,
  workspace_id TEXT NOT NULL REFERENCES research_workspaces(id),
