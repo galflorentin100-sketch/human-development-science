@@ -24,8 +24,8 @@ def test_scheduler_starts_low_risk_digital_research_without_approval(tmp_path, m
     project=ResearchCycle(db).run("Autonomous scheduler")["project"]
     db.execute("UPDATE projects SET status='RUNNING' WHERE id=?",(project["id"],))
     db.execute(
-        "INSERT INTO research_questions(id,project_id,question,status,created_at) VALUES (?,?,?,?,datetime('now'))",
-        ("q-auto",project["id"],"What is self-discipline, what components does it include, and which interventions have evidence for developing it?","OPEN"),
+        "INSERT INTO research_questions(id,project_id,question,status,trigger_type,priority,created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+        ("q-auto",project["id"],"What is self-discipline, what components does it include, and which interventions have evidence for developing it?","OPEN","MANUAL",100),
     )
     result=AutonomousResearchScheduler(db).schedule_once(project["id"])
     assert result["status"]=="TASK_CREATED"
