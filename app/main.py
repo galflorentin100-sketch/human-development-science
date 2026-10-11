@@ -2285,12 +2285,16 @@ def run_hds_research_first_pass(run_id: str, body: ScientificRetrievalRequest, p
             task = created["task"]
 
         if task["status"] == "BLOCKED":
+            try:
+                task_payload = json.loads(task.get("success_criteria") or "{}")
+            except (TypeError, ValueError):
+                task_payload = {}
             return {
                 "status": "RESEARCH_AGENT_BLOCKED",
                 "run": loop.get(run_id),
                 "retrieval": latest_retrieval,
                 "task": task,
-                "reason": "HDS requires readable source abstracts/text before evidence-grounded analysis.",
+                "reason": task_payload.get("execution_blocked_reason") or "HDS requires readable source abstracts/text before evidence-grounded analysis.",
                 "scientific_status": "DISCOVERY_ONLY_UNVERIFIED",
             }
 
