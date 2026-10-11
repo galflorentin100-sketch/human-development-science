@@ -199,4 +199,6 @@ def configured_provider():
         return LocalProvider()
     if provider=="anthropic":
         return AnthropicMessagesProvider()
+    if provider=="ollama":
+        return OllamaProvider()
     raise ValueError(f"unsupported HDS_MODEL_PROVIDER: {provider}")
