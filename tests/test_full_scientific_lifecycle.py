@@ -30,6 +30,7 @@ def test_intervention_supported_requires_supported_parent_claim(tmp_path):
     claim_id = "claim-parent-1"
     db.execute("INSERT INTO claims(id,project_id,statement,classification,evidence_level,confidence,status,created_at) VALUES (?,?,?,?,?,?,?,?)",(claim_id,project["id"],"candidate","HYPOTHESIS","PRELIMINARY",0.5,"PROPOSED",project["created_at"]))
     source = EvidencePipeline(db).register_source("source","https://example.org/source")
+    EvidencePipeline(db).ingest_text(source["id"], "excerpt")
     evidence = EvidencePipeline(db).attach(claim_id, source["id"], "excerpt")
     EvidencePipeline(db).review(evidence["id"], "reviewer", "VERIFIED", "checked")
     registry.intervention_evidence(intervention["id"], "OBSERVATIONAL", evidence["id"])
