@@ -90,3 +90,29 @@ def test_scheduler_reuses_generated_gap_queue_item_for_digital_research(tmp_path
     queue=db.one("SELECT * FROM hds_research_queue WHERE id=?",(generated["id"],))
     assert queue["status"]=="IN_PROGRESS"
     assert queue["trigger_type"]=="AUTONOMOUS_GAP_DETECTOR"
+
+def test_run_and_execute_once_executes_only_prepared_task_and_stops_at_review(tmp_path, monkeypatch):
+    _mock_retrieval(monkeypatch)
+    from app.orchestrator import CompanyOrchestrator
+    captured={}
+    def fake_execute(self, project_id, task_id=None):
+        captured["project_id"]=project_id
+        captured["task_id"]=task_id
+        return {"status":"WAITING_FOR_OUTPUT_REVIEW","output_review":{"status":"READY_FOR_REVIEW"}}
+    monkeypatch.setattr(CompanyOrchestrator,"execute_next",fake_execute)
+    db=Database(str(tmp_path/"scheduler-execute-once.db"))
+    project=ResearchCycle(db).run("Autonomous research execution")["project"]
+    db.execute("UPDATE projects SET status='RUNNING' WHERE id=?",(project["id"],))
+    db.execute(
+        "INSERT INTO research_questions(id,project_id,question,status,created_at) VALUES (?,?,?,?,datetime('now'))",
+        ("q-execute-once",project["id"],"What evidence gaps exist in a measurable human-development construct?","OPEN"),
+    )
+
+    result=AutonomousResearchScheduler(db).run_and_execute_once(project["id"],actor="test-owner")
+
+    assert captured["project_id"]==project["id"]
+    assert captured["task_id"]==result["task"]["id"]
+    assert result["status"]=="WAITING_FOR_OUTPUT_REVIEW"
+    assert result["research_completed"] is False
+    run=db.one("SELECT status FROM autonomous_research_runs WHERE id=?",(result["run_id"],))
+    assert run["status"]=="WAITING_FOR_OUTPUT_REVIEW"
