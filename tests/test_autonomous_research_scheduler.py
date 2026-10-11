@@ -1,8 +1,25 @@
 from app.database import Database
 from app.workflow import ResearchCycle
 from app.autonomous_research_scheduler import AutonomousResearchScheduler
+from app.scientific_retrieval import ScientificRetrievalService
 
-def test_scheduler_starts_low_risk_digital_research_without_approval(tmp_path):
+
+def _mock_retrieval(monkeypatch):
+    record = {
+        "record_id": "pubmed:mock-1",
+        "title": "Mock peer-reviewed research record",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/12345678/",
+        "authors": "Test Author",
+        "year": 2024,
+        "source_type": "PAPER",
+        "abstract": "This mock abstract exists only to test the retrieval pipeline.",
+        "doi": "10.5555/hds.mock.1",
+    }
+    monkeypatch.setattr(ScientificRetrievalService, "_pubmed", lambda self, query, limit: [record])
+    monkeypatch.setattr(ScientificRetrievalService, "_crossref", lambda self, query, limit: [])
+
+def test_scheduler_starts_low_risk_digital_research_without_approval(tmp_path, monkeypatch):
+    _mock_retrieval(monkeypatch)
     db=Database(str(tmp_path/"scheduler.db"))
     project=ResearchCycle(db).run("Autonomous scheduler")["project"]
     db.execute("UPDATE projects SET status='RUNNING' WHERE id=?",(project["id"],))
@@ -13,6 +30,8 @@ def test_scheduler_starts_low_risk_digital_research_without_approval(tmp_path):
     result=AutonomousResearchScheduler(db).schedule_once(project["id"])
     assert result["status"]=="TASK_CREATED"
     assert result["task"]["assigned_agent_id"]
+    assert result["retrieval"]["retrieval_run"]["result_count"] == 1
+    assert result["task"]["status"] == "PLANNED"
     run=db.one("SELECT * FROM autonomous_research_runs WHERE id=?",(result["run_id"],))
     assert run["mode"]=="DIGITAL_RESEARCH"
     assert run["status"]=="TASK_CREATED"
@@ -48,7 +67,8 @@ def test_scheduler_consumes_generated_replication_gap(tmp_path):
     assert "Clarify the replication outcome" in result["candidate"]["title"]
 
 
-def test_scheduler_reuses_generated_gap_queue_item_for_digital_research(tmp_path):
+def test_scheduler_reuses_generated_gap_queue_item_for_digital_research(tmp_path, monkeypatch):
+    _mock_retrieval(monkeypatch)
     db=Database(str(tmp_path/"scheduler-generated-gap.db"))
     project=ResearchCycle(db).run("Generated gap scheduler")["project"]
     db.execute("UPDATE projects SET status='RUNNING' WHERE id=?",(project["id"],))
