@@ -11,19 +11,21 @@ Establish a verifiable end-to-end path for the first HDS literature review on se
 - `app/research_agent.py` creates researcher tasks with explicit guardrails. It blocks a task if there are no retrieved sources or if no readable abstract/source text is available.
 - `app/evidence_pipeline.py` checks that an evidence excerpt is present in parsed source text and prevents callers from directly marking evidence as verified.
 - `docs/DEPLOYMENT.md` correctly states that a working CI build is not proof of deployment and that discovery results must remain unverified pending review.
+- `POST /api/hds/research-loops/{run_id}/run-first-pass` now provides a bounded, authenticated orchestration step: start the loop if needed, retrieve literature, create/reuse the researcher task, execute the configured agent, and submit its output to the existing review gate. It returns explicit blocked/error states and never marks evidence verified.
 
 ## Integration gaps to verify
 
-1. **Route/documentation mismatch.** The deployment runbook describes `/api/hds/research-loops/*` routes, while the inspected `app/main.py` exposes `/api/science/research-workspaces/*` routes. The exact route set must be confirmed from the complete target branch before using either sequence.
-2. **Retrieval reachability.** `ScientificRetrievalService` exists, but its authenticated HTTP route was not found in the inspected portions of `app/main.py`. Confirm that a route instantiates it, checks project-scoped authorization, and returns persisted results without upgrading their verification status.
-3. **Task execution.** Creating a research task is not equivalent to executing it. Verify the orchestrator can dispatch the task to an actual configured model provider and persist its output and model-call audit record.
-4. **Readable source material.** Confirm abstracts are persisted and passed into the researcher packet. When no abstract is available, the workflow must fetch permitted readable text or remain blocked with a useful reason.
-5. **Independent review.** Verify the researcher output is not promoted to a finding or verified evidence until source excerpts, evidence audits, and the required independent review gates pass.
-6. **Runtime/deployment.** Verify tests, migrations, readiness, authenticated founder access, model-provider configuration, and production isolation. Do not expose the service publicly before the trusted identity proxy and production secrets are configured.
+1. **Route/documentation alignment.** The documented bootstrap/start/retrieve/source routes are present in `app/main.py`; the new `run-first-pass` endpoint is the single-call entry point for the first bounded model pass.
+2. **Model/provider execution.** The endpoint invokes `AgentExecutor`, which uses the configured provider and writes model-call and agent-run records. The default provider is deliberately a fail-closed placeholder. Runtime configuration and a successful live model call remain unverified.
+3. **Readable source material.** Abstracts are persisted and passed into the researcher packet. If retrieved records have no readable text, the task remains blocked with a useful reason rather than fabricating evidence.
+4. **Independent review.** The endpoint submits output to the existing output gate but does not approve it, verify evidence, promote findings, or publish conclusions. Human/independent review and evidence audits remain separate steps.
+5. **Runtime/deployment.** Verify migrations, readiness, authenticated founder access, provider credentials and spend limits, and production isolation. Do not expose the service publicly before the trusted identity proxy and production secrets are configured.
+6. **Automated coverage.** Confirm CI exercises the new endpoint's retrieval failure, missing abstract, provider failure, repeat-call behavior, and authorization paths.
 
 ## Acceptance criteria for the first run
 
 - A workspace is created for the question: “Which interventions improve self-discipline, for whom, and under what conditions?”
+- The authenticated founder can call `POST /api/hds/research-loops/{run_id}/run-first-pass` to run retrieval and one configured researcher-model pass, with persisted audit artifacts.
 - Inclusion/exclusion criteria and the retrieval query are recorded before synthesis.
 - Retrieval results include stable source identifiers, bibliographic metadata, URLs, and abstracts where available.
 - Each candidate claim cites a source in the retrieved packet and an exact excerpt present in that source's stored text.
@@ -35,4 +37,4 @@ Establish a verifiable end-to-end path for the first HDS literature review on se
 
 ## Current status
 
-**Code inspection only — execution not yet verified.** This checklist must be completed against the exact branch intended for deployment. No research conclusion should be labelled as produced by the running HDS system until an actual run and its persisted artifacts have been inspected.
+**Code change committed; runtime execution not yet verified.** CI is being checked for this change. The endpoint is on the development branch and is not proof of a deployed or configured service. No research conclusion should be labelled as produced by the running HDS system until an actual authenticated run and its persisted artifacts have been inspected.
