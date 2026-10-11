@@ -26,6 +26,8 @@ Set these in the hosting provider's secret/environment settings; do not commit r
 
 Do not use SQLite for production. Do not enable a paid model provider until API credentials and explicit token-rate limits are configured.
 
+For self-hosted model inference, set `HDS_MODEL_PROVIDER=ollama`, `HDS_OLLAMA_BASE_URL` to an Ollama server reachable from the API process, and `HDS_OLLAMA_MODEL` to a model already pulled on that server. The default `127.0.0.1:11434` works only when Ollama is reachable on the same network namespace; inside a container, `127.0.0.1` refers to that container. HDS does not download models or silently fall back when a provider is unavailable.
+
 ## One-time founder provisioning
 
 After setting the production environment and applying migrations, run this command once from a trusted administrative shell/container with access to the production database:
