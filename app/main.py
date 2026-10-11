@@ -2119,9 +2119,15 @@ def bootstrap_hds_research(body: ResearchRequest, principal: Principal = Depends
         # created by this endpoint, otherwise subsequent project-scoped actions
         # are correctly denied by the authorization layer.
         if settings.environment == "production":
+            owner = db.one(
+                "SELECT external_subject FROM users WHERE id=?",
+                (principal.user_id,),
+            )
+            if not owner:
+                raise HTTPException(status_code=403, detail="authenticated owner record not found")
             auth.grant_project_access(
-                principal.user_id,
-                principal.user_id,
+                owner["external_subject"],
+                owner["external_subject"],
                 result["project"]["id"],
                 role="founder",
             )
