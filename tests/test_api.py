@@ -601,3 +601,30 @@ def test_high_risk_approval_is_bound_and_one_shot(tmp_path):
         assert False, "approval must be one-shot"
     except ApprovalRequired:
         pass
+
+def test_agent_output_gate_unwraps_company_message_envelope(tmp_path):
+    import json
+    import uuid
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.agent_output_gate import AgentOutputGate
+    from app.models import now
+    db=Database(str(tmp_path/"output-envelope.db")); ResearchCycle(db)
+    project=ResearchCycle(db).run("output envelope")["project"]
+    agent=db.one("SELECT id FROM agents LIMIT 1")
+    task_id=str(uuid.uuid4()); run_id=str(uuid.uuid4())
+    db.execute("INSERT INTO tasks(id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+               (task_id,project["id"],"[RESEARCH] structured output","REVIEW",agent["id"],1.0,"{}",now(),now()))
+    message={
+        "id":str(uuid.uuid4()),"from_agent":agent["id"],"to_agent":"coo",
+        "type":"task_result","task_id":task_id,
+        "payload":{"result":json.dumps({"candidate_claims":[],"limitations":"No claims supported yet","uncertainty":"Unverified"}),
+                   "evidence_refs":["evidence-placeholder"]},
+        "confidence":0.0,"evidence_refs":[],"uncertainties":["Unverified"],
+        "recommended_actions":["Review"],"created_at":now(),
+    }
+    db.execute("INSERT INTO agent_runs(id,agent_id,task_id,status,input_payload,output_payload,started_at,completed_at) VALUES (?,?,?,?,?,?,?,?)",
+               (run_id,agent["id"],task_id,"REVIEW","{}",json.dumps(message),now(),now()))
+    review=AgentOutputGate(db).submit(run_id,project["id"])
+    assert review["status"]=="READY_FOR_REVIEW"
+    assert json.loads(review["evidence_refs"])==["evidence-placeholder"]
