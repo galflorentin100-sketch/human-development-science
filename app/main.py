@@ -643,6 +643,11 @@ def founder_goal(body: Goal, principal: Principal = Depends(principal_from_heade
 @app.post("/api/projects/{project_id}/autonomous-run")
 def autonomous_run(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_project(principal, project_id, "EXECUTE"); return AutonomousLoop(db).run(project_id)
+@app.post("/api/projects/{project_id}/autonomous-research-run")
+def autonomous_research_run(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_project(principal, project_id, "EXECUTE")
+    from app.autonomous_research_scheduler import AutonomousResearchScheduler
+    return AutonomousResearchScheduler(db).run_and_execute_once(project_id, actor=principal.user_id)
 @app.post("/api/projects/{project_id}/decide-next")
 def decide_next(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_project(principal, project_id, "EXECUTE"); return CompanyOrchestrator(db).decide_next(project_id)
