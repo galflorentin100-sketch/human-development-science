@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 import hashlib
 import hmac
 import json
+import os
 from pathlib import Path
 from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -76,6 +77,24 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 app.add_middleware(SecurityMiddleware)
+
+class TrialTokenMiddleware(BaseHTTPMiddleware):
+    """Optional bearer-token gate for short-lived public hosting trials.
+
+    When HDS_TRIAL_TOKEN is configured, every /api/ request must present it.
+    This is a temporary access gate, not a substitute for production identity.
+    """
+    async def dispatch(self, request, call_next):
+        token = os.getenv("HDS_TRIAL_TOKEN", "")
+        if token and request.url.path.startswith("/api/"):
+            from fastapi.responses import JSONResponse
+            supplied = request.headers.get("authorization", "")
+            expected = f"Bearer {token}"
+            if not hmac.compare_digest(supplied, expected):
+                return JSONResponse({"detail": "trial token required"}, status_code=401)
+        return await call_next(request)
+
+app.add_middleware(TrialTokenMiddleware)
 
 class Goal(BaseModel):
     goal: str = Field(min_length=1, max_length=2000)
