@@ -31,6 +31,9 @@ def test_scheduler_starts_low_risk_digital_research_without_approval(tmp_path, m
     assert result["status"]=="TASK_CREATED"
     assert result["task"]["assigned_agent_id"]
     assert result["retrieval"]["retrieval_run"]["result_count"] == 1
+    assert len(result["retrieval_runs"]) == 4
+    assert len(result["retrieval_queries"]) == 4
+    assert all(item["scientific_status"] == "DISCOVERY_ONLY_UNVERIFIED" for item in result["retrieval_runs"])
     assert result["task"]["status"] == "PLANNED"
     run=db.one("SELECT * FROM autonomous_research_runs WHERE id=?",(result["run_id"],))
     assert run["mode"]=="DIGITAL_RESEARCH"
@@ -116,3 +119,13 @@ def test_run_and_execute_once_executes_only_prepared_task_and_stops_at_review(tm
     assert result["research_completed"] is False
     run=db.one("SELECT status FROM autonomous_research_runs WHERE id=?",(result["run_id"],))
     assert run["status"]=="WAITING_FOR_OUTPUT_REVIEW"
+
+def test_self_discipline_query_plan_covers_definitions_reviews_and_trials():
+    queries=AutonomousResearchScheduler._retrieval_queries(
+        "What is self-discipline, what components does it include, and which interventions develop it?"
+    )
+    assert len(queries)==4
+    assert "definition" in queries[0]
+    assert "measurement" in queries[1]
+    assert "meta-analysis" in queries[2]
+    assert "randomized" in queries[3]
