@@ -574,16 +574,18 @@ def test_anthropic_provider_requires_explicit_key_and_spend_rates(monkeypatch):
     assert provider.estimate_cost(__import__("app.providers",fromlist=["ModelRequest"]).ModelRequest("test","hello"))>0
 
 
-def test_founder_chat_is_governed_and_unverified(tmp_path, monkeypatch):
+def test_founder_chat_fails_closed_without_research_capable_model(tmp_path, monkeypatch):
+    import pytest
     from app.database import Database
     from app.workflow import ResearchCycle
     from app.founder_chat import FounderChatService
     monkeypatch.delenv("HDS_MODEL_PROVIDER", raising=False)
     db=Database(str(tmp_path/"chat.db")); project=ResearchCycle(db).run("chat")["project"]
-    result=FounderChatService(db).ask(project["id"],"What requires attention?","founder")
-    assert result["verified"] is False
-    assert result["provider"]=="local"
-    assert "unverified" in result["uncertainty"].lower()
+    with pytest.raises(RuntimeError, match="No research-capable model is configured"):
+        FounderChatService(db).ask(project["id"],"What requires attention?","founder")
+    call=db.one("SELECT status,error FROM model_calls WHERE purpose='founder-chat' ORDER BY created_at DESC LIMIT 1")
+    assert call["status"]=="FAILED"
+    assert "No research-capable model is configured" in call["error"]
 
 
 def test_high_risk_approval_is_bound_and_one_shot(tmp_path):
