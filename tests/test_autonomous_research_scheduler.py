@@ -33,6 +33,7 @@ def test_scheduler_starts_low_risk_digital_research_without_approval(tmp_path, m
     assert result["retrieval"]["retrieval_run"]["result_count"] == 1
     assert len(result["retrieval_runs"]) == 4
     assert len(result["retrieval_queries"]) == 4
+    assert [item["retrieval_run"]["query"] for item in result["retrieval_runs"]] == result["retrieval_queries"]
     assert all(item["scientific_status"] == "DISCOVERY_ONLY_UNVERIFIED" for item in result["retrieval_runs"])
     assert result["task"]["status"] == "PLANNED"
     run=db.one("SELECT * FROM autonomous_research_runs WHERE id=?",(result["run_id"],))
