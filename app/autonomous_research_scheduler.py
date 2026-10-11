@@ -68,9 +68,17 @@ class AutonomousResearchScheduler:
         # task. Without this step the researcher is correctly blocked for lacking
         # source material, but the autonomous loop would never make progress.
         from app.scientific_retrieval import ScientificRetrievalService
-        retrieval=ScientificRetrievalService(self.db).retrieve(
-            workspace["id"], query=question, providers=("pubmed","crossref"), limit=20
-        )
+        retrieval_service=ScientificRetrievalService(self.db)
+        retrieval_queries=self._retrieval_queries(question)
+        retrieval_runs=[
+            retrieval_service.retrieve(
+                workspace["id"], query=query, providers=("pubmed","crossref"), limit=20
+            )
+            for query in retrieval_queries
+        ]
+        # Preserve the legacy single-run field while exposing the full reproducible
+        # search set. All discovered records remain explicitly unverified.
+        retrieval=retrieval_runs[-1] if retrieval_runs else None
         execution=ResearchActionExecutor(self.db).execute(workspace["id"],candidate["action_type"],actor=actor)
         if execution["status"] != "TASK_CREATED":
             self.db.execute("UPDATE autonomous_research_runs SET status='GOVERNED_REVIEW_REQUIRED',updated_at=? WHERE id=?",(now(),run_id))
@@ -81,7 +89,22 @@ class AutonomousResearchScheduler:
         self.db.execute("UPDATE autonomous_research_runs SET status=?,updated_at=? WHERE id=?",(run_status,now(),run_id))
         return {"status":run_status,"run_id":run_id,"queue_item_id":item_id,
                 "workspace_id":workspace["id"],"task":execution["task"],"retrieval":retrieval,
+                "retrieval_runs":retrieval_runs,"retrieval_queries":retrieval_queries,
                 "candidate":candidate,"gap_report":gap_report}
+
+
+    @staticmethod
+    def _retrieval_queries(question):
+        """Use separate reproducible searches for the initial self-discipline study."""
+        normalized=str(question or "").lower().replace("—","-")
+        if "self-discipline" in normalized or "self discipline" in normalized or "משמעת עצמית" in normalized:
+            return [
+                '("self-discipline" OR "self discipline") AND (definition OR construct OR measure OR scale OR measurement)',
+                '(self-control OR self-regulation) AND (conceptualization OR measurement OR scale)',
+                '("self-discipline" OR self-control OR self-regulation) AND ("systematic review" OR meta-analysis) AND (intervention OR training OR improve OR development)',
+                '("self-control" OR "self-regulation" OR "self-discipline") AND (randomized OR trial OR intervention OR training)',
+            ]
+        return [str(question).strip()]
 
     def run(self, project_id, cycles=1):
         if not 1 <= int(cycles) <= 25:
