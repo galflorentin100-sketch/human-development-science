@@ -87,8 +87,24 @@ class AutonomousResearchScheduler:
                     "retrieval_runs":retrieval_runs,"retrieval_queries":retrieval_queries,
                     "candidate":candidate,"gap_report":gap_report}
         task_status=str(execution["task"].get("status") or "")
-        run_status="BLOCKED_NO_SOURCES" if task_status=="BLOCKED" else "TASK_CREATED"
-        self.db.execute("UPDATE autonomous_research_runs SET status=?,updated_at=? WHERE id=?",(run_status,now(),run_id))
+        if task_status=="BLOCKED":
+            retrieved_count=sum(
+                int((item.get("retrieval_run") or {}).get("result_count") or 0)
+                for item in retrieval_runs
+            )
+            payload=json.loads(execution["task"].get("success_criteria") or "{}")
+            blocked_reason=str(payload.get("execution_blocked_reason") or "")
+            run_status=(
+                "BLOCKED_NO_SOURCES" if retrieved_count==0
+                else "BLOCKED_NO_READABLE_SOURCE_TEXT"
+            )
+            self.db.execute(
+                "UPDATE autonomous_research_runs SET status=?,reason=?,updated_at=? WHERE id=?",
+                (run_status,blocked_reason or "Research prerequisites are not satisfied.",now(),run_id),
+            )
+        else:
+            run_status="TASK_CREATED"
+            self.db.execute("UPDATE autonomous_research_runs SET status=?,updated_at=? WHERE id=?",(run_status,now(),run_id))
         return {"status":run_status,"run_id":run_id,"queue_item_id":item_id,
                 "workspace_id":workspace["id"],"task":execution["task"],"retrieval":retrieval,
                 "retrieval_runs":retrieval_runs,"retrieval_queries":retrieval_queries,
