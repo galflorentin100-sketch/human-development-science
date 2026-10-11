@@ -64,11 +64,12 @@ class ScientificRetrievalService:
             except Exception as exc:
                 errors.append(f"{provider}: {exc}")
 
-        # Deduplicate by canonical URL/DOI/PMID while preserving provider provenance.
+        # Prefer stable scholarly identifiers over landing-page URLs: the same
+        # paper can have a PubMed URL and a Crossref/DOI URL.
         seen = set()
         unique = []
         for provider, record in all_records:
-            key = str(record.get("url") or record.get("doi") or record.get("record_id") or "").strip().lower()
+            key = self._canonical_record_key(record)
             if not key or key in seen:
                 continue
             seen.add(key)
@@ -209,10 +210,16 @@ class ScientificRetrievalService:
                 if name:
                     authors.append(name)
             year = self._pubmed_year(article)
+            doi = ""
+            for article_id in article.findall("./PubmedData/ArticleIdList/ArticleId"):
+                if article_id.attrib.get("IdType", "").lower() == "doi":
+                    doi = self._text(article_id).strip()
+                    break
             if not pmid or not title:
                 continue
             records.append({
                 "record_id": f"pubmed:{pmid}",
+                "doi": doi or None,
                 "title": title,
                 "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
                 "authors": ", ".join(authors),
@@ -258,6 +265,23 @@ class ScientificRetrievalService:
                 "provider": "crossref",
             })
         return records
+
+    @staticmethod
+    def _canonical_record_key(record):
+        doi = str(record.get("doi") or "").strip().lower()
+        record_id = str(record.get("record_id") or "").strip().lower()
+        url = str(record.get("url") or "").strip().lower()
+        if not doi and record_id.startswith("doi:"):
+            doi = record_id[4:]
+        if not doi and url:
+            match = re.search(r"(?:doi\\.org/|[?&]doi=)(10\\.\\d{4,9}/[^\\s?#]+)", url, re.IGNORECASE)
+            if match:
+                doi = urllib.parse.unquote(match.group(1)).rstrip(".,;)")
+        if doi:
+            return "doi:" + doi
+        if record_id.startswith("pubmed:"):
+            return record_id
+        return url or record_id
 
     @staticmethod
     def _text(node):
