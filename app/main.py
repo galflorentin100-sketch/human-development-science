@@ -2114,8 +2114,19 @@ def bootstrap_hds_research(body: ResearchRequest, principal: Principal = Depends
     require_write(principal)
     from app.autonomous_research_loop import AutonomousResearchLoop
     try:
-        return AutonomousResearchLoop(db).bootstrap_research(body.question, principal.user_id)
-    except ValueError as exc:
+        result = AutonomousResearchLoop(db).bootstrap_research(body.question, principal.user_id)
+        # A production founder must receive explicit membership in the project
+        # created by this endpoint, otherwise subsequent project-scoped actions
+        # are correctly denied by the authorization layer.
+        if settings.environment == "production":
+            auth.grant_project_access(
+                principal.user_id,
+                principal.user_id,
+                result["project"]["id"],
+                role="founder",
+            )
+        return result
+    except (ValueError, PermissionError) as exc:
         raise HTTPException(400,str(exc)) from exc
 
 @app.post("/api/hds/research-loops/{run_id}/start")
