@@ -127,23 +127,26 @@ class AutonomousResearchLab:
         run_id = str(uuid4())
         started = now()
         if task_info["task"]["status"] == "BLOCKED":
+            retrieval_count = int((retrieval.get("retrieval_run") or {}).get("result_count") or 0)
+            blocked_status = "BLOCKED_NO_SOURCES" if retrieval_count == 0 else "BLOCKED_NO_READABLE_SOURCE_TEXT"
+            blocked_reason = task_info["input"].get("execution_blocked_reason") or "Research prerequisites are not satisfied."
             self.db.execute(
                 """INSERT INTO autonomous_lab_runs
                    (id,project_id,question,workspace_id,task_id,status,started_at,outcome,error,completed_at)
                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 (run_id, project_id, question.strip(), workspace["id"], task_info["task"]["id"],
-                 "BLOCKED_NO_SOURCES", started,
-                 json.dumps({"retrieval": retrieval}, default=str, sort_keys=True),
-                 "No sources were retrieved; researcher execution remains blocked.", now()),
+                 blocked_status, started,
+                 json.dumps({"retrieval": retrieval, "execution_blocked_reason": blocked_reason}, default=str, sort_keys=True),
+                 blocked_reason, now()),
             )
             return {
-                "status": "BLOCKED_NO_SOURCES",
+                "status": blocked_status,
                 "run_id": run_id,
                 "workspace_id": workspace["id"],
                 "task_id": task_info["task"]["id"],
                 "retrieval": retrieval,
-                "result": {"status": "BLOCKED_NO_SOURCES",
-                           "reason": "No source packet available; no researcher execution was attempted."},
+                "result": {"status": blocked_status,
+                           "reason": blocked_reason},
             }
         self.db.execute(
             """INSERT INTO autonomous_lab_runs
