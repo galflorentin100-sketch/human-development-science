@@ -76,3 +76,36 @@ def test_retrieval_reports_provider_failures_without_inventing_results(tmp_path,
     assert result["results"] == []
     assert len(result["errors"]) == 2
     assert result["scientific_status"] == "DISCOVERY_ONLY_UNVERIFIED"
+
+
+def test_retrieval_deduplicates_same_doi_across_different_landing_pages(tmp_path, monkeypatch):
+    db, run = _active_workspace(tmp_path)
+    service = ScientificRetrievalService(db)
+    pubmed_record = {
+        "record_id": "pubmed:12345",
+        "doi": "10.5555/EXAMPLE.1",
+        "title": "A study of self-regulation",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/12345/",
+        "authors": "Example, A.",
+        "year": 2024,
+        "source_type": "PUBMED",
+        "abstract": "Abstract text.",
+    }
+    crossref_record = {
+        "record_id": "doi:10.5555/example.1",
+        "doi": "10.5555/example.1",
+        "title": "A study of self-regulation",
+        "url": "https://doi.org/10.5555/example.1",
+        "authors": "Example, A.",
+        "year": 2024,
+        "source_type": "CROSSREF",
+        "abstract": "Abstract text.",
+    }
+    monkeypatch.setattr(service, "_pubmed", lambda query, limit: [pubmed_record])
+    monkeypatch.setattr(service, "_crossref", lambda query, limit: [crossref_record])
+
+    result = service.retrieve(run["workspace_id"], providers=("pubmed", "crossref"), limit=10)
+
+    assert result["retrieval_run"]["result_count"] == 1
+    assert len(result["results"]) == 1
+    assert result["results"][0]["provider_record_id"] == "pubmed:12345"
