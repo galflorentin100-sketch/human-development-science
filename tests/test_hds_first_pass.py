@@ -73,6 +73,9 @@ def test_first_pass_executes_configured_research_agent_and_keeps_output_unverifi
     assert body["status"] == "RESEARCH_PASS_RECORDED"
     assert body["scientific_status"] == "UNVERIFIED_REVIEW_REQUIRED"
     assert body["output_review"]["status"] == "NEEDS_EVIDENCE"
+    assert body["agent_output_is_unverified"] is True
+    assert body["agent_output"]["candidate_claims"] == []
+    assert "insufficient" in body["agent_output"]["result"]
     assert body["agent_run_id"]
     assert db.one("SELECT status FROM agent_runs WHERE id=?", (body["agent_run_id"],))["status"] == "REVIEW"
     assert db.one("SELECT verified FROM agent_runs WHERE id=?", (body["agent_run_id"],))["verified"] == 0
