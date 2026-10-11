@@ -138,9 +138,14 @@ class AutonomousResearchLoop:
                    WHERE ret.workspace_id=? ORDER BY ret.created_at""",
                 (run["workspace_id"],),
             )
-            if evidence and any(str(x["status"])!="COMPLETED" or int(x["verified"] or 0)!=1 for x in evidence):
+            # Route only unfinished audits back to the independent reviewer.
+            # Completed REJECTED/UNCERTAIN/CONFLICTED audits must not create an
+            # infinite loop merely because their evidence correctly remains unverified.
+            pending_evidence_reviews=[x for x in evidence if str(x["status"])!="COMPLETED"]
+            if pending_evidence_reviews:
                 return {"run":run,"next_action":"INDEPENDENT_EVIDENCE_REVIEW","terminal":False,
-                        "evidence_reviews":evidence}
+                        "evidence_reviews":pending_evidence_reviews,
+                        "policy":"completed negative or uncertain verdicts remain visible and require governed output review; they are not silently upgraded"}
             if review["status"]=="NEEDS_EVIDENCE":
                 return {"run":run,"next_action":"SUBMIT_VERIFIED_EVIDENCE_TO_AGENT_GATE","terminal":False,
                         "agent_output_review_id":review["id"]}
