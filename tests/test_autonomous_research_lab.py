@@ -30,6 +30,7 @@ def test_autonomous_research_lab_keeps_scientific_admission_gated(tmp_path):
         "EXECUTION_FAILED",
         "EXECUTION_PREFLIGHT_FAILED",
         "RETRY_SCHEDULED",
+        "NO_EXECUTABLE_TASK",
     }
     rows=db.all("SELECT status FROM claims WHERE project_id=?", (project["id"],))
     assert all(row["status"] != "SUPPORTED" for row in rows)
