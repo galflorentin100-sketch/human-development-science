@@ -1,9 +1,10 @@
 name: CI
 on:
+  # Run release-gate CI for feature branches too, not only a hand-maintained list.
   push:
-    branches: [main, hds-scientific-provenance, verify-project-scoped-execution-gate]
+    branches: ["**"]
   pull_request:
-    branches: [main]
+    branches: [main, completion/hds-v1]
 permissions:
   contents: read
 
