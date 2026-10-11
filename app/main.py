@@ -2172,6 +2172,153 @@ def retrieve_hds_research_sources(run_id: str, body: ScientificRetrievalRequest,
     except ValueError as exc:
         raise HTTPException(400,str(exc)) from exc
 
+@app.post("/api/hds/research-loops/{run_id}/run-first-pass")
+def run_hds_research_first_pass(run_id: str, body: ScientificRetrievalRequest, principal: Principal = Depends(principal_from_header)):
+    """Run one bounded HDS literature-research pass; never bypass independent review."""
+    require_execute(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    from app.scientific_retrieval import ScientificRetrievalService
+    from app.research_agent import ResearchAgentService
+
+    loop = AutonomousResearchLoop(db)
+    try:
+        run = loop.get(run_id)
+        require_project(principal, run["project_id"], "EXECUTE")
+
+        if run["status"] == "GAP_IDENTIFIED":
+            run = loop.start_research(run_id, principal.user_id)
+        if run["status"] != "RESEARCH_ACTIVE":
+            raise ValueError(f"research loop is not active (status={run['status']})")
+
+        retrieval_service = ScientificRetrievalService(db)
+        latest_retrieval = db.one(
+            "SELECT * FROM research_retrieval_runs WHERE workspace_id=? ORDER BY created_at DESC LIMIT 1",
+            (run["workspace_id"],),
+        )
+        if not latest_retrieval or latest_retrieval["status"] not in {"COMPLETED", "PARTIAL"} or int(latest_retrieval["result_count"] or 0) == 0:
+            retrieval = retrieval_service.retrieve(
+                run["workspace_id"], body.query or run["gap"], tuple(body.providers), body.limit
+            )
+            latest_retrieval = retrieval["retrieval_run"]
+        else:
+            retrieval = {
+                "retrieval_run": latest_retrieval,
+                "results": retrieval_service.list_results(run["workspace_id"]),
+                "errors": [],
+                "scientific_status": "DISCOVERY_ONLY_UNVERIFIED",
+                "reused_existing_run": True,
+            }
+
+        if int(latest_retrieval.get("result_count") or 0) == 0:
+            return {
+                "status": "RETRIEVAL_BLOCKED",
+                "run": loop.get(run_id),
+                "retrieval": latest_retrieval,
+                "errors": retrieval.get("errors", []),
+                "next_action": "CHECK_QUERY_OR_PROVIDER_ERRORS",
+                "scientific_status": "NO_FINDINGS",
+            }
+
+        task = db.one(
+            """SELECT t.* FROM research_agent_tasks rat
+               JOIN tasks t ON t.id=rat.task_id
+               WHERE rat.workspace_id=? ORDER BY rat.created_at DESC LIMIT 1""",
+            (run["workspace_id"],),
+        )
+        if not task:
+            created = ResearchAgentService(db).create_task(run["workspace_id"], owner=principal.user_id)
+            task = created["task"]
+
+        if task["status"] == "BLOCKED":
+            return {
+                "status": "RESEARCH_AGENT_BLOCKED",
+                "run": loop.get(run_id),
+                "retrieval": latest_retrieval,
+                "task": task,
+                "reason": "HDS requires readable source abstracts/text before evidence-grounded analysis.",
+                "scientific_status": "DISCOVERY_ONLY_UNVERIFIED",
+            }
+
+        if task["status"] in {"PLANNED", "ASSIGNED"}:
+            from app.execution import AgentExecutor
+            execution = AgentExecutor(db).execute(
+                task["assigned_agent_id"], task["id"], {"title": task["title"]},
+                {"project_id": run["project_id"]},
+            )
+            task = db.one("SELECT * FROM tasks WHERE id=?", (task["id"],))
+            if execution.error:
+                return {
+                    "status": "MODEL_EXECUTION_FAILED",
+                    "run": loop.get(run_id),
+                    "retrieval": latest_retrieval,
+                    "task": task,
+                    "error": execution.error,
+                    "cost_metadata": execution.cost_metadata,
+                    "next_action": "CONFIGURE_OR_REPAIR_APPROVED_MODEL_PROVIDER_THEN_RETRY",
+                    "scientific_status": "NO_SYNTHESIS",
+                }
+
+        agent_run = db.one(
+            "SELECT * FROM agent_runs WHERE task_id=? ORDER BY started_at DESC LIMIT 1",
+            (task["id"],),
+        )
+        if not agent_run:
+            return {
+                "status": "WAITING_FOR_AGENT_EXECUTION",
+                "run": loop.get(run_id),
+                "retrieval": latest_retrieval,
+                "task": task,
+                "scientific_status": "DISCOVERY_ONLY_UNVERIFIED",
+            }
+        if agent_run["status"] == "FAILED":
+            return {
+                "status": "MODEL_EXECUTION_FAILED",
+                "run": loop.get(run_id),
+                "retrieval": latest_retrieval,
+                "task": task,
+                "agent_run_id": agent_run["id"],
+                "error": agent_run.get("error"),
+                "scientific_status": "NO_SYNTHESIS",
+            }
+
+        from app.agent_output_gate import AgentOutputGate
+        try:
+            output_review = AgentOutputGate(db).submit(agent_run["id"], run["project_id"])
+        except ValueError as exc:
+            return {
+                "status": "OUTPUT_VALIDATION_BLOCKED",
+                "run": loop.get(run_id),
+                "retrieval": latest_retrieval,
+                "task": task,
+                "agent_run_id": agent_run["id"],
+                "validation_error": str(exc),
+                "next_action": "INSPECT_OUTPUT_AND_SOURCE_EXCERPTS",
+                "scientific_status": "UNVERIFIED_OUTPUT_NOT_PROMOTED",
+            }
+
+        return {
+            "status": "RESEARCH_PASS_RECORDED",
+            "run": loop.get(run_id),
+            "retrieval": {
+                "run_id": latest_retrieval["id"],
+                "status": latest_retrieval["status"],
+                "result_count": latest_retrieval["result_count"],
+                "reused_existing_run": bool(retrieval.get("reused_existing_run", False)),
+                "errors": retrieval.get("errors", []),
+            },
+            "task": task,
+            "agent_run_id": agent_run["id"],
+            "output_review": output_review,
+            "next_action": "INDEPENDENT_EVIDENCE_AND_OUTPUT_REVIEW",
+            "scientific_status": "UNVERIFIED_REVIEW_REQUIRED",
+            "notice": "This endpoint performs one bounded model pass. It does not independently verify evidence, approve findings, or publish scientific conclusions.",
+        }
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @app.get("/api/hds/research-loops/{run_id}/sources")
 def list_hds_research_sources(run_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
