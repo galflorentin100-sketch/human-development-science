@@ -49,7 +49,8 @@ After deployment, verify:
 5. Create a research loop using `POST /api/hds/research-loops/bootstrap`.
 6. Start it using `POST /api/hds/research-loops/{run_id}/start`.
 7. Retrieve candidate literature using `POST /api/hds/research-loops/{run_id}/retrieve` with PubMed and Crossref.
-8. Check `GET /api/hds/research-loops/{run_id}/sources`. Discovery results must remain unverified until the separate review workflow is completed.
+8. To execute a bounded researcher-model pass, call `POST /api/hds/research-loops/{run_id}/run-first-pass` with `{"query":"self-discipline interventions","providers":["pubmed","crossref"],"limit":20}`. This performs retrieval if needed, executes one configured researcher task, and submits its output to the output gate. It does not verify evidence or approve conclusions.
+9. Check `GET /api/hds/research-loops/{run_id}/sources` and the returned output-review status. Discovery results and model output remain unverified until the separate evidence and independent review workflows are completed.
 
 Retrieval is discovery, not scientific verification. Do not report a research conclusion until source content has been reviewed and the synthesis has passed the required independent review and evidence gates.
 
