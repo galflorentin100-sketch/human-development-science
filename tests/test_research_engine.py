@@ -136,6 +136,9 @@ def test_research_agent_lookup_uses_canonical_role(tmp_path):
     result=ResearchAgentService(db).create_task(ws["id"])
     assert result["agent_id"]==aid
     assert result["task"]["assigned_agent_id"]==aid
+    # Task preparation without a retrieved source packet must not authorize execution.
+    assert result["task"]["status"]=="BLOCKED"
+    assert '"execution_authorized": false' in result["task"]["success_criteria"]
 
 
 def test_research_agent_task_is_governed(tmp_path):
