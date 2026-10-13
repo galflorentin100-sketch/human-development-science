@@ -8,6 +8,12 @@ class ChallengeExecutionService:
         from app.human_development import HumanDevelopmentService
         challenge=self.db.one("""SELECT c.id,p.project_id FROM hds_challenges c JOIN hds_programs p ON p.id=c.program_id WHERE c.id=?""",(challenge_id,))
         if not challenge or challenge["project_id"]!=project_id: raise ValueError("challenge does not belong to project")
+        participant=self.db.one("""SELECT cp.id,c.project_id
+            FROM hds_competition_participants cp
+            JOIN hds_competitions c ON c.id=cp.competition_id
+            WHERE cp.id=?""",(participant_id,))
+        if not participant: raise ValueError("participant not found")
+        if participant["project_id"] != project_id: raise ValueError("participant does not belong to project")
         # The only supported entry point for physical challenge execution is the safety gate.
         HumanDevelopmentService(self.db).assert_challenge_safe_to_execute(challenge_id,participant_id)
         active=self.db.one("SELECT * FROM hds_challenge_executions WHERE challenge_id=? AND participant_id=? AND status='RUNNING'",(challenge_id,participant_id))
@@ -75,10 +81,13 @@ class AdaptiveTrainingService:
             raise ValueError("training protocol not found")
         if str(protocol["project_id"])!=str(project_id):
             raise ValueError("training protocol belongs to another project")
-        from app.participant_governance import ParticipantGovernance
-        ParticipantGovernance(self.db).assert_active(str(participant_ref))
+        # Validate explicit safety input before participant-specific execution.
         if not isinstance(safety_checks,dict) or not safety_checks:
             raise ValueError("current safety checks are required before adaptive training changes")
+        from app.scientific_admission import ScientificAdmissionGate
+        ScientificAdmissionGate(self.db).assert_training_operational(protocol_id)
+        from app.participant_governance import ParticipantGovernance
+        ParticipantGovernance(self.db).assert_active(str(participant_ref))
         from app.safety import SafetyGate
         safety=SafetyGate(self.db).assess(protocol_id,str(participant_ref),safety_checks)
         if safety["status"]!="CLEAR":

@@ -136,6 +136,9 @@ def test_research_agent_lookup_uses_canonical_role(tmp_path):
     result=ResearchAgentService(db).create_task(ws["id"])
     assert result["agent_id"]==aid
     assert result["task"]["assigned_agent_id"]==aid
+    # Task preparation without a retrieved source packet must not authorize execution.
+    assert result["task"]["status"]=="BLOCKED"
+    assert '"execution_authorized": false' in result["task"]["success_criteria"]
 
 
 def test_research_agent_task_is_governed(tmp_path):
@@ -151,6 +154,32 @@ def test_research_agent_task_is_governed(tmp_path):
     assert result["task"]["project_id"]==pid
     assert result["task"]["assigned_agent_id"]==aid
     assert result["workspace_id"]==ws["id"]
+
+def test_inference_causal_finding_cannot_be_promoted_to_claim(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    from app.research_engine import ResearchEngine
+    from app.finding_claim_bridge import FindingClaimBridge
+    import json
+    db=Database(str(tmp_path/"causal-bridge.db")); ResearchCycle(db); pid=_setup(db)
+    source=EvidencePipeline(db).register_source("Paper","https://example.org/causal","Author",2025)
+    claim_id=str(uuid.uuid4())
+    from app.models import now
+    db.execute("INSERT INTO claims(id,project_id,statement,status,classification,confidence,review_required,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+               (claim_id,pid,"source placeholder","SUPPORTED","INFERENCE",1.0,0,now(),now()))
+    EvidencePipeline(db).ingest_text(source["id"],"excerpt")
+    ev=EvidencePipeline(db).attach(claim_id,source["id"],"excerpt","SUPPORTS",actor="researcher")
+    EvidencePipeline(db).review(ev["id"],"founder","VERIFIED","verified")
+    from app.research import ResearchFindingService
+    finding=ResearchFindingService(db).create(
+        pid,"The intervention causes improved resilience",
+        classification="INFERENCE",source_type="LITERATURE",source_id=None,
+        evidence_refs=[ev["id"]],created_by="researcher")
+    ResearchFindingService(db).review(finding["id"],"founder","ACCEPTED","evidence verified")
+    try:
+        FindingClaimBridge(db).propose_claim(finding["id"],"knowledge-manager")
+        assert False
+    except ValueError as exc:
+        assert "causal claim" in str(exc)
 
 def test_finding_promotion_requires_evidence_audit(tmp_path):
     import json
@@ -240,3 +269,89 @@ def test_research_review_pipeline_rolls_back_partial_task_creation(tmp_path):
         assert "review agent" in str(exc)
     assert db.one("SELECT COUNT(*) AS n FROM research_review_tasks WHERE synthesis_id=?",(syn["id"],))["n"]==0
     assert db.one("SELECT COUNT(*) AS n FROM tasks WHERE project_id=? AND title LIKE ?",(pid,"%"+syn["id"]))["n"]==0
+
+def test_research_agent_packet_keeps_sources_from_multiple_retrieval_runs(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    from app.research_agent import ResearchAgentService
+    from app.research_engine import ResearchEngine
+    from app.models import now
+    db=Database(str(tmp_path/"multi-retrieval-packet.db")); ResearchCycle(db); pid=_setup(db)
+    aid=str(uuid.uuid4())
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+               (aid,"researcher","researcher","research","[]","[\"READ\"]","1","ACTIVE",now()))
+    engine=ResearchEngine(db)
+    ws=engine.create(pid,"What is self-discipline?",owner="founder")
+    engine.activate(ws["id"],"founder")
+    sources=[]
+    for idx in (1,2):
+        source=EvidencePipeline(db).register_source(
+            f"Self-discipline paper {idx}",f"https://example.org/self-discipline-{idx}",f"Author {idx}",2020+idx)
+        EvidencePipeline(db).ingest_text(source["id"],f"Exact abstract text for source {idx}.")
+        sources.append(source["id"])
+    db.execute("INSERT INTO research_retrieval_runs(id,workspace_id,provider,query,status,result_count,created_at) VALUES (?,?,?,?,?,?,?)",
+               ("retrieval-old",ws["id"],"pubmed","self discipline","COMPLETED",1,"2026-01-01T00:00:00+00:00"))
+    db.execute("INSERT INTO research_retrieval_runs(id,workspace_id,provider,query,status,result_count,created_at) VALUES (?,?,?,?,?,?,?)",
+               ("retrieval-new",ws["id"],"crossref","self-regulation","COMPLETED",1,"2026-01-02T00:00:00+00:00"))
+    db.execute("INSERT INTO research_retrieval_results(id,retrieval_run_id,workspace_id,source_id,provider_record_id,rank,metadata,created_at) VALUES (?,?,?,?,?,?,?,?)",
+               ("result-old","retrieval-old",ws["id"],sources[0],"pubmed:one",1,"{}","2026-01-01T00:00:00+00:00"))
+    db.execute("INSERT INTO research_retrieval_results(id,retrieval_run_id,workspace_id,source_id,provider_record_id,rank,metadata,created_at) VALUES (?,?,?,?,?,?,?,?)",
+               ("result-new","retrieval-new",ws["id"],sources[1],"crossref:two",1,"{}","2026-01-02T00:00:00+00:00"))
+
+    result=ResearchAgentService(db).create_task(ws["id"],agent_id=aid)
+    payload=json.loads(result["task"]["success_criteria"])
+    packet=payload["source_packet"]
+
+    assert {item["source_id"] for item in packet}==set(sources)
+    assert all(item["verified"] is False for item in packet)
+
+def test_research_agent_prompt_requires_source_grounded_json():
+    from app.execution import build_agent_prompt
+    source_id="source-123"
+    task={
+        "title":"[RESEARCH] What is self-discipline?",
+        "success_criteria":json.dumps({
+            "question":"What is self-discipline?",
+            "scope":"systematic digital literature scan",
+            "inclusion_rules":["peer-reviewed empirical or review literature"],
+            "exclusion_rules":["unsupported popular claims"],
+            "source_packet":[{
+                "source_id":source_id,
+                "title":"Example paper",
+                "abstract":"Self-regulation involves monitoring and adjusting behavior toward a goal.",
+                "verified":False,
+            }],
+            "required_output":{"candidate_claims":"JSON list"},
+        }),
+    }
+    prompt=build_agent_prompt(task,{"title":task["title"]},{"project_id":"project-1"})
+    assert "Return ONLY one valid JSON object" in prompt
+    assert "exact_excerpt" in prompt
+    assert "source-123" in prompt
+    assert "Self-regulation involves monitoring and adjusting behavior toward a goal." in prompt
+    assert "Do not say independent review has happened" in prompt
+
+def test_research_agent_blocks_metadata_only_sources_without_readable_text(tmp_path):
+    from app.evidence_pipeline import EvidencePipeline
+    from app.research_agent import ResearchAgentService
+    from app.research_engine import ResearchEngine
+    from app.models import now
+    db=Database(str(tmp_path/"metadata-only-source.db")); ResearchCycle(db); pid=_setup(db)
+    aid=str(uuid.uuid4())
+    db.execute("INSERT INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+               (aid,"researcher","researcher","research","[]","[\"READ\"]","1","ACTIVE",now()))
+    engine=ResearchEngine(db)
+    ws=engine.create(pid,"What is self-discipline?",owner="founder")
+    engine.activate(ws["id"],"founder")
+    source=EvidencePipeline(db).register_source("Metadata-only paper","https://example.org/metadata-only","Author",2024)
+    db.execute("INSERT INTO research_retrieval_runs(id,workspace_id,provider,query,status,result_count,created_at) VALUES (?,?,?,?,?,?,?)",
+               ("metadata-only-run",ws["id"],"crossref","self discipline","COMPLETED",1,now()))
+    db.execute("INSERT INTO research_retrieval_results(id,retrieval_run_id,workspace_id,source_id,provider_record_id,rank,metadata,created_at) VALUES (?,?,?,?,?,?,?,?)",
+               ("metadata-only-result","metadata-only-run",ws["id"],source["id"],"doi:10.1000/metadata-only",1,"{} ",now()))
+
+    result=ResearchAgentService(db).create_task(ws["id"],agent_id=aid)
+    payload=json.loads(result["task"]["success_criteria"])
+
+    assert result["task"]["status"]=="BLOCKED"
+    assert payload["execution_authorized"] is False
+    assert payload["action"]=="FETCH_READABLE_SOURCE_TEXT"
+    assert "no readable abstract/source text" in payload["execution_blocked_reason"]

@@ -1,6 +1,8 @@
 services:
   api:
     build: .
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     volumes:
@@ -9,5 +11,12 @@ services:
       COMPANY_OS_ENV: development
       COMPANY_OS_DB: /data/company_os.db
       COMPANY_OS_LOG_LEVEL: INFO
+      HDS_MODEL_PROVIDER: ${HDS_MODEL_PROVIDER:-local}
+      HDS_OLLAMA_BASE_URL: ${HDS_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      HDS_OLLAMA_MODEL: ${HDS_OLLAMA_MODEL:-qwen2.5:14b}
+      HDS_ANTHROPIC_MODEL: ${HDS_ANTHROPIC_MODEL:-claude-sonnet-5}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      HDS_INPUT_COST_PER_MILLION_TOKENS: ${HDS_INPUT_COST_PER_MILLION_TOKENS:-0}
+      HDS_OUTPUT_COST_PER_MILLION_TOKENS: ${HDS_OUTPUT_COST_PER_MILLION_TOKENS:-0}
 volumes:
   company_data:

@@ -20,8 +20,41 @@ class AgentOutputGate:
         existing=self.db.one("SELECT * FROM agent_output_reviews WHERE agent_run_id=?",(agent_run_id,))
         if existing: return existing
         payload=json.loads(run["output_payload"] or "{}")
+        if not isinstance(payload,dict):
+            payload={}
+        # AgentExecutor stores a CompanyMessage envelope; unwrap its payload before
+        # looking for structured research JSON. Preserve the envelope metadata for
+        # provenance, but never treat it as scientific evidence.
+        if isinstance(payload.get("payload"),dict) and "from_agent" in payload and "task_id" in payload:
+            envelope=payload
+            payload=dict(envelope["payload"])
+            payload["_agent_message_metadata"]={
+                "message_id":envelope.get("id"),
+                "from_agent":envelope.get("from_agent"),
+                "task_id":envelope.get("task_id"),
+                "created_at":envelope.get("created_at"),
+            }
+        # Normalize the common wrapped-output shape without changing or inventing evidence.
+        result_payload=payload.get("result")
+        if isinstance(result_payload,str) and result_payload.strip():
+            try:
+                result_payload=json.loads(result_payload)
+            except (TypeError,ValueError):
+                result_payload=None
+        if isinstance(result_payload,dict):
+            normalized=dict(result_payload)
+            normalized.update({k:v for k,v in payload.items() if k!="result"})
+            payload=normalized
         refs=payload.get("evidence_refs") or []
         if not isinstance(refs,list): refs=[]
+        # Research-agent outputs may contain only candidate_claims at first.
+        # Materialize those into unverified evidence before creating the output review.
+        if not refs and payload.get("candidate_claims"):
+            from app.research_evidence_materializer import ResearchEvidenceMaterializer
+            materialized=ResearchEvidenceMaterializer(self.db).materialize(agent_run_id)
+            refs=[item["evidence_id"] for item in materialized["created"]]
+            payload=dict(payload)
+            payload["materialized_evidence_refs"]=refs
         canonical=json.dumps(payload,sort_keys=True,separators=(",",":"))
         digest=hashlib.sha256(canonical.encode()).hexdigest()
         status="READY_FOR_REVIEW" if refs else "NEEDS_EVIDENCE"

@@ -229,6 +229,7 @@ def test_execute_next_recovers_when_agent_preflight_fails(tmp_path):
     from app.tasks import TaskEngine
     db=Database(str(tmp_path/"preflight.db")); ResearchCycle(db)
     p=ResearchCycle(db).run("preflight")["project"]
+    db.execute("UPDATE projects SET status='RUNNING' WHERE id=?",(p["id"],))
     agent=db.one("SELECT id FROM agents WHERE id='researcher'")["id"] if db.one("SELECT id FROM agents WHERE id='researcher'") else db.one("SELECT id FROM agents LIMIT 1")["id"]
     db.execute("DELETE FROM agent_permissions WHERE agent_id=? AND permission='EXECUTE'",(agent,))
     task=TaskEngine(db).create_task("preflight task","test",p["id"],agent,required_permissions=["EXECUTE"],priority=1.0)
@@ -573,16 +574,18 @@ def test_anthropic_provider_requires_explicit_key_and_spend_rates(monkeypatch):
     assert provider.estimate_cost(__import__("app.providers",fromlist=["ModelRequest"]).ModelRequest("test","hello"))>0
 
 
-def test_founder_chat_is_governed_and_unverified(tmp_path, monkeypatch):
+def test_founder_chat_fails_closed_without_research_capable_model(tmp_path, monkeypatch):
+    import pytest
     from app.database import Database
     from app.workflow import ResearchCycle
     from app.founder_chat import FounderChatService
     monkeypatch.delenv("HDS_MODEL_PROVIDER", raising=False)
     db=Database(str(tmp_path/"chat.db")); project=ResearchCycle(db).run("chat")["project"]
-    result=FounderChatService(db).ask(project["id"],"What requires attention?","founder")
-    assert result["verified"] is False
-    assert result["provider"]=="local"
-    assert "unverified" in result["uncertainty"].lower()
+    with pytest.raises(RuntimeError, match="No research-capable model is configured"):
+        FounderChatService(db).ask(project["id"],"What requires attention?","founder")
+    call=db.one("SELECT status,error FROM model_calls WHERE purpose='founder-chat' ORDER BY created_at DESC LIMIT 1")
+    assert call["status"]=="FAILED"
+    assert "No research-capable model is configured" in call["error"]
 
 
 def test_high_risk_approval_is_bound_and_one_shot(tmp_path):
@@ -598,3 +601,70 @@ def test_high_risk_approval_is_bound_and_one_shot(tmp_path):
         assert False, "approval must be one-shot"
     except ApprovalRequired:
         pass
+
+def test_agent_output_gate_unwraps_company_message_envelope(tmp_path):
+    import json
+    import uuid
+    from app.database import Database
+    from app.workflow import ResearchCycle
+    from app.agent_output_gate import AgentOutputGate
+    from app.models import now
+    db=Database(str(tmp_path/"output-envelope.db")); ResearchCycle(db)
+    project=ResearchCycle(db).run("output envelope")["project"]
+    agent=db.one("SELECT id FROM agents LIMIT 1")
+    task_id=str(uuid.uuid4()); run_id=str(uuid.uuid4())
+    db.execute("INSERT INTO tasks(id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+               (task_id,project["id"],"[RESEARCH] structured output","REVIEW",agent["id"],1.0,"{}",now(),now()))
+    message={
+        "id":str(uuid.uuid4()),"from_agent":agent["id"],"to_agent":"coo",
+        "type":"task_result","task_id":task_id,
+        "payload":{"result":json.dumps({"candidate_claims":[],"limitations":"No claims supported yet","uncertainty":"Unverified"}),
+                   "evidence_refs":["evidence-placeholder"]},
+        "confidence":0.0,"evidence_refs":[],"uncertainties":["Unverified"],
+        "recommended_actions":["Review"],"created_at":now(),
+    }
+    db.execute("INSERT INTO agent_runs(id,agent_id,task_id,status,input_payload,output_payload,started_at,completed_at) VALUES (?,?,?,?,?,?,?,?)",
+               (run_id,agent["id"],task_id,"REVIEW","{}",json.dumps(message),now(),now()))
+    review=AgentOutputGate(db).submit(run_id,project["id"])
+    assert review["status"]=="READY_FOR_REVIEW"
+    assert json.loads(review["evidence_refs"])==["evidence-placeholder"]
+
+def test_ollama_provider_is_explicit_and_returns_model_output(monkeypatch):
+    import json
+    from app.providers import configured_provider, ModelRequest, OllamaProvider
+    monkeypatch.setenv("HDS_MODEL_PROVIDER","ollama")
+    monkeypatch.setenv("HDS_OLLAMA_BASE_URL","http://ollama.test:11434")
+    monkeypatch.setenv("HDS_OLLAMA_MODEL","test-model")
+    provider=configured_provider()
+    assert isinstance(provider,OllamaProvider)
+    captured={}
+    class Response:
+        status_code=200
+        text=""
+        def json(self):
+            return {"message":{"content":"Evidence-bounded synthesis."},"prompt_eval_count":12,"eval_count":7}
+    def fake_post(url,**kwargs):
+        captured["url"]=url
+        captured["kwargs"]=kwargs
+        return Response()
+    monkeypatch.setattr("httpx.post",fake_post)
+    result=provider.complete(ModelRequest("research","Use only supplied source text."))
+    assert captured["url"]=="http://ollama.test:11434/api/chat"
+    assert captured["kwargs"]["json"]["model"]=="test-model"
+    assert captured["kwargs"]["json"]["stream"] is False
+    assert result.content=="Evidence-bounded synthesis."
+    assert result.provider=="ollama"
+    assert result.input_tokens==12 and result.output_tokens==7
+    assert result.estimated_cost==0.0
+
+
+def test_ollama_provider_rejects_empty_output(monkeypatch):
+    import pytest
+    from app.providers import OllamaProvider, ModelRequest
+    class Response:
+        status_code=200
+        text=""
+        def json(self): return {"message":{"content":"  "}}
+    monkeypatch.setattr("httpx.post",lambda *args,**kwargs:Response())
+    with pytest.raises(RuntimeError,match="empty model response"):
+        OllamaProvider(base_url="http://ollama.test",model="test-model").complete(ModelRequest("research","prompt"))

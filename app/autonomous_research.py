@@ -12,13 +12,20 @@ class AutonomousResearchPlanner:
         self.db=db
 
     def next_work(self):
+        # Routing metadata is owned by the database schema/migrations.
+        # Runtime planning must never mutate the schema.
+        required={"trigger_type","priority"}
+        missing=required-set(self.db.table_columns("research_questions"))
+        if missing:
+            raise RuntimeError("research_questions schema is missing required routing columns: "+", ".join(sorted(missing)))
         candidates=[]
         from app.self_audit import SelfAuditEngine
         audit=SelfAuditEngine(self.db).run()
         for f in audit["findings"]:
             candidates.append({"kind":"AUDIT","priority":100 if f["severity"]=="HIGH" else 70,"title":f["message"],"entity_id":f["entity_id"],"reason":f["kind"]})
-        for q in self.db.all("SELECT id,question,status FROM research_questions WHERE status NOT IN ('RESOLVED','CLOSED') ORDER BY created_at ASC LIMIT 20"):
-            candidates.append({"kind":"RESEARCH","priority":60,"title":q["question"],"entity_id":q["id"],"reason":"open research question"})
+        for q in self.db.all("SELECT id,question,status,trigger_type,priority FROM research_questions WHERE status NOT IN ('RESOLVED','CLOSED') ORDER BY priority DESC,created_at ASC LIMIT 20"):
+            candidates.append({"kind":"RESEARCH","priority":int(q["priority"] or 60),"title":q["question"],"entity_id":q["id"],
+                               "reason":"open research question","trigger_type":q["trigger_type"]})
         for p in self.db.all("SELECT id,title,area,status FROM improvement_proposals WHERE status='PROPOSED' ORDER BY created_at ASC LIMIT 20"):
             candidates.append({"kind":"IMPROVEMENT","priority":50,"title":p["title"],"entity_id":p["id"],"reason":"unstarted improvement proposal"})
         for d in self.db.all("SELECT id,decision,status FROM organizational_decisions WHERE status='OPEN' ORDER BY created_at ASC LIMIT 20"):

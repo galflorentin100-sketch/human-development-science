@@ -16,10 +16,9 @@ class ResearchAgentService:
         self._ensure()
     
     def _ensure(self):
-        self.db.execute("""CREATE TABLE IF NOT EXISTS research_agent_tasks (
-            task_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, agent_id TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        )""")
+        # research_agent_tasks is part of the authoritative database migration
+        # schema. Runtime services must not mutate database schema.
+        return None
 
     def create_task(self,workspace_id,agent_id=None,owner="researcher"):
         ws=self.db.one("SELECT * FROM research_workspaces WHERE id=?",(workspace_id,))
@@ -27,19 +26,83 @@ class ResearchAgentService:
         if ws["status"]!="ACTIVE": raise ValueError("research workspace must be ACTIVE")
         agent=agent_id or self._researcher_agent()
         if not agent: raise ValueError("researcher agent not found")
+        source_rows=self.db.all(
+            """SELECT r.source_id,r.provider_record_id,r.rank,s.title,s.url,s.authors,s.publication_year,s.source_type,
+                      COALESCE(es.content,'') AS content
+               FROM research_retrieval_results r
+               JOIN sources s ON s.id=r.source_id
+               LEFT JOIN evidence_sources es ON es.source_id=r.source_id AND es.state='PARSED'
+               WHERE r.workspace_id=?
+               AND r.id=(
+                   SELECT r2.id
+                   FROM research_retrieval_results r2
+                   WHERE r2.workspace_id=r.workspace_id
+                     AND r2.source_id=r.source_id
+                   ORDER BY r2.created_at DESC,r2.rank ASC
+                   LIMIT 1
+               )
+               ORDER BY r.rank,r.created_at DESC
+               LIMIT 50""",
+            (workspace_id,),
+        )
+        source_packet=[]
+        for row in source_rows:
+            source_packet.append({
+                "source_id":row["source_id"],
+                "provider_record_id":row["provider_record_id"],
+                "rank":row["rank"],
+                "title":row["title"],
+                "url":row["url"],
+                "authors":row["authors"],
+                "publication_year":row["publication_year"],
+                "source_type":row["source_type"],
+                "abstract":(row["content"] or "")[:12000],
+                "verified":False,
+            })
+        # Metadata-only records are not enough for evidence-grounded analysis:
+        # the researcher must receive readable abstract/source text from which exact
+        # excerpts can be cited. Retrieval remains discovery-only and unverified.
+        has_readable_text=any(str(item.get("abstract") or "").strip() for item in source_packet)
+        waiting_for_sources=not bool(source_packet)
+        waiting_for_readable_text=bool(source_packet) and not has_readable_text
+        execution_blocked=waiting_for_sources or waiting_for_readable_text
+        blocked_reason=(
+            "No retrieved source packet is available; retrieve and persist source material before running the researcher."
+            if waiting_for_sources else
+            "Retrieved records contain no readable abstract/source text; obtain readable source text before running the researcher."
+            if waiting_for_readable_text else None
+        )
         payload={
-            "action":"research","workspace_id":workspace_id,"question":ws["question"],
+            "action":"RETRIEVE_SCIENTIFIC_SOURCES" if waiting_for_sources else ("FETCH_READABLE_SOURCE_TEXT" if waiting_for_readable_text else "research"),
+            "execution_authorized":not execution_blocked,
+            "execution_blocked_reason":blocked_reason,
+            "workspace_id":workspace_id,"question":ws["question"],
             "scope":ws["scope"],"inclusion_rules":json.loads(ws["inclusion_rules"] or "[]"),
             "exclusion_rules":json.loads(ws["exclusion_rules"] or "[]"),
-            "required_output":{"sources":"source IDs with relevance and provenance","synthesis":"evidence-grounded synthesis","limitations":"known limitations","uncertainty":"explicit uncertainty","evidence_refs":"IDs only for evidence actually used"},
-            "guardrails":["Do not invent sources or evidence IDs.","Do not claim causality from descriptive evidence.","Separate evidence from interpretation.","Return insufficient-evidence when support is missing."]
+            "source_packet":source_packet,
+            "required_output":{
+                "candidate_claims":"JSON list; each item must contain statement, classification, source_id, exact_excerpt, stance",
+                "synthesis":"evidence-grounded synthesis using only the supplied source packet",
+                "limitations":"known limitations and missing evidence",
+                "uncertainty":"explicit uncertainty and contradictions",
+            },
+            "guardrails":[
+                "Do not invent sources, studies, evidence IDs, quotations, samples, statistics, or results.",
+                "Every candidate claim must cite one supplied source_id and an exact excerpt copied from that source packet.",
+                "If the supplied material is insufficient, return an empty candidate_claims list and say so.",
+                "Do not claim causality from observational or correlational evidence.",
+                "Separate source observations from interpretation.",
+                "All supplied source material is unverified until an independent evidence review accepts it.",
+            ]
         }
         from uuid import uuid4
         task_id=str(uuid4()); ts=now()
         with self.db.transaction() as con:
             con.execute(
                 "INSERT INTO tasks(id,project_id,title,status,assigned_agent_id,priority,success_criteria,created_at,updated_at,owner,required_permissions,retry_limit) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                (task_id,ws["project_id"],f"[RESEARCH] {ws['question']}","PLANNED",agent,2.0,json.dumps(payload,sort_keys=True),ts,ts,owner,json.dumps(["READ"]),1))
+                (task_id,ws["project_id"],f"[RESEARCH] {ws['question']}",
+                 "BLOCKED" if execution_blocked else "PLANNED",agent,2.0,
+                 json.dumps(payload,sort_keys=True),ts,ts,owner,json.dumps(["READ"]),1))
             con.execute(
                 "INSERT INTO research_agent_tasks(task_id,workspace_id,agent_id,created_at) VALUES (?,?,?,?) ON CONFLICT(task_id) DO UPDATE SET workspace_id=excluded.workspace_id,agent_id=excluded.agent_id,created_at=excluded.created_at",
                 (task_id,workspace_id,agent,ts))
@@ -47,7 +110,7 @@ class ResearchAgentService:
         return {"task":task,"workspace_id":workspace_id,"agent_id":agent,"input":payload}
 
     def _researcher_agent(self):
-        row=self.db.one("SELECT id FROM agents WHERE status='ACTIVE' AND (id=? OR role=?) ORDER BY created_at LIMIT 1",(self.ROLE,self.ROLE))
+        row=self.db.one("SELECT id FROM agents WHERE status='ACTIVE' AND (id=? OR role=?) ORDER BY created_at DESC, id DESC LIMIT 1",(self.ROLE,self.ROLE))
         return row["id"] if row else None
 
     def finalize_review(self,review_id,actor):

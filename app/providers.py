@@ -13,8 +13,17 @@ class ModelProvider(Protocol):
     def complete(self,request:ModelRequest)->ModelResponse: ...
     def estimate_cost(self,request:ModelRequest)->float: ...
 class LocalProvider:
+    """Fail-closed placeholder: never masquerade as a functioning language model."""
+    name="local"
+
     def estimate_cost(self,request): return 0.0
-    def complete(self,request): return ModelResponse("LOCAL_PROVIDER: no external model configured. Treat this output as unverified.","local","none")
+
+    def complete(self,request):
+        raise RuntimeError(
+            "No research-capable model is configured. Set HDS_MODEL_PROVIDER to an "
+            "explicitly approved provider, or implement and configure a real local model. "
+            "HDS must not treat placeholder text as research output."
+        )
 class ProviderRouter:
     TRANSIENT_ERRORS=(TimeoutError, ConnectionError)
     def __init__(self,providers=None,retries=2):
@@ -130,6 +139,59 @@ class AnthropicMessagesProvider:
         return ModelResponse(text,self.name,self.model,input_tokens,output_tokens,cost)
 
 
+class OllamaProvider:
+    """Explicitly configured self-hosted Ollama chat model.
+
+    No external paid API is used. The Ollama server must be reachable from the
+    HDS API runtime; this adapter never downloads models or silently falls back.
+    """
+    name="ollama"
+
+    def __init__(self,base_url=None,model=None,timeout=120.0):
+        import os
+        self.base_url=(base_url or os.getenv("HDS_OLLAMA_BASE_URL","http://127.0.0.1:11434")).rstrip("/")
+        self.model=model or os.getenv("HDS_OLLAMA_MODEL","qwen2.5:14b")
+        self.timeout=float(timeout)
+        if not self.base_url.startswith(("http://","https://")):
+            raise ValueError("HDS_OLLAMA_BASE_URL must be an HTTP(S) URL")
+        if not self.model.strip():
+            raise ValueError("HDS_OLLAMA_MODEL must not be empty")
+
+    def estimate_cost(self,request):
+        return 0.0
+
+    def complete(self,request):
+        import httpx
+        try:
+            response=httpx.post(
+                self.base_url+"/api/chat",
+                json={
+                    "model":self.model,
+                    "stream":False,
+                    "messages":[{"role":"user","content":request.prompt}],
+                    "options":{"temperature":0.1},
+                },
+                timeout=self.timeout,
+            )
+        except httpx.TimeoutException as exc:
+            raise TimeoutError("Ollama request timed out") from exc
+        except httpx.ConnectError as exc:
+            raise ConnectionError("Ollama connection failed; check HDS_OLLAMA_BASE_URL and that Ollama is running") from exc
+        if response.status_code >= 400:
+            detail=response.text[:1000]
+            if response.status_code in {408,429} or response.status_code >= 500:
+                raise TimeoutError(f"Ollama transient HTTP {response.status_code}: {detail}")
+            raise RuntimeError(f"Ollama HTTP {response.status_code}: {detail}")
+        payload=response.json()
+        message=payload.get("message") or {}
+        content=message.get("content","")
+        if not isinstance(content,str) or not content.strip():
+            raise RuntimeError("Ollama returned an empty model response")
+        prompt_tokens=int(payload.get("prompt_eval_count") or 0)
+        output_tokens=int(payload.get("eval_count") or 0)
+        return ModelResponse(content,self.name,self.model,prompt_tokens,output_tokens,0.0)
+
+
 def configured_provider():
     import os
     provider=os.getenv("HDS_MODEL_PROVIDER","local").strip().lower()
@@ -137,4 +199,6 @@ def configured_provider():
         return LocalProvider()
     if provider=="anthropic":
         return AnthropicMessagesProvider()
+    if provider=="ollama":
+        return OllamaProvider()
     raise ValueError(f"unsupported HDS_MODEL_PROVIDER: {provider}")

@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 import hashlib
 import hmac
+import json
 from pathlib import Path
 from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -95,6 +96,10 @@ class ResearchSynthesisRequest(BaseModel):
     synthesis: str = Field(min_length=1, max_length=20000)
     limitations: str = ""
     uncertainty: str = ""
+class ScientificRetrievalRequest(BaseModel):
+    query: str | None = Field(default=None, max_length=4000)
+    providers: list[str] = Field(default_factory=lambda: ["pubmed", "crossref"])
+    limit: int = Field(default=20, ge=1, le=50)
 class ExperimentRequest(BaseModel):
     project_id: str; hypothesis: str = Field(min_length=1); design: str = Field(min_length=1)
 class ConstructRequest(BaseModel):
@@ -639,6 +644,11 @@ def founder_goal(body: Goal, principal: Principal = Depends(principal_from_heade
 @app.post("/api/projects/{project_id}/autonomous-run")
 def autonomous_run(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_project(principal, project_id, "EXECUTE"); return AutonomousLoop(db).run(project_id)
+@app.post("/api/projects/{project_id}/autonomous-research-run")
+def autonomous_research_run(project_id: str, principal: Principal = Depends(principal_from_header)):
+    require_project(principal, project_id, "EXECUTE")
+    from app.autonomous_research_scheduler import AutonomousResearchScheduler
+    return AutonomousResearchScheduler(db).run_and_execute_once(project_id, actor=principal.user_id)
 @app.post("/api/projects/{project_id}/decide-next")
 def decide_next(project_id: str, principal: Principal = Depends(principal_from_header)):
     require_project(principal, project_id, "EXECUTE"); return CompanyOrchestrator(db).decide_next(project_id)
@@ -848,7 +858,7 @@ def attach_training_protocol_evidence(protocol_id: str, body: dict, principal: P
 
 @app.post("/api/science/training-protocols/{protocol_id}/sessions")
 def record_training_session(protocol_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     require_resource_project(principal, "training_protocol", protocol_id, "WRITE")
     from app.training import TrainingProtocolService
     return TrainingProtocolService(db).session(
@@ -2038,7 +2048,7 @@ def hds_training_progression(protocol_id: str, participant_ref: str, principal: 
 
 @app.post("/api/hds/challenges/{challenge_id}/participants/{participant_id}/start")
 def start_hds_challenge(challenge_id: str, participant_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     from app.adaptive_training import ChallengeExecutionService
     project_id=body.get("project_id")
     if not project_id: raise HTTPException(400,"project_id is required")
@@ -2048,7 +2058,7 @@ def start_hds_challenge(challenge_id: str, participant_id: str, body: dict, prin
 
 @app.post("/api/hds/challenge-executions/{execution_id}/stop")
 def stop_hds_challenge(execution_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     row=db.one("SELECT project_id FROM hds_challenge_executions WHERE id=?",(execution_id,))
     if not row: raise HTTPException(404,"challenge execution not found")
     require_project(principal,row["project_id"],"WRITE")
@@ -2058,7 +2068,7 @@ def stop_hds_challenge(execution_id: str, body: dict, principal: Principal = Dep
 
 @app.post("/api/hds/projects/{project_id}/challenge-executions/emergency-stop")
 def emergency_stop_hds_challenges(project_id: str, body: dict, challenge_id: str | None = None, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     require_project(principal, project_id, "WRITE")
     from app.adaptive_training import ChallengeExecutionService
     try:
@@ -2070,7 +2080,7 @@ def emergency_stop_hds_challenges(project_id: str, body: dict, challenge_id: str
 
 @app.post("/api/hds/challenge-executions/{execution_id}/complete")
 def complete_hds_challenge(execution_id: str, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     row=db.one("SELECT project_id FROM hds_challenge_executions WHERE id=?",(execution_id,))
     if not row: raise HTTPException(404,"challenge execution not found")
     require_project(principal,row["project_id"],"WRITE")
@@ -2090,7 +2100,7 @@ def adaptive_hds_training(protocol_id: str, participant_ref: str, principal: Pri
 
 @app.post("/api/hds/training/{protocol_id}/participants/{participant_ref}/adaptive")
 def apply_adaptive_hds_training(protocol_id: str, participant_ref: str, body: dict, principal: Principal = Depends(principal_from_header)):
-    require_write(principal)
+    require_execute(principal)
     protocol=db.one("SELECT project_id FROM training_protocols WHERE id=?",(protocol_id,))
     if not protocol: raise HTTPException(404,"training protocol not found")
     require_project(principal,protocol["project_id"],"WRITE")
@@ -2105,6 +2115,34 @@ def create_hds_research_loop(body: dict, principal: Principal = Depends(principa
     try: return AutonomousResearchLoop(db).create_gap(body["project_id"],body["gap"],principal.user_id)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
 
+@app.post("/api/hds/research-loops/bootstrap")
+def bootstrap_hds_research(body: ResearchRequest, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        result = AutonomousResearchLoop(db).bootstrap_research(body.question, principal.user_id)
+        # A production founder must receive explicit membership in the project
+        # created by this endpoint, otherwise subsequent project-scoped actions
+        # are correctly denied by the authorization layer.
+        if settings.environment == "production":
+            owner = db.one(
+                "SELECT external_subject FROM users WHERE id=?",
+                (principal.user_id,),
+            )
+            if not owner:
+                raise HTTPException(status_code=403, detail="authenticated owner record not found")
+            auth.grant_project_access(
+                owner["external_subject"],
+                owner["external_subject"],
+                result["project"]["id"],
+                role="founder",
+            )
+        return result
+    except PermissionError as exc:
+        raise HTTPException(403,str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
 @app.post("/api/hds/research-loops/{run_id}/start")
 def start_hds_research_loop(run_id: str, principal: Principal = Depends(principal_from_header)):
     require_write(principal)
@@ -2114,6 +2152,284 @@ def start_hds_research_loop(run_id: str, principal: Principal = Depends(principa
         return AutonomousResearchLoop(db).start_research(run_id,principal.user_id)
     except ValueError as exc: raise HTTPException(400,str(exc)) from exc
 
+@app.post("/api/hds/research-loops/{run_id}/retrieve")
+def retrieve_hds_research_sources(run_id: str, body: ScientificRetrievalRequest, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    from app.scientific_retrieval import ScientificRetrievalService
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"EXECUTE")
+        if not run["workspace_id"]:
+            raise ValueError("research loop has no active workspace")
+        if run["status"]!="RESEARCH_ACTIVE":
+            raise ValueError("research retrieval requires an active research loop")
+        return ScientificRetrievalService(db).retrieve(
+            run["workspace_id"],
+            body.query,
+            tuple(body.providers),
+            body.limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/research-loops/{run_id}/run-first-pass")
+def run_hds_research_first_pass(run_id: str, body: ScientificRetrievalRequest, principal: Principal = Depends(principal_from_header)):
+    """Run one bounded HDS literature-research pass; never bypass independent review."""
+    require_execute(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    from app.scientific_retrieval import ScientificRetrievalService
+    from app.research_agent import ResearchAgentService
+
+    loop = AutonomousResearchLoop(db)
+    try:
+        run = loop.get(run_id)
+        require_project(principal, run["project_id"], "EXECUTE")
+
+        if run["status"] == "GAP_IDENTIFIED":
+            run = loop.start_research(run_id, principal.user_id)
+        if run["status"] != "RESEARCH_ACTIVE":
+            raise ValueError(f"research loop is not active (status={run['status']})")
+
+        retrieval_service = ScientificRetrievalService(db)
+        latest_retrieval = db.one(
+            "SELECT * FROM research_retrieval_runs WHERE workspace_id=? ORDER BY created_at DESC LIMIT 1",
+            (run["workspace_id"],),
+        )
+        readable_material = db.one(
+            """SELECT 1 AS readable
+               FROM research_retrieval_results r
+               JOIN evidence_sources es ON es.source_id=r.source_id AND es.state='PARSED'
+               WHERE r.workspace_id=? AND TRIM(COALESCE(es.content,'')) <> ''
+               LIMIT 1""",
+            (run["workspace_id"],),
+        )
+        if (
+            not latest_retrieval
+            or latest_retrieval["status"] not in {"COMPLETED", "PARTIAL"}
+            or int(latest_retrieval["result_count"] or 0) == 0
+            or not readable_material
+        ):
+            # A fresh explicit pass may retry retrieval when prior discovery
+            # produced metadata but no readable abstracts.
+            retrieval = retrieval_service.retrieve(
+                run["workspace_id"], body.query or run["gap"], tuple(body.providers), body.limit
+            )
+            latest_retrieval = retrieval["retrieval_run"]
+        else:
+            retrieval = {
+                "retrieval_run": latest_retrieval,
+                "results": retrieval_service.list_results(run["workspace_id"]),
+                "errors": [],
+                "scientific_status": "DISCOVERY_ONLY_UNVERIFIED",
+                "reused_existing_run": True,
+            }
+
+        if int(latest_retrieval.get("result_count") or 0) == 0:
+            return {
+                "status": "RETRIEVAL_BLOCKED",
+                "run": loop.get(run_id),
+                "retrieval": latest_retrieval,
+                "errors": retrieval.get("errors", []),
+                "next_action": "CHECK_QUERY_OR_PROVIDER_ERRORS",
+                "scientific_status": "NO_FINDINGS",
+            }
+
+        task = db.one(
+            """SELECT t.* FROM research_agent_tasks rat
+               JOIN tasks t ON t.id=rat.task_id
+               WHERE rat.workspace_id=? ORDER BY rat.created_at DESC LIMIT 1""",
+            (run["workspace_id"],),
+        )
+        # A blocked task may have been created before abstracts became available.
+        # Do not leave the loop permanently blocked: create a fresh bounded task
+        # only when the latest retrieval now contains readable source material.
+        if task and task["status"] in {"FAILED", "CANCELLED"}:
+            # A new explicit API call is a bounded retry after the operator has
+            # repaired configuration or a transient execution failure.
+            task = None
+        if task and task["status"] == "BLOCKED":
+            readable = db.one(
+                """SELECT 1 AS readable
+                   FROM research_retrieval_results r
+                   JOIN evidence_sources es ON es.source_id=r.source_id AND es.state='PARSED'
+                   WHERE r.workspace_id=? AND TRIM(COALESCE(es.content,'')) <> ''
+                   LIMIT 1""",
+                (run["workspace_id"],),
+            )
+            if readable:
+                task = None
+
+        if not task:
+            researcher = db.one(
+                """SELECT id,status FROM agents
+                   WHERE id='researcher' OR role='researcher'
+                   ORDER BY CASE status WHEN 'ACTIVE' THEN 0 WHEN 'IDLE' THEN 1 ELSE 2 END
+                   LIMIT 1"""
+            )
+            if not researcher or researcher["status"] not in {"ACTIVE", "IDLE"}:
+                return {
+                    "status": "RESEARCH_AGENT_BLOCKED",
+                    "run": loop.get(run_id),
+                    "retrieval": latest_retrieval,
+                    "reason": "No eligible researcher agent is available; the agent is missing or disabled.",
+                    "scientific_status": "DISCOVERY_ONLY_UNVERIFIED",
+                }
+            if researcher["status"] == "IDLE":
+                db.execute(
+                    "UPDATE agents SET status='ACTIVE' WHERE id=? AND status='IDLE'",
+                    (researcher["id"],),
+                )
+            created = ResearchAgentService(db).create_task(
+                run["workspace_id"], agent_id=researcher["id"], owner=principal.user_id
+            )
+            task = created["task"]
+
+        if task["status"] == "BLOCKED":
+            try:
+                task_payload = json.loads(task.get("success_criteria") or "{}")
+            except (TypeError, ValueError):
+                task_payload = {}
+            return {
+                "status": "RESEARCH_AGENT_BLOCKED",
+                "run": loop.get(run_id),
+                "retrieval": latest_retrieval,
+                "task": task,
+                "reason": task_payload.get("execution_blocked_reason") or "HDS requires readable source abstracts/text before evidence-grounded analysis.",
+                "scientific_status": "DISCOVERY_ONLY_UNVERIFIED",
+            }
+
+        if task["status"] in {"PLANNED", "ASSIGNED"}:
+            from app.execution import AgentExecutor
+            execution = AgentExecutor(db).execute(
+                task["assigned_agent_id"], task["id"], {"title": task["title"]},
+                {"project_id": run["project_id"]},
+            )
+            task = db.one("SELECT * FROM tasks WHERE id=?", (task["id"],))
+            if execution.error:
+                return {
+                    "status": "MODEL_EXECUTION_FAILED",
+                    "run": loop.get(run_id),
+                    "retrieval": latest_retrieval,
+                    "task": task,
+                    "error": execution.error,
+                    "cost_metadata": execution.cost_metadata,
+                    "next_action": "CONFIGURE_OR_REPAIR_APPROVED_MODEL_PROVIDER_THEN_RETRY",
+                    "scientific_status": "NO_SYNTHESIS",
+                }
+
+        agent_run = db.one(
+            "SELECT * FROM agent_runs WHERE task_id=? ORDER BY started_at DESC LIMIT 1",
+            (task["id"],),
+        )
+        if not agent_run:
+            return {
+                "status": "WAITING_FOR_AGENT_EXECUTION",
+                "run": loop.get(run_id),
+                "retrieval": latest_retrieval,
+                "task": task,
+                "scientific_status": "DISCOVERY_ONLY_UNVERIFIED",
+            }
+        if agent_run["status"] == "FAILED":
+            return {
+                "status": "MODEL_EXECUTION_FAILED",
+                "run": loop.get(run_id),
+                "retrieval": latest_retrieval,
+                "task": task,
+                "agent_run_id": agent_run["id"],
+                "error": agent_run.get("error"),
+                "scientific_status": "NO_SYNTHESIS",
+            }
+
+        from app.agent_output_gate import AgentOutputGate
+        try:
+            output_review = AgentOutputGate(db).submit(agent_run["id"], run["project_id"])
+        except ValueError as exc:
+            return {
+                "status": "OUTPUT_VALIDATION_BLOCKED",
+                "run": loop.get(run_id),
+                "retrieval": latest_retrieval,
+                "task": task,
+                "agent_run_id": agent_run["id"],
+                "validation_error": str(exc),
+                "next_action": "INSPECT_OUTPUT_AND_SOURCE_EXCERPTS",
+                "scientific_status": "UNVERIFIED_OUTPUT_NOT_PROMOTED",
+            }
+
+        # Return the persisted researcher payload in a clearly unverified form
+        # so a client can display the actual work without querying internal tables.
+        try:
+            agent_output = json.loads(agent_run.get("output_payload") or "{}")
+        except (TypeError, ValueError):
+            agent_output = {"raw_unparsed_output": agent_run.get("output_payload") or ""}
+        if isinstance(agent_output, dict) and isinstance(agent_output.get("payload"), dict):
+            agent_output = dict(agent_output["payload"])
+        if isinstance(agent_output, dict) and isinstance(agent_output.get("result"), str):
+            try:
+                parsed_result = json.loads(agent_output["result"])
+                if isinstance(parsed_result, dict):
+                    agent_output = parsed_result
+            except (TypeError, ValueError):
+                pass
+
+        return {
+            "status": "RESEARCH_PASS_RECORDED",
+            "run": loop.get(run_id),
+            "retrieval": {
+                "run_id": latest_retrieval["id"],
+                "status": latest_retrieval["status"],
+                "result_count": latest_retrieval["result_count"],
+                "reused_existing_run": bool(retrieval.get("reused_existing_run", False)),
+                "errors": retrieval.get("errors", []),
+            },
+            "task": task,
+            "agent_run_id": agent_run["id"],
+            "agent_output": agent_output,
+            "agent_output_is_unverified": True,
+            "output_review": output_review,
+            "next_action": "INDEPENDENT_EVIDENCE_AND_OUTPUT_REVIEW",
+            "scientific_status": "UNVERIFIED_REVIEW_REQUIRED",
+            "notice": "This endpoint performs one bounded model pass. It does not independently verify evidence, approve findings, or publish scientific conclusions.",
+        }
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/hds/research-loops/{run_id}/sources")
+def list_hds_research_sources(run_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    from app.scientific_retrieval import ScientificRetrievalService
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"READ")
+        if not run["workspace_id"]:
+            raise ValueError("research loop has no research workspace")
+        return {"items": ScientificRetrievalService(db).list_results(run["workspace_id"])}
+    except ValueError as exc:
+        raise HTTPException(404,str(exc)) from exc
+
+@app.get("/api/hds/research-loops/project/{project_id}")
+def list_hds_research_loops(project_id: str, status: str | None = None, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    require_project(principal,project_id,"READ")
+    if status:
+        return {"items":db.all("SELECT * FROM research_loop_runs WHERE project_id=? AND status=? ORDER BY updated_at DESC",(project_id,status))}
+    return {"items":db.all("SELECT * FROM research_loop_runs WHERE project_id=? ORDER BY updated_at DESC",(project_id,))}
+
+@app.get("/api/hds/research-loops/{run_id}/next-action")
+def next_hds_research_loop_action(run_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"READ")
+        return AutonomousResearchLoop(db).next_action(run_id)
+    except ValueError as exc:
+        raise HTTPException(404,str(exc)) from exc
+
 @app.get("/api/hds/research-loops/{run_id}")
 def get_hds_research_loop(run_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
@@ -2121,6 +2437,54 @@ def get_hds_research_loop(run_id: str, principal: Principal = Depends(principal_
     try:
         run=AutonomousResearchLoop(db).get(run_id); require_project(principal,run["project_id"],"READ"); return run
     except ValueError as exc: raise HTTPException(404,str(exc)) from exc
+
+@app.post("/api/hds/research-loops/{run_id}/synthesis")
+def attach_hds_research_synthesis(run_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"EXECUTE")
+        return AutonomousResearchLoop(db).attach_synthesis(run_id,body["synthesis_id"])
+    except KeyError as exc:
+        raise HTTPException(400,f"missing field: {exc.args[0]}") from exc
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/research-loops/{run_id}/finding")
+def promote_hds_research_finding(run_id: str, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"EXECUTE")
+        return AutonomousResearchLoop(db).promote_reviewed_synthesis_to_finding(run_id,principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.post("/api/hds/research-loops/{run_id}/claim")
+def link_hds_research_claim(run_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"WRITE")
+        return AutonomousResearchLoop(db).mark_claimed(run_id,body["claim_id"])
+    except KeyError as exc:
+        raise HTTPException(400,f"missing field: {exc.args[0]}") from exc
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+@app.get("/api/hds/research-loops/{run_id}/intervention-readiness")
+def hds_research_intervention_readiness(run_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    try:
+        run=AutonomousResearchLoop(db).get(run_id)
+        require_project(principal,run["project_id"],"READ")
+        return AutonomousResearchLoop(db).ready_for_intervention(run_id)
+    except ValueError as exc:
+        raise HTTPException(404,str(exc)) from exc
 
 @app.get("/api/hds/company/{project_id}/analytics")
 def hds_company_analytics(project_id: str, principal: Principal = Depends(principal_from_header)):

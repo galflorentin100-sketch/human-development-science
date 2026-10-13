@@ -33,7 +33,9 @@ class ScientificAnalysisEngine:
         if "spec" in spec and isinstance(spec["spec"],str):
             raw_spec=spec["spec"]
             stored_hash=spec.get("sha256")
-            if stored_hash and hashlib.sha256(raw_spec.encode("utf-8")).hexdigest() != stored_hash:
+            if not stored_hash:
+                raise ValueError("frozen analysis plan integrity hash is missing")
+            if hashlib.sha256(raw_spec.encode("utf-8")).hexdigest() != stored_hash:
                 raise ValueError("frozen analysis plan integrity hash mismatch")
             try:
                 spec=json.loads(raw_spec)
@@ -96,16 +98,31 @@ class ScientificAnalysisEngine:
 
     def _dataset_hash(self, study_id, outcome_name):
         rows=self.db.all("SELECT id,participant_id,observation_type,timepoint,session_id,value,unit,missing_reason,recorded_at FROM study_outcomes WHERE study_id=? AND outcome_name=? ORDER BY participant_id,observation_type,timepoint,recorded_at,id",(study_id,outcome_name))
-        payload=json.dumps([dict(r) for r in rows],sort_keys=True,default=str,separators=(",",":"))
+        assignments=self.db.all("SELECT participant_id,arm,assigned_at FROM study_assignments WHERE study_id=? ORDER BY participant_id,arm,assigned_at",(study_id,))
+        payload=json.dumps({
+            "outcomes":[dict(r) for r in rows],
+            "assignments":[dict(r) for r in assignments],
+        },sort_keys=True,default=str,separators=(",",":"))
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
-    def _record_analysis_audit(self, study_id, plan, result_id, outcome_name, method, population_note):
+    def _record_analysis_audit(self, study_id, plan, result_id, outcome_name, method, population_note, con=None):
         study=self.db.one("SELECT protocol_hash FROM studies WHERE id=?",(study_id,))
         if not study or not study["protocol_hash"]:
             raise ValueError("protocol hash required for analysis audit")
-        plan_hash=hashlib.sha256((plan["analysis_spec"] or "").encode("utf-8")).hexdigest()
+        # freeze_analysis_plan stores {spec, sha256}; audit the canonical
+        # preregistered spec itself, not the storage envelope.
+        raw_plan=plan["analysis_spec"] or ""
+        try:
+            payload=json.loads(raw_plan)
+        except (TypeError,ValueError) as exc:
+            raise ValueError("frozen analysis plan contains invalid analysis_spec") from exc
+        canonical_spec=payload.get("spec") if isinstance(payload,dict) else None
+        if not isinstance(canonical_spec,str):
+            canonical_spec=raw_plan
+        plan_hash=hashlib.sha256(canonical_spec.encode("utf-8")).hexdigest()
         dataset_hash=self._dataset_hash(study_id,outcome_name)
-        self.db.execute("INSERT INTO study_analysis_audit(id,study_id,analysis_plan_id,analysis_result_id,protocol_hash,analysis_plan_hash,dataset_hash,method,population_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        executor=con if con is not None else self.db
+        executor.execute("INSERT INTO study_analysis_audit(id,study_id,analysis_plan_id,analysis_result_id,protocol_hash,analysis_plan_hash,dataset_hash,method,population_note,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (str(uuid4()),study_id,plan["id"],result_id,study["protocol_hash"],plan_hash,dataset_hash,method,population_note,now()))
         return {"protocol_hash":study["protocol_hash"],"analysis_plan_hash":plan_hash,"dataset_hash":dataset_hash}
 
@@ -189,7 +206,7 @@ class ScientificAnalysisEngine:
             "WHERE p.study_id=? ORDER BY p.id,o.recorded_at",(study_id,outcome_name,study_id))
         grouped={}
         for r in rows:
-            p=grouped.setdefault(r["participant_id"],{"arm":r["arm"],"values":[]})
+            p=grouped.setdefault(r["participant_id"],{"arm":r["arm"]})
             if r["observation_type"]=="TRAINING" and r["value"] is not None: p.setdefault("by_timepoint",{}).setdefault(r["timepoint"],[]).append(r["value"])
         changes={"INTERVENTION":[],"CONTROL":[]}
         for p in grouped.values():
@@ -207,7 +224,7 @@ class ScientificAnalysisEngine:
         rid=str(uuid4())
         with self.db.transaction() as con:
             con.execute("INSERT INTO study_analysis_results(id,study_id,analysis_plan_id,outcome_name,n_total,n_observed,estimate,uncertainty,missing_data_note,interpretation,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                (rid,study_id,analysis_plan_id,outcome_name,len(grouped),sum(len(v["values"])>=2 for v in grouped.values()),
+                (rid,study_id,analysis_plan_id,outcome_name,len(grouped),sum(1 for v in grouped.values() if v.get("by_timepoint",{}).get(spec["baseline_timepoint"]) and v.get("by_timepoint",{}).get(spec["post_timepoint"])),
                  diff,"95% CIs use a normal approximation; Cohen's d is unadjusted.",
                  "Complete paired cases only; participants with missing baseline/post values are excluded.",
                  result["interpretation"],now()))
@@ -224,7 +241,7 @@ class ScientificAnalysisEngine:
             for name,(value,denom) in metrics.items():
                 con.execute("INSERT INTO study_analysis_metrics(id,study_id,analysis_plan_id,outcome_name,metric_name,metric_value,denominator,note,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                     (str(uuid4()),study_id,analysis_plan_id,outcome_name,name,value,denom,None,now()))
-        self._record_analysis_audit(study_id, plan, rid, outcome_name, "INFERENTIAL_RANDOMIZED_ARM", "Complete paired TRAINING cases only")
+            self._record_analysis_audit(study_id, plan, rid, outcome_name, "INFERENTIAL_RANDOMIZED_ARM", "Complete paired TRAINING cases only", con=con)
         return result
 
     def randomized_arm_analysis(self, study_id, analysis_plan_id, outcome_name):
@@ -296,7 +313,7 @@ class ScientificAnalysisEngine:
             for name,(value,denom) in metrics.items():
                 con.execute("INSERT INTO study_analysis_metrics(id,study_id,analysis_plan_id,outcome_name,metric_name,metric_value,denominator,note,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                             (str(uuid4()),study_id,analysis_plan_id,outcome_name,name,value,denom,None,now()))
-        self._record_analysis_audit(study_id, plan, result_id, outcome_name, "RANDOMIZED_ARM", "Observed paired TRAINING cases by randomized arm")
+            self._record_analysis_audit(study_id, plan, result_id, outcome_name, "RANDOMIZED_ARM", "Observed paired TRAINING cases by randomized arm", con=con)
         return {"result":self.db.one("SELECT * FROM study_analysis_results WHERE id=?",(result_id,)),
                 "metrics":self.db.all("SELECT metric_name,metric_value,denominator,note FROM study_analysis_metrics WHERE study_id=? AND analysis_plan_id=? AND outcome_name=?",(study_id,analysis_plan_id,outcome_name)),
                 "retention":retention}
@@ -339,8 +356,8 @@ class ScientificAnalysisEngine:
             vals=by.get(pid,[])
             numeric=[r for r in vals if r["value"] is not None]
             training=[r for r in numeric if r["observation_type"]=="TRAINING"]
-            baseline=[r["value"] for r in training if r.get("timepoint")==spec.get("baseline_timepoint")]
-            post=[r["value"] for r in training if r.get("timepoint")==spec.get("post_timepoint")]
+            baseline=[r["value"] for r in training if r["timepoint"]==spec.get("baseline_timepoint")]
+            post=[r["value"] for r in training if r["timepoint"]==spec.get("post_timepoint")]
             if baseline and post:
                 training_changes.append(post[-1]-baseline[-1])
             retention=[r["value"] for r in numeric if r["observation_type"]=="RETENTION"]
@@ -376,7 +393,7 @@ class ScientificAnalysisEngine:
                     "INSERT INTO study_analysis_metrics(id,study_id,analysis_plan_id,outcome_name,metric_name,metric_value,denominator,note,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                     (str(uuid4()),study_id,analysis_plan_id,outcome_name,name,value,denom,None,now())
                 )
-        self._record_analysis_audit(study_id, plan, result_id, outcome_name, "DESCRIPTIVE", "Observed study participants with available outcome records")
+            self._record_analysis_audit(study_id, plan, result_id, outcome_name, "DESCRIPTIVE", "Observed study participants with available outcome records", con=con)
         return {
             "result":self.db.one("SELECT * FROM study_analysis_results WHERE id=?",(result_id,)),
             "metrics":self.db.all("SELECT metric_name,metric_value,denominator,note FROM study_analysis_metrics WHERE study_id=? AND analysis_plan_id=? AND outcome_name=?",(study_id,analysis_plan_id,outcome_name))
