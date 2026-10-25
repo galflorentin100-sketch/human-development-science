@@ -5,6 +5,7 @@ protocol deviations and adverse events without diagnosing participants.
 It is deliberately conservative: withdrawal blocks new sessions.
 """
 from uuid import uuid4
+import json
 from app.models import now
 
 class ParticipantGovernance:
@@ -58,6 +59,7 @@ class ParticipantGovernance:
               notes=excluded.notes,
               updated_at=excluded.updated_at""",
             (str(participant_ref),"CONSENTED",str(consent_version),ts,None,"",str(participant_ref),ts,ts))
+        self._audit("participant.consent_recorded", participant_ref, actor, {"consent_version": str(consent_version)})
         return self.get(participant_ref)
 
     def get(self, participant_ref):
@@ -80,6 +82,7 @@ class ParticipantGovernance:
         if not row: raise ValueError("participant not registered")
         ts=now()
         self.db.execute("UPDATE participant_governance SET consent_status='WITHDRAWN', withdrawn_at=?, notes=?, updated_at=? WHERE participant_ref=?",(ts,reason or "",ts,str(participant_ref)))
+        self._audit("participant.consent_withdrawn", participant_ref, "participant", {"reason": reason or ""})
         return self.get(participant_ref)
 
     def record_adverse_event(self, participant_ref, protocol_id, severity, description, action="STOP_AND_REVIEW"):
@@ -112,6 +115,12 @@ class ParticipantGovernance:
         )
         return updated
 
+    def _audit(self, event_type, entity_id, actor, payload):
+        self.db.execute(
+            "INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
+            (str(uuid4()),event_type,"participant",str(entity_id),str(actor),json.dumps(payload,sort_keys=True),now()),
+        )
+
     def record_deviation(self, participant_ref, protocol_id, deviation, impact, session_id=None):
         self.assert_active(participant_ref)
         if not str(deviation).strip(): raise ValueError("deviation is required")
@@ -119,4 +128,5 @@ class ParticipantGovernance:
         self.db.execute("""INSERT INTO protocol_deviations
             (id,participant_ref,protocol_id,session_id,deviation,impact,created_at)
             VALUES (?,?,?,?,?,?,?)""",(i,str(participant_ref),protocol_id,session_id,deviation,impact or "",now()))
+        self._audit("participant.protocol_deviation_recorded", participant_ref, "system", {"protocol_id": protocol_id, "deviation_id": i, "impact": impact or ""})
         return self.db.one("SELECT * FROM protocol_deviations WHERE id=?",(i,))

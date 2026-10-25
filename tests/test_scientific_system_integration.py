@@ -125,6 +125,7 @@ def test_training_provenance_trace_reaches_protocol_evidence_and_sessions(tmp_pa
         "transfer","retention","safety",evidence_level="SUPPORTED",
         source_claim_id=claim
     )
+    db.execute("UPDATE training_protocols SET status='PILOT' WHERE id=?",(protocol["id"],))
     from app.participant_governance import ParticipantGovernance
     ParticipantGovernance(db).register("participant-1","CONSENTED","v1")
     TrainingProtocolService(db).session(

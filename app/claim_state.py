@@ -110,8 +110,17 @@ class ClaimStateService:
                 any(("CONFLICTED" in x["verdicts"]) or ("VERIFIED" in x["verdicts"] and "REJECTED" in x["verdicts"]) for x in evidence_by_id.values())
                 or (verified_support > 0 and verified_contradict > 0)
             )
+            evidence_snapshot = [
+                {
+                    "evidence_id": str(eid),
+                    "stance": data["stance"],
+                    "verdicts": sorted(set(data["verdicts"])),
+                }
+                for eid, data in sorted(evidence_by_id.items())
+            ]
             state={"verified_support":verified_support,"verified_contradict":verified_contradict,"conflicted":conflicted}
-            snapshot=__import__("hashlib").sha256(__import__("json").dumps(state,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+            snapshot_payload={"state":state,"evidence":evidence_snapshot}
+            snapshot=__import__("hashlib").sha256(__import__("json").dumps(snapshot_payload,sort_keys=True,separators=(",",":")).encode()).hexdigest()
             evidence_state=conflicted and "CONFLICTED" or verified_support and "SUPPORTED" or verified_contradict and "CONTRADICTED" or "UNVERIFIED"
             if conflicted:
                 raise ValueError("knowledge version is blocked while evidence is conflicted")

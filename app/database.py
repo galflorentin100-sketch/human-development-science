@@ -5,6 +5,7 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
+from app.models import now
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS companies (id TEXT PRIMARY KEY, name TEXT NOT NULL, mission TEXT NOT NULL, vision TEXT NOT NULL, core_principle TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL, mission TEXT NOT NULL, capabilities TEXT NOT NULL, permissions TEXT NOT NULL, version TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
@@ -13,7 +14,7 @@ CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, project_id TEXT NOT NULL 
 CREATE INDEX IF NOT EXISTS idx_tasks_project_status ON tasks(project_id, status);
 CREATE TABLE IF NOT EXISTS sources (id TEXT PRIMARY KEY, title TEXT NOT NULL, url TEXT NOT NULL UNIQUE, authors TEXT, publication_year INTEGER, source_type TEXT NOT NULL, verified_at TEXT NOT NULL, provenance_note TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS claims (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), statement TEXT NOT NULL, classification TEXT NOT NULL, evidence_level TEXT NOT NULL DEFAULT 'UNVERIFIED', confidence REAL NOT NULL DEFAULT 0.0, status TEXT NOT NULL, created_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS evidence (id TEXT PRIMARY KEY, claim_id TEXT NOT NULL REFERENCES claims(id), source_id TEXT NOT NULL REFERENCES sources(id), stance TEXT NOT NULL, excerpt TEXT NOT NULL, verified INTEGER NOT NULL, created_by TEXT NOT NULL DEFAULT 'system', created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS evidence (id TEXT PRIMARY KEY, claim_id TEXT NOT NULL REFERENCES claims(id), source_id TEXT NOT NULL REFERENCES sources(id), stance TEXT NOT NULL, excerpt TEXT NOT NULL DEFAULT '', verified INTEGER NOT NULL, created_by TEXT NOT NULL DEFAULT 'system', created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS knowledge_items (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), kind TEXT NOT NULL, content TEXT NOT NULL, provenance TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS research_questions (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), question TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS agent_runs (id TEXT PRIMARY KEY, agent_id TEXT NOT NULL REFERENCES agents(id), task_id TEXT REFERENCES tasks(id), status TEXT NOT NULL, input_payload TEXT NOT NULL, output_payload TEXT NOT NULL, started_at TEXT NOT NULL, completed_at TEXT NOT NULL);
@@ -484,6 +485,23 @@ def _ensure_hds_schema(con):
         decision TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL
     )""")
 
+def _ensure_runtime_identities(con):
+    """Keep the root identities available on every runtime DB connection."""
+    has_agents=con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='agents'"
+    ).fetchone()
+    if not has_agents:
+        return
+    con.execute(
+        "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        ("ceo","CEO","strategy","board","[]","[]","1","ACTIVE",now()),
+    )
+    con.execute(
+        "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        ("researcher","Researcher","research","research","[]","[]","1","ACTIVE",now()),
+    )
+
+
 class Database:
     def __init__(self,path="company_os.db"):
         self.path=Path(path)
@@ -517,6 +535,29 @@ class Database:
             con.executescript(PHASE6_SCHEMA)
             con.executescript(PHASE7_SCHEMA)
             con.executescript(OPTIONAL_SCIENCE_SCHEMA)
+            # HDS is a built-in company boundary used by the orchestrator and
+            # project-scoped scientific services. Keep its root company/agent
+            # identities present so foreign-key enforcement remains meaningful.
+            con.execute("INSERT OR IGNORE INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",
+                        ("hds","Human Development Science","Scientific human development","Evidence-governed human development","Truth and scientific integrity above all else",now()))
+            from app.registry import all_agents
+            for agent in all_agents():
+                con.execute(
+                    "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at,manager) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (agent.id,agent.name,agent.role,agent.role,"[]","[]","1","ACTIVE",now(),agent.manager),
+                )
+            # Re-assert the two root identities after every schema/migration step.
+            # This is intentionally idempotent: test databases and upgraded installations
+            # must always be able to satisfy the project foreign keys.
+            con.execute(
+                "INSERT OR IGNORE INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",
+                ("hds","Human Development Science","Scientific human development",
+                 "Evidence-governed human development","Truth and scientific integrity above all else",now()),
+            )
+            con.execute(
+                "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                ("ceo","CEO","strategy","board","[]","[]","1","ACTIVE",now()),
+            )
             _ensure_hds_schema(con)
             _ensure_hds_indexes(con)
             for name,definition in {
@@ -528,6 +569,24 @@ class Database:
                 if name not in existing:
                     con.execute(f"ALTER TABLE hds_competition_participants ADD COLUMN {name} {definition}")
             _add_phase2_columns(con)
+            # Seed built-in agents again after all legacy columns are present.
+            # Use the stable nine-column core first, then set manager separately so
+            # fresh databases and older upgraded schemas both receive the identities.
+            from app.registry import all_agents
+            for agent in all_agents():
+                con.execute(
+                    "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (agent.id,agent.name,agent.role,agent.role,"[]","[]","1","ACTIVE",now()),
+                )
+                if "manager" in {row[1] for row in con.execute("PRAGMA table_info(agents)").fetchall()}:
+                    con.execute("UPDATE agents SET manager=? WHERE id=?", (agent.manager,agent.id))
+            # Explicit root-agent fallback: these two identities are foreign-key
+            # anchors used by legacy and scientific test/install paths.
+            for agent_id,agent_name,agent_role in (("ceo","CEO","strategy"),("researcher","Researcher","research")):
+                con.execute(
+                    "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (agent_id,agent_name,agent_role,agent_role,"[]","[]","1","ACTIVE",now()),
+                )
             existing_impact={row[1] for row in con.execute("PRAGMA table_info(knowledge_impact_reviews)")}
             if "impact_type" not in existing_impact:
                 con.execute("ALTER TABLE knowledge_impact_reviews ADD COLUMN impact_type TEXT NOT NULL DEFAULT 'DEPENDENCY'")
@@ -598,26 +657,39 @@ CREATE TABLE IF NOT EXISTS study_analysis_audit (
  created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_study_analysis_audit_study ON study_analysis_audit(study_id,created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_study_analysis_audit_result ON study_analysis_audit(analysis_result_id) WHERE analysis_result_id IS NOT NULL;
+CREATE TABLE IF NOT EXISTS scientific_knowledge_versions (
+ id TEXT PRIMARY KEY,
+ claim_id TEXT NOT NULL REFERENCES claims(id),
+ version INTEGER NOT NULL,
+ statement TEXT NOT NULL,
+ classification TEXT NOT NULL,
+ status TEXT NOT NULL,
+ confidence REAL NOT NULL,
+ evidence_state TEXT NOT NULL,
+ evidence_snapshot_hash TEXT NOT NULL,
+ change_reason TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(claim_id,version)
+);
+CREATE TRIGGER IF NOT EXISTS trg_scientific_knowledge_version_immutable
+BEFORE UPDATE ON scientific_knowledge_versions
+BEGIN
+ SELECT RAISE(ABORT,'scientific knowledge version is immutable');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_scientific_knowledge_version_delete_guard
+BEFORE DELETE ON scientific_knowledge_versions
+BEGIN
+ SELECT RAISE(ABORT,'scientific knowledge version is immutable');
+END;
 
-CREATE INDEX IF NOT EXISTS idx_goals_company_status ON goals(company_id,status);
-CREATE INDEX IF NOT EXISTS idx_decisions_company_created ON decisions(company_id,created_at);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
-"""
-_PHASE2_COLUMNS={"agents":{"responsibilities":"TEXT NOT NULL DEFAULT '[]'","tools":"TEXT NOT NULL DEFAULT '[]'","manager":"TEXT","performance_history":"TEXT NOT NULL DEFAULT '[]'","updated_at":"TEXT"},"projects":{"goal_id":"TEXT","budget":"REAL","updated_at":"TEXT"},"tasks":{"owner":"TEXT","expected_outcome":"TEXT","actual_outcome":"TEXT","verification_method":"TEXT","retry_limit":"INTEGER NOT NULL DEFAULT 0","retry_count":"INTEGER NOT NULL DEFAULT 0","escalation_required":"INTEGER NOT NULL DEFAULT 0","required_permissions":"TEXT NOT NULL DEFAULT '[]'"},"agent_runs":{"confidence":"REAL","evidence_refs":"TEXT NOT NULL DEFAULT '[]'","uncertainties":"TEXT NOT NULL DEFAULT '[]'","cost_metadata":"TEXT NOT NULL DEFAULT '{}'","error":"TEXT","verified":"INTEGER NOT NULL DEFAULT 0"},"failures":{"contributing_factors":"TEXT NOT NULL DEFAULT '[]'","corrective_action":"TEXT","corrective_result":"TEXT","owner":"TEXT"}}
-def _add_phase2_columns(con):
-    for table,columns in _PHASE2_COLUMNS.items():
-        existing={row[1] for row in con.execute(f"PRAGMA table_info({table})")}
-        for name,definition in columns.items():
-            if name not in existing: con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
-def _migrate_phase2(self):
-    with self.connect() as con: con.executescript(SCHEMA); _add_phase2_columns(con); con.executescript(PHASE2_SCHEMA)
-Database.migrate=_migrate_phase2
-_original_migrate_phase2=_migrate_phase2
-def _migrate_all(self):
-    _original_migrate_phase2(self)
-    with self.connect() as con:
-        con.executescript(PHASE_AGENT_OUTPUT_SCHEMA)
-Database.migrate=_migrate_all
+CREATE INDEX IF NOT EXISTS idx_knowledge_versions_claim ON scientific_knowledge_versions(claim_id,version);
+CREATE TABLE IF NOT EXISTS retry_events (id TEXT PRIMARY KEY, task_id TEXT REFERENCES tasks(id), attempt INTEGER NOT NULL, reason TEXT, action TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_retry_task ON retry_events(task_id,attempt);
+CREATE TABLE IF NOT EXISTS evidence_reviews (id TEXT PRIMARY KEY, evidence_id TEXT NOT NULL REFERENCES evidence(id), reviewer TEXT NOT NULL, verdict TEXT NOT NULL, rationale TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(evidence_id,reviewer));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_evidence_review_reviewer ON evidence_reviews(evidence_id,reviewer);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id);"""
+PHASE5_SCHEMA = """CREATE TABLE IF NOT EXISTS study_protocol_versions (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), version INTEGER NOT NULL, snapshot TEXT NOT NULL, content_hash TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(study_id,version)); """
 PHASE_AGENT_OUTPUT_SCHEMA = """CREATE TABLE IF NOT EXISTS agent_output_reviews (id TEXT PRIMARY KEY, agent_run_id TEXT NOT NULL REFERENCES agent_runs(id), project_id TEXT REFERENCES projects(id), task_id TEXT REFERENCES tasks(id), evidence_refs TEXT NOT NULL, provenance_hash TEXT NOT NULL, status TEXT NOT NULL, reviewer TEXT, rationale TEXT, created_at TEXT NOT NULL, reviewed_at TEXT);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_output_reviews_run ON agent_output_reviews(agent_run_id);
 """
@@ -678,7 +750,6 @@ CREATE TABLE IF NOT EXISTS retry_events (id TEXT PRIMARY KEY, task_id TEXT REFER
 CREATE INDEX IF NOT EXISTS idx_retry_task ON retry_events(task_id,attempt);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_evidence_review_reviewer ON evidence_reviews(evidence_id,reviewer);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_study_assignment_participant ON study_assignments(study_id,participant_id);"""
-PHASE5_SCHEMA = """CREATE TABLE IF NOT EXISTS study_protocol_versions (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), version INTEGER NOT NULL, snapshot TEXT NOT NULL, content_hash TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(study_id,version)); """
 PHASE4_SCHEMA = """CREATE TABLE IF NOT EXISTS budgets (id TEXT PRIMARY KEY, company_id TEXT NOT NULL REFERENCES companies(id), limit_amount REAL NOT NULL CHECK(limit_amount >= 0), spent_amount REAL NOT NULL DEFAULT 0 CHECK(spent_amount >= 0), currency TEXT NOT NULL DEFAULT 'USD', period TEXT NOT NULL DEFAULT 'LIFETIME', status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS cost_events (id TEXT PRIMARY KEY, budget_id TEXT NOT NULL REFERENCES budgets(id), correlation_id TEXT NOT NULL UNIQUE, actor TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, purpose TEXT NOT NULL, amount REAL NOT NULL CHECK(amount >= 0), currency TEXT NOT NULL, status TEXT NOT NULL, metadata TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_cost_events_budget_created ON cost_events(budget_id,created_at);
@@ -686,6 +757,15 @@ CREATE TABLE IF NOT EXISTS autonomy_iterations (id TEXT PRIMARY KEY, project_id 
 """
 
 _PHASE3_COLUMNS={"evidence":{"created_by":"TEXT NOT NULL DEFAULT 'system'","excerpt_hash":"TEXT NOT NULL DEFAULT ''"},"claim_revisions":{"source_finding_id":"TEXT","previous_statement":"TEXT NOT NULL DEFAULT ''","new_statement":"TEXT NOT NULL DEFAULT ''","previous_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","new_status":"TEXT NOT NULL DEFAULT 'PROPOSED'","rationale":"TEXT NOT NULL DEFAULT ''","evidence_refs":"TEXT NOT NULL DEFAULT '[]'","revised_by":"TEXT NOT NULL DEFAULT 'system'","status":"TEXT NOT NULL DEFAULT 'PROPOSED'","prior_classification":"TEXT NOT NULL DEFAULT ''","prior_confidence":"REAL NOT NULL DEFAULT 0","new_classification":"TEXT NOT NULL DEFAULT ''","new_confidence":"REAL NOT NULL DEFAULT 0","reason":"TEXT NOT NULL DEFAULT ''","evidence_id":"TEXT","review_required":"INTEGER NOT NULL DEFAULT 1"},"idempotency_keys":{"status":"TEXT NOT NULL DEFAULT 'COMPLETED'","claim_token":"TEXT","lease_expires_at":"TEXT"},"approvals":{"reason":"TEXT","evidence":"TEXT NOT NULL DEFAULT '[]'","expected_outcome":"TEXT","expires_at":"TEXT","approved_by":"TEXT","resolved_at":"TEXT","correlation_id":"TEXT"},"sources":{"state":"TEXT NOT NULL DEFAULT 'DISCOVERED'","fetched_at":"TEXT","parsed_at":"TEXT","content_hash":"TEXT","rejection_reason":"TEXT"},"evidence_sources":{"content":"TEXT"},"claims":{"updated_at":"TEXT","interpretation":"TEXT","review_required":"INTEGER NOT NULL DEFAULT 0"},"studies":{"status":"TEXT NOT NULL DEFAULT 'APPROVED'","protocol_snapshot":"TEXT","protocol_hash":"TEXT","approval_id":"TEXT","project_id":"TEXT"}}
+_PHASE2_COLUMNS={"agents":{"responsibilities":"TEXT NOT NULL DEFAULT '[]'","tools":"TEXT NOT NULL DEFAULT '[]'","manager":"TEXT","performance_history":"TEXT NOT NULL DEFAULT '[]'","updated_at":"TEXT"},"projects":{"goal_id":"TEXT","budget":"REAL","updated_at":"TEXT"},"tasks":{"owner":"TEXT","expected_outcome":"TEXT","actual_outcome":"TEXT","verification_method":"TEXT","retry_limit":"INTEGER NOT NULL DEFAULT 0","retry_count":"INTEGER NOT NULL DEFAULT 0","escalation_required":"INTEGER NOT NULL DEFAULT 0","required_permissions":"TEXT NOT NULL DEFAULT '[]'"},"agent_runs":{"confidence":"REAL","evidence_refs":"TEXT NOT NULL DEFAULT '[]'","uncertainties":"TEXT NOT NULL DEFAULT '[]'","cost_metadata":"TEXT NOT NULL DEFAULT '{}'","error":"TEXT","verified":"INTEGER NOT NULL DEFAULT 0"},"failures":{"contributing_factors":"TEXT NOT NULL DEFAULT '[]'","corrective_action":"TEXT","corrective_result":"TEXT","owner":"TEXT"}}
+
+def _add_phase2_columns(con):
+    for table,columns in _PHASE2_COLUMNS.items():
+        existing={row[1] for row in con.execute(f"PRAGMA table_info({table})")}
+        for name,definition in columns.items():
+            if name not in existing:
+                con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+
 def _migrate_phase3(self):
     with self.connect() as con:
         con.executescript(SCHEMA); con.executescript(PHASE2_SCHEMA); _add_phase2_columns(con)
@@ -729,6 +809,26 @@ def _migrate_phase4(self):
             con.execute("ALTER TABLE hds_research_queue ADD COLUMN research_queue_workspace_id TEXT")
         _ensure_hds_schema(con)
         _ensure_hds_indexes(con)
+
+        # _migrate_phase4 is the authoritative migration entrypoint (the class
+        # method is rebound below), so root identities must be seeded here too.
+        # This keeps every fresh/test database FK-valid and makes the registry
+        # agents available to autonomous research services.
+        con.execute(
+            "INSERT OR IGNORE INTO companies(id,name,mission,vision,core_principle,created_at) VALUES (?,?,?,?,?,?)",
+            ("hds","Human Development Science","Scientific human development",
+             "Evidence-governed human development","Truth and scientific integrity above all else",now()),
+        )
+        from app.registry import all_agents
+        for agent in all_agents():
+            con.execute(
+                "INSERT OR IGNORE INTO agents(id,name,role,mission,capabilities,permissions,version,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                (agent.id,agent.name,agent.role,agent.role,"[]","[]","1","ACTIVE",now()),
+            )
+            if "manager" in {row[1] for row in con.execute("PRAGMA table_info(agents)").fetchall()}:
+                con.execute("UPDATE agents SET manager=? WHERE id=?", (agent.manager,agent.id))
+
+        con.executescript(_PHASE4_ANALYSIS_IMMUTABILITY_SQL)
         existing_studies={row[1] for row in con.execute("PRAGMA table_info(studies)")}
         if "project_id" not in existing_studies:
             con.execute("ALTER TABLE studies ADD COLUMN project_id TEXT")
@@ -868,7 +968,19 @@ class PostgreSQLDatabase:
     def migrate(self):
         statements=[]
         for schema in (SCHEMA,PHASE2_SCHEMA,PHASE3_SCHEMA,PHASE_AGENT_OUTPUT_SCHEMA,PHASE4_SCHEMA,PHASE5_SCHEMA,PHASE6_SCHEMA,PHASE7_SCHEMA,OPTIONAL_SCIENCE_SCHEMA,HUMAN_DEVELOPMENT_SCHEMA):
-            statements.extend(s.strip() for s in schema.split(";") if s.strip() and not s.strip().startswith("PRAGMA"))
+            in_trigger=False
+            for raw in schema.split(";"):
+                statement=raw.strip()
+                if not statement or statement.startswith("PRAGMA"): continue
+                upper=statement.upper()
+                if upper.startswith("CREATE TRIGGER"):
+                    in_trigger=True
+                    continue
+                if in_trigger:
+                    if upper == "END" or upper.endswith("\nEND"):
+                        in_trigger=False
+                    continue
+                statements.append(statement)
         with self.connect() as con:
             for statement in statements: con.execute(self._sql(statement))
             for table,columns in {**_PHASE2_COLUMNS,**_PHASE3_COLUMNS,**{'study_outcomes':{'observation_type':"TEXT NOT NULL DEFAULT 'TRAINING'","timepoint":"TEXT"},"idempotency_keys":{"status":"TEXT NOT NULL DEFAULT 'COMPLETED'","claim_token":"TEXT","lease_expires_at":"TEXT"},"code_change_proposals":{"approval_id":"TEXT"}}}.items():
@@ -1030,10 +1142,137 @@ CREATE INDEX IF NOT EXISTS idx_training_sessions_protocol ON training_sessions(p
 CREATE TABLE IF NOT EXISTS intervention_evidence (id TEXT PRIMARY KEY, intervention_id TEXT NOT NULL REFERENCES interventions(id), evidence_kind TEXT NOT NULL, evidence_ref TEXT NOT NULL, notes TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(intervention_id,evidence_kind,evidence_ref));
 CREATE TABLE IF NOT EXISTS construct_versions (id TEXT PRIMARY KEY, construct_id TEXT NOT NULL REFERENCES scientific_constructs(id), version INTEGER NOT NULL, definition TEXT NOT NULL, operational_scope TEXT NOT NULL, change_reason TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(construct_id,version));
 CREATE TABLE IF NOT EXISTS study_measure_definitions (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), name TEXT NOT NULL, construct_id TEXT REFERENCES scientific_constructs(id), operational_definition TEXT NOT NULL, method TEXT NOT NULL, scale_type TEXT NOT NULL, unit TEXT, reliability_note TEXT NOT NULL, validity_note TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(study_id,name));
-CREATE TABLE IF NOT EXISTS study_measure_bindings (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), measure_id TEXT NOT NULL REFERENCES study_measure_definitions(id), observation_type TEXT NOT NULL, timepoint TEXT NOT NULL, required INTEGER NOT NULL DEFAULT 1, UNIQUE(study_id,measure_id,observation_type,timepoint));"""
+CREATE TABLE IF NOT EXISTS study_measure_bindings (id TEXT PRIMARY KEY, study_id TEXT NOT NULL REFERENCES studies(id), measure_id TEXT NOT NULL REFERENCES study_measure_definitions(id), observation_type TEXT NOT NULL, timepoint TEXT NOT NULL, required INTEGER NOT NULL DEFAULT 1, UNIQUE(study_id,measure_id,observation_type,timepoint));
+CREATE TRIGGER IF NOT EXISTS trg_intervention_evidence_project_guard
+BEFORE INSERT ON intervention_evidence
+WHEN EXISTS (
+ SELECT 1 FROM interventions i
+ JOIN evidence e ON e.id=NEW.evidence_ref
+ JOIN claims c ON c.id=e.claim_id
+ WHERE i.id=NEW.intervention_id AND i.project_id IS NOT NULL AND c.project_id != i.project_id
+)
+BEGIN SELECT RAISE(ABORT,'intervention evidence belongs to another project'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_training_protocol_evidence_project_guard
+BEFORE INSERT ON training_protocol_evidence
+WHEN EXISTS (
+ SELECT 1 FROM training_protocols p
+ JOIN evidence e ON e.id=NEW.evidence_ref
+ JOIN claims c ON c.id=e.claim_id
+ WHERE p.id=NEW.protocol_id AND c.project_id != p.project_id
+)
+BEGIN SELECT RAISE(ABORT,'training protocol evidence belongs to another project'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intervention_insert_supported_gate
+BEFORE INSERT ON interventions
+WHEN NEW.status='SUPPORTED'
+BEGIN SELECT RAISE(ABORT,'SUPPORTED intervention must use lifecycle promotion'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_training_protocol_insert_supported_gate
+BEFORE INSERT ON training_protocols
+WHEN NEW.status='SUPPORTED'
+BEGIN SELECT RAISE(ABORT,'SUPPORTED training protocol must use lifecycle promotion'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intervention_admitted_immutable
+BEFORE UPDATE ON interventions
+WHEN OLD.status IN ('SUPPORTED','RETIRED') AND (
+    OLD.status='RETIRED' OR NEW.status=OLD.status
+)
+BEGIN SELECT RAISE(ABORT,'admitted intervention is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intervention_evidence_admitted_guard
+BEFORE INSERT ON intervention_evidence
+WHEN EXISTS (SELECT 1 FROM interventions WHERE id=NEW.intervention_id AND status IN ('SUPPORTED','RETIRED'))
+BEGIN SELECT RAISE(ABORT,'evidence cannot be changed for an admitted intervention'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intervention_evidence_admitted_delete_guard
+BEFORE DELETE ON intervention_evidence
+WHEN EXISTS (SELECT 1 FROM interventions WHERE id=OLD.intervention_id AND status IN ('SUPPORTED','RETIRED'))
+BEGIN SELECT RAISE(ABORT,'evidence cannot be changed for an admitted intervention'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_training_protocol_admitted_immutable
+BEFORE UPDATE ON training_protocols
+WHEN OLD.status IN ('SUPPORTED','RETIRED') AND (
+    OLD.status='RETIRED' OR NEW.status=OLD.status
+)
+BEGIN SELECT RAISE(ABORT,'admitted training protocol is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_training_protocol_evidence_admitted_guard
+BEFORE INSERT ON training_protocol_evidence
+WHEN EXISTS (SELECT 1 FROM training_protocols WHERE id=NEW.protocol_id AND status IN ('SUPPORTED','RETIRED'))
+BEGIN SELECT RAISE(ABORT,'evidence cannot be changed for an admitted training protocol'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_training_protocol_evidence_admitted_delete_guard
+BEFORE DELETE ON training_protocol_evidence
+WHEN EXISTS (SELECT 1 FROM training_protocols WHERE id=OLD.protocol_id AND status IN ('SUPPORTED','RETIRED'))
+BEGIN SELECT RAISE(ABORT,'evidence cannot be changed for an admitted training protocol'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intervention_supported_gate
+BEFORE UPDATE OF status ON interventions
+WHEN NEW.status='SUPPORTED' AND (
+ NOT EXISTS (SELECT 1 FROM intervention_evidence WHERE intervention_id=NEW.id)
+ OR EXISTS (
+   SELECT 1 FROM intervention_evidence ie
+   LEFT JOIN evidence e ON e.id=ie.evidence_ref
+   WHERE ie.intervention_id=NEW.id AND (e.id IS NULL OR e.verified != 1)
+ )
+ OR NEW.evidence_level NOT IN ('SUPPORTED','WELL_SUPPORTED')
+)
+BEGIN SELECT RAISE(ABORT,'SUPPORTED intervention requires verified evidence and supported evidence level'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_training_protocol_supported_gate
+BEFORE UPDATE OF status ON training_protocols
+WHEN NEW.status='SUPPORTED' AND (
+ (NEW.source_claim_id IS NULL AND NEW.intervention_id IS NULL)
+ OR NOT EXISTS (SELECT 1 FROM training_protocol_evidence WHERE protocol_id=NEW.id)
+ OR EXISTS (
+   SELECT 1 FROM training_protocol_evidence pe
+   LEFT JOIN evidence e ON e.id=pe.evidence_ref
+   WHERE pe.protocol_id=NEW.id AND (e.id IS NULL OR e.verified != 1)
+ )
+ OR NOT EXISTS (SELECT 1 FROM training_sessions WHERE protocol_id=NEW.id)
+ OR NOT EXISTS (SELECT 1 FROM training_sessions WHERE protocol_id=NEW.id AND transfer_score IS NOT NULL)
+ OR NOT EXISTS (SELECT 1 FROM training_sessions WHERE protocol_id=NEW.id AND retention_score IS NOT NULL)
+)
+BEGIN SELECT RAISE(ABORT,'SUPPORTED training protocol admission requirements are not met'); END;"""
 
 
 # Keep a single authoritative SQLite migration path. The function is defined above
 # but resolves PHASE6/PHASE7 globals at runtime, after all schema constants exist.
+
+# Scientific analysis artifacts become immutable after creation/freeze/audit.
+# Keep these guards in the authoritative SQLite migration path so direct SQL cannot bypass the scientific audit trail.
+_PHASE4_ANALYSIS_IMMUTABILITY_SQL = """
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_plan_immutable_update
+BEFORE UPDATE ON study_analysis_plans
+WHEN OLD.frozen=1
+BEGIN SELECT RAISE(ABORT,'frozen analysis plan is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_plan_immutable_delete
+BEFORE DELETE ON study_analysis_plans
+WHEN OLD.frozen=1
+BEGIN SELECT RAISE(ABORT,'frozen analysis plan is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_result_immutable_update
+BEFORE UPDATE ON study_analysis_results
+WHEN EXISTS (SELECT 1 FROM study_analysis_audit WHERE analysis_result_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'audited analysis result is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_result_immutable_delete
+BEFORE DELETE ON study_analysis_results
+WHEN EXISTS (SELECT 1 FROM study_analysis_audit WHERE analysis_result_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'audited analysis result is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_metrics_immutable_update
+BEFORE UPDATE ON study_analysis_metrics
+WHEN EXISTS (SELECT 1 FROM study_analysis_audit a WHERE a.study_id=OLD.study_id AND a.analysis_plan_id=OLD.analysis_plan_id AND a.outcome_name=OLD.outcome_name)
+BEGIN SELECT RAISE(ABORT,'audited analysis metrics are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_metrics_immutable_delete
+BEFORE DELETE ON study_analysis_metrics
+WHEN EXISTS (SELECT 1 FROM study_analysis_audit a WHERE a.study_id=OLD.study_id AND a.analysis_plan_id=OLD.analysis_plan_id AND a.outcome_name=OLD.outcome_name)
+BEGIN SELECT RAISE(ABORT,'audited analysis metrics are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_audit_immutable_update
+BEFORE UPDATE ON study_analysis_audit
+BEGIN SELECT RAISE(ABORT,'analysis audit is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS trg_study_analysis_audit_immutable_delete
+BEFORE DELETE ON study_analysis_audit
+BEGIN SELECT RAISE(ABORT,'analysis audit is immutable'); END;
+"""
 Database.migrate = _migrate_phase4
 

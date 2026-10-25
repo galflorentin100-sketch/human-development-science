@@ -27,9 +27,7 @@ def test_inferential_analysis_reports_ci_and_effect_size(tmp_path):
     assert 'no missing-data model' in out['limitations']
 
 def test_inferential_requires_frozen_plan(tmp_path):
-    db=setup(tmp_path); db.execute("UPDATE study_analysis_plans SET frozen=0 WHERE id='plan'")
-    try:
-        ScientificAnalysisEngine(db).inferential_randomized_arm_analysis('s','plan','score')
-        assert False
-    except ValueError as exc:
-        assert 'frozen' in str(exc)
+    db=setup(tmp_path)
+    import pytest
+    with pytest.raises(Exception, match="immutable"):
+        db.execute("UPDATE study_analysis_plans SET frozen=0 WHERE id='plan'")

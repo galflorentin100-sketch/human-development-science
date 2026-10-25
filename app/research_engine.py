@@ -193,7 +193,14 @@ class ResearchEngine:
             con.execute("INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at) VALUES (?,?,?,?,?,?,?)",
                         (str(uuid4()),"research_synthesis.reviewed","research_synthesis",synthesis_id,reviewer,
                          json.dumps({"decision":decision,"rationale":rationale,"research_queue_completed":queue_completed},sort_keys=True),ts))
-        return self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
+        result=self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
+        if decision=="ACCEPTED":
+            from app.research_handoff import ResearchHandoffCoordinator
+            handoff=ResearchHandoffCoordinator(self.db).complete_accepted_synthesis(
+                workspace["project_id"],synthesis_id,actor=reviewer)
+            result=dict(result)
+            result["handoff"]=handoff
+        return result
 
     def readiness(self,synthesis_id):
         syn=self.db.one("SELECT * FROM research_syntheses WHERE id=?",(synthesis_id,))
