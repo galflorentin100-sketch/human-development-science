@@ -499,6 +499,33 @@ HDS aims to develop exceptionally capable coaches and professionals, while defin
 
 HDS should build a demanding professional academy with clear competency frameworks, entry requirements, practical examinations, supervised practice, continuing education, periodic reassessment, and transparent levels of qualification. The goal is not that every coach must be the world's best athlete or possess every specialty. The goal is that every professional is highly competent in their defined role, knows their limits, and can demonstrate that they help participants progress safely and effectively. HDS itself should continually evaluate the quality of its coaches and improve its standards.
 
+## HDS's dual identity: an academic field and an organization
+
+HDS is intended to be both **a field of knowledge and a major organization/company that develops, advances, and applies that field**. These are complementary identities and must not be confused.
+
+### HDS as a scientific and academic field
+
+HDS seeks to establish a coherent field of human development science, with human mental development as its central research priority. The field should have its own research agenda, concepts, models, measurement approaches, scholarly debates, publications, academic courses, and—if earned through university collaboration and formal recognition—degree pathways. It should be taught and researched in universities and other recognized academic institutions, while remaining connected to established disciplines and open to independent scientific scrutiny.
+
+### HDS as a company and institution
+
+HDS is also envisioned as a large, sustainable organization that invests in research and development and translates reliable knowledge into real-world services and institutions. Its activities may include a research institute, development centers, professional academies, assessment systems, programs for individuals and groups, organizational services, challenges and competitions, publications, technology, and international partnerships.
+
+The organization should be able to build products and services, employ researchers and practitioners, partner with companies and public institutions, and expand internationally. Its commercial activities must be governed by scientific integrity, participant welfare, privacy, professional scope, and transparent evidence standards.
+
+### How the two identities relate
+
+The academic field produces and debates knowledge; the HDS organization helps fund, develop, translate, test, and distribute practical applications. The organization can be a major contributor to the field, but it does not own scientific truth and cannot declare itself academically recognized by its own authority. Independent universities, researchers, peer review, ethics bodies, regulators, and professional communities retain their appropriate roles.
+
+The relationship should be mutually reinforcing:
+- Academic research informs HDS methods, products, training, and standards.
+- HDS programs and partnerships generate research questions and, when ethically and methodologically appropriate, opportunities for evaluation.
+- Independent researchers can criticize, test, replicate, and challenge HDS claims.
+- Findings—including negative or inconclusive findings—are reported honestly and used to improve or discontinue practices.
+- HDS's growth as a company depends on demonstrated value and trust; recognition of the academic field depends on cumulative scientific contribution, not company size or marketing.
+
+**The long-term vision:** HDS becomes both a recognized scientific and academic field and a major international organization dedicated to advancing human development. Its company is a leading builder and practitioner of the field, while the field itself remains broader than any one company and open to universities and researchers worldwide.
+
 ## HDS as a new academic discipline: Human Mental Development Science
 
 HDS's long-term academic ambition is not merely to apply existing psychology, sports psychology, or coaching knowledge. It is to establish and develop a distinct, rigorous field of inquiry focused on the structure, functioning, development, measurement, training, and maintenance of human mental capabilities throughout life.
