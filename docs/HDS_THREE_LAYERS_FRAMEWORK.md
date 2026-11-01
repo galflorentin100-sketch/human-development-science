@@ -123,6 +123,68 @@ These support all three layers:
 - Reflection, feedback, and continuous improvement.
 - Communication of uncertainty and limitations.
 
+## HDS organizational and operating model — three parts
+
+The three human-development layers describe **what** HDS develops. The following three parts describe **how HDS operates**. They are complementary structures, not competing classifications.
+
+### 1. Human Gym — mental, values, and character development
+
+A practical development environment for strengthening the human capacities that shape how a person thinks, responds, chooses, and behaves.
+
+Core areas:
+- Mental and psychological skills: attention, emotional regulation, resilience, confidence, stress management, and self-awareness.
+- Values and ethical development: integrity, responsibility, respect, courage, fairness, and care.
+- Character and behavior: discipline, perseverance, initiative, humility, reliability, and habits.
+- Self-leadership: goal setting, accountability, reflection, and acting consistently with one's principles.
+
+The Human Gym develops and trains these capacities through structured exercises, deliberate practice, reflection, feedback, and suitable assessments. Physical training can be integrated where it supports a defined mental or character-development objective, but claims about psychological transfer must be measured rather than assumed.
+
+### 2. Development Programs — training plans, workshops, and pathways
+
+The applied delivery arm that turns HDS knowledge and frameworks into structured development experiences.
+
+Formats may include:
+- Individual development and training plans.
+- Group programs and guided pathways.
+- Workshops, seminars, and practical courses.
+- Short challenges and structured practice cycles.
+- Programs for schools, teams, organizations, and communities.
+- Integrated pathways combining mental, physical-motor, and values development across the three human-development layers.
+
+Each program should define its target population, objectives, competencies, duration, activities, prerequisites, safety requirements, assessment methods, and expected outcomes. Programs should be adapted to the participant and should not promise outcomes beyond the supporting evidence.
+
+### 3. Research Lab — scientific research and evaluation
+
+The knowledge-generating and quality-control arm of HDS.
+
+Core functions:
+- Review and synthesize scientific literature.
+- Define research questions and testable hypotheses.
+- Develop and refine models, measurement tools, and interventions.
+- Design and conduct ethical studies and pilot projects.
+- Measure program outcomes and evaluate effectiveness.
+- Analyze results, limitations, uncertainty, and unintended effects.
+- Publish transparent reports and update HDS practices when evidence changes.
+
+Research involving people must follow appropriate ethics review, informed consent, privacy protection, and applicable law. HDS must distinguish exploratory pilots from controlled studies and must not describe an intervention as proven based only on testimonials or uncontrolled observations.
+
+### How the three parts work together
+
+1. **Research Lab** investigates human development, evaluates evidence, and tests methods.
+2. **Human Gym** turns suitable findings into trainable exercises and development practices.
+3. **Development Programs** organize those practices into pathways and deliver them to individuals and groups.
+4. Program outcomes and participant feedback return to the **Research Lab** for evaluation and improvement.
+
+This creates a continuous learning cycle: research → practice design → program delivery → measurement → improved research.
+
+### The two HDS frameworks together
+
+- **Operating structure:** Human Gym · Development Programs · Research Lab.
+- **Development framework:** Self-Mastery · Environmental Mastery · Social Mastery.
+- **Development dimensions:** Mental · Physical-Motor · Values.
+
+Every program can be mapped to one or more development layers and dimensions, and its methods can be linked to the evidence and evaluations maintained by the Research Lab.
+
 ## HDS research and evidence standard
 
 Every method, intervention, and claim evaluated by HDS should be labeled:
