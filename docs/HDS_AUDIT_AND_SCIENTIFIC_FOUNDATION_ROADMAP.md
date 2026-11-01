@@ -205,3 +205,80 @@ The software should support the scientific governance model rather than letting 
 The current repository appears to be a substantial early software platform for operating an AI-enabled HDS organization, with research and human-development workflows represented in its architecture. The next challenge is not simply adding more AI agents or endpoints. It is making the scientific model explicit, independently governed, testable, and operational—and then aligning the software, education, professional academy, physical/hybrid development, and company strategy around that model.
 
 **HDS should grow into a major company by creating demonstrable value, and into a credible academic field through sustained independent scientific contribution. These are related ambitions, but they require different forms of proof.**
+
+
+## 10. The knowledge–capability–performance gap
+
+### 10.1 Foundational proposition
+
+A central HDS proposition is that **knowing what to do is not the same as being able to do it, and being able to do it is not the same as consistently doing it in real life**.
+
+Modern societies have extensive access to information. Formal education often measures knowledge through tests, grades, and academic achievement. Those are meaningful but incomplete outcomes. People also need the capabilities to apply knowledge, regulate behavior, make decisions, resist or manage temptations, adapt to changing circumstances, and act effectively in everyday life.
+
+HDS should investigate and develop this missing bridge between knowledge and effective action.
+
+### 10.2 A three-part distinction
+
+1. **Knowledge:** what a person knows, understands, remembers, and can explain.
+2. **Capability:** what a person can reliably do or learn to do under defined conditions.
+3. **Performance:** what the person actually does in a particular situation, at a particular time, with particular resources and constraints.
+
+Example: a person may know that saving money is beneficial, understand budgeting, and still spend impulsively. This does not automatically prove a lack of knowledge or a fixed personal weakness. It may involve impulse regulation, delayed gratification, planning, financial stress, habit, social influence, environmental design, or limited resources.
+
+### 10.3 Initial failure-analysis model — hypotheses, not an established exhaustive theory
+
+When a person does not achieve an intended outcome, HDS should investigate multiple possible contributors rather than label the person weak.
+
+Candidate contributors include:
+- **Knowledge gap:** missing or inaccurate information, misunderstanding, poor procedural knowledge.
+- **Capability gap:** a skill, cognitive, emotional, physical, social, or practical capability is insufficiently developed for the task.
+- **Motivation and goal conflict:** competing goals, low value, ambivalence, fatigue, or short-term reward dominance.
+- **Execution and regulation gap:** difficulty initiating, planning, inhibiting impulses, maintaining attention, or recovering after interruption.
+- **Context and opportunity constraints:** poverty, time pressure, unsafe environments, inaccessible systems, social pressure, lack of tools or support.
+- **Health and capacity constraints:** illness, disability, sleep deprivation, stress, pain, or other factors that affect functioning.
+- **Task-design mismatch:** the demand exceeds current capacity, instructions are unclear, or the task is poorly structured.
+- **Learning and feedback failure:** insufficient practice, feedback, reinforcement, adaptation, or opportunity to transfer learning.
+
+These categories are an initial diagnostic framework for research and program design. They may overlap, interact, and vary by person and context. They must be operationalized and tested rather than treated as settled scientific categories.
+
+### 10.4 HDS development objective
+
+HDS should not stop at transmitting information. It should ask:
+- What does the person need to know?
+- What must the person be able to do?
+- Under which conditions must the capability work?
+- What practice, instruction, feedback, support, and environmental changes are needed?
+- Can the person apply the capability outside the training setting?
+- Does the capability persist over time?
+- What barriers are not reasonably attributable to the individual?
+
+The goal is not to make every person conform to one ideal. It is to help people develop meaningful capabilities, autonomy, functioning, and the ability to pursue their own legitimate goals.
+
+### 10.5 Relationship to education
+
+HDS should complement and improve education, not dismiss knowledge or academic learning. Knowledge is essential; it is simply not sufficient for every life outcome.
+
+A fuller educational model should connect:
+- Knowledge and understanding.
+- Practiced skills and capabilities.
+- Application in realistic contexts.
+- Reflection, feedback, and self-correction.
+- Social and practical learning.
+- Physical literacy and health.
+- Values, responsibility, and ethical judgment.
+- Lifelong learning and adaptation.
+
+Grades can measure selected academic outcomes. They should not be treated as a complete measure of a person's capabilities, character, potential, or readiness for life.
+
+### 10.6 Research questions
+
+This proposition creates a foundational HDS research program:
+1. How should knowledge, capability, and performance be distinguished and measured?
+2. Which factors best explain the gap between intention, knowledge, capability, and action in different domains?
+3. How do self-regulation, habits, executive functions, emotion, motivation, and context interact?
+4. Which forms of practice improve performance beyond the training environment?
+5. How can education develop both understanding and the capability to apply what is learned?
+6. Which barriers require individual development, and which require environmental or institutional change?
+7. How can capability development be measured fairly across age, disability, culture, and different life circumstances?
+
+**Scientific caution:** the statement that many failures arise from insufficient knowledge or insufficient capability is a useful starting hypothesis, not a universal law. HDS must test it against competing explanations and avoid turning structural barriers or health limitations into moral judgments about individuals.
