@@ -71,7 +71,7 @@ def test_direct_execution_cannot_bypass_pending_decision_approval(tmp_path):
         project_id=project["id"],
         owner="researcher",
     )
-    decision=DecisionEngine(db).assess(
+    assessment=DecisionEngine(db).assess(
         project["id"],
         "PUBLISH",
         ["publish","wait"],
@@ -81,15 +81,9 @@ def test_direct_execution_cannot_bypass_pending_decision_approval(tmp_path):
         "measure publication outcome",
         owner="founder",
         risk_level="HIGH",
-    )["decision"]
-    from app.approvals import ApprovalService
-    ApprovalService(db).request(
-        action=f"DECISION:{decision['id']}",
-        requested_by="scientific-orchestrator",
-        reason="Explicit regression approval gate",
-        risk_level="HIGH",
-        context={"project_id":project["id"],"decision_id":decision["id"]},
     )
+    decision=assessment["decision"]
+    assert assessment["approval"] is not None
 
     approvals=db.all("SELECT action,status FROM approvals ORDER BY created_at DESC")
     assert any(str(a["action"]).startswith("DECISION:") and a["status"]=="PENDING" for a in approvals), approvals
