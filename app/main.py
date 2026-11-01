@@ -2431,6 +2431,26 @@ def run_hds_research_first_pass(run_id: str, body: ScientificRetrievalRequest, p
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.post("/api/hds/research-loops/{run_id}/generate-followups")
+def generate_hds_research_followups(run_id: str, principal: Principal = Depends(principal_from_header)):
+    """Create advisory, project-scoped research questions from recorded scientific gaps."""
+    require_execute(principal)
+    from app.autonomous_research_loop import AutonomousResearchLoop
+    from app.research_question_generator import ResearchQuestionGenerator
+    try:
+        run = AutonomousResearchLoop(db).get(run_id)
+        require_project(principal, run["project_id"], "EXECUTE")
+        result = ResearchQuestionGenerator(db).generate(run["project_id"])
+        return {
+            "run_id": run_id,
+            "project_id": run["project_id"],
+            **result,
+            "policy": "advisory follow-up questions only; no claim, finding, or hypothesis is automatically changed",
+        }
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @app.get("/api/hds/research-loops/{run_id}/sources")
 def list_hds_research_sources(run_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
