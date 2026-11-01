@@ -1,22 +1,58 @@
-# HDS: Three Layers of Human Development
+# HDS: The Mental Gym — Human Mental Development Science
 
-## The central model
+## HDS's central identity and priority
 
-HDS develops a person across three relationships:
+**HDS is first and foremost a system for understanding, mapping, training, and developing human mentality.** Mental development is its central mission and defining focus—not one equal item in a generic list of physical, mental, and values-based development.
 
-1. **Self — how I lead myself and face challenges.**
-2. **World — how I function in the world and environment, even when no other person is there.**
-3. **Other people — how I relate, cooperate, compete, protect, lead, and deal with other people.**
+Its central ambition is to build a science-informed equivalent of a gym for the mind: a structured place where mental capabilities are mapped, assessed, trained, strengthened, and developed through programs, practice, feedback, and research.
 
-Every competency in all three layers is developed through three integrated dimensions:
+The central outcomes include:
+- **Mental toughness:** responding effectively to difficulty, pressure, discomfort, uncertainty, and setbacks.
+- **Self-discipline:** regulating behavior and following through on chosen commitments.
+- **Resilience:** adapting and recovering after stress and adversity.
+- **Self-regulation:** managing attention, emotions, impulses, and behavior.
+- **Persistence and perseverance:** continuing toward meaningful goals while adapting intelligently.
+- **Courage:** acting appropriately despite fear, while recognizing real risks.
+- **Focus and concentration:** directing and sustaining attention.
+- **Confidence and self-efficacy:** developing realistic belief in one's ability to act and learn.
+- **Adaptability:** adjusting strategies when circumstances change.
+- **Purpose, responsibility, and excellence:** setting meaningful standards and acting consistently with them.
 
-- **Mental (מנטלי):** knowledge, understanding, attention, perception, emotional regulation, judgment, strategy, learning, and decision-making.
-- **Physical and motor (פיזי־מוטורי):** strength, endurance, speed, coordination, mobility, dexterity, movement, technical execution, and practical physical capacity.
-- **Values (ערכי):** principles, character, responsibility, integrity, courage, respect, fairness, discipline, care, and ethical judgment.
+Values and character qualities such as courage, integrity, responsibility, and excellence matter deeply. In HDS, they guide the direction and ethical use of mental capabilities; they do not displace mental training as the primary focus.
 
-These are not three additional layers. They are lenses applied to every competency. Not every competency requires all three dimensions equally: for example, navigation may emphasize mental and practical skills, while combat sports involve all three. HDS should specify the relevant dimensions and how each is assessed.
+## The Mental Gym analogy: mental anatomy and training science
 
-HDS is about capability, agency, adaptability, and responsibility—not domination, invulnerability, or perfection.
+HDS aims to develop a systematic **map of human mental capabilities**, analogous in purpose—not in literal biology—to anatomy and exercise science in physical training.
+
+The analogy should guide the design of HDS:
+- **Mental anatomy:** identify and define distinct mental capabilities and their subcomponents.
+- **Mental assessment:** establish valid ways to assess each capability and its context.
+- **Mental exercises:** design specific practices intended to train defined capabilities.
+- **Training programs:** organize exercises into progressive plans with goals, frequency, challenge, feedback, and recovery.
+- **Progress tracking:** measure change over time and check whether improvements transfer to everyday life.
+- **Research and validation:** test whether exercises and programs produce the intended effects, for whom, and under what conditions.
+
+Mental capabilities are not literally muscles, and a catchy exercise does not prove that a capability has been strengthened. HDS must distinguish metaphors, psychological constructs, measurable skills, and underlying cognitive or neural mechanisms. It should not assume that training one task automatically improves broad real-world mental toughness or character.
+
+## Three contexts in which mental capabilities are developed
+
+HDS studies and trains mentality across three human contexts:
+
+1. **Self — me מול עצמי:** self-leadership, self-discipline, emotional regulation, persistence, facing challenges, and pursuing excellence.
+2. **World — me מול העולם:** independent functioning, learning, navigation, problem solving, adaptation, and decision-making in the physical and informational environment.
+3. **Other people — me מול אנשים:** social confidence, trust, communication, leadership, negotiation, conflict, influence, and composure in interpersonal situations.
+
+These are contexts for applying and developing mental capabilities, not three competing missions. The mental dimension remains central in all three.
+
+## Supporting dimensions
+
+Physical-motor capability and values are essential parts of the broader HDS model, but they support and interact with its central mental-development mission rather than standing as equal organizational priorities.
+
+- **Mental — primary focus:** attention, cognition, emotional regulation, motivation, self-control, resilience, judgment, learning, and behavior regulation.
+- **Physical-motor — supporting and interacting dimension:** physical capacity, movement, coordination, and bodily skills. Physical challenges can provide contexts for mental training, but mental benefits must be assessed rather than presumed.
+- **Values and character — guiding dimension:** integrity, responsibility, courage, respect, fairness, humility, and care. These guide how mental capabilities are used and what goals are worth pursuing.
+
+A given activity may involve all three dimensions. HDS should state which dimension is the primary target and which are secondary outcomes.
 
 ---
 
