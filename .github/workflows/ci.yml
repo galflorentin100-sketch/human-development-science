@@ -50,6 +50,7 @@ jobs:
           PYTHONPATH: .
       - name: Backup and restore verification
         env:
+          HDS_PG_CLIENT_IMAGE: postgres:16
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hds_ci
         run: |
           mkdir -p .ci-backups
