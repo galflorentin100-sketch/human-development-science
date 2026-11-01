@@ -202,6 +202,13 @@ Possible formats:
 - Strategy, negotiation, and cooperative or competitive games.
 - Multi-domain events combining mental, physical-motor, and values-based tasks.
 
+HDS should also aspire to create a broad, multi-domain title or championship for the person who demonstrates the strongest overall mental capability across all three layers—not merely the best performance in one isolated mental task. Such a title would assess:
+- **Self-mastery:** the ability to lead oneself, regulate attention, emotion and behavior, sustain commitments, respond adaptively to adversity, and act according to values.
+- **Environmental mastery:** the ability to understand and navigate the world, solve unfamiliar problems, make sound decisions under uncertainty, and demonstrate relevant practical competence (including safe, lawful driving where appropriate to the participant's age and licence).
+- **Social mastery:** the ability to communicate, cooperate, lead, build trust, manage conflict, and exercise influence responsibly.
+
+The competition should combine multiple task types and settings, with repeated observations where feasible. It should publish its competency definitions, scoring rubrics, weighting, reliability, accessibility provisions, and limitations. Any overall ranking is a competition-specific composite—not a definitive measurement of a person's worth, permanent character, or total mental strength. Participants should also receive a profile showing performance across the three layers, not only a single rank. HDS should validate the assessment system before making strong claims about who is "the strongest mentally."
+
 Every competition must state what it is intended to measure, use fair and transparent rules, account for accessibility and participant differences, and avoid treating one performance as proof of a stable personality trait. Challenges must be psychologically and physically safe, voluntary, age-appropriate, and designed to avoid humiliation, coercion, or harmful extremes. Results can inform development and, with appropriate consent and safeguards, research.
 
 ### 4. Coach and Staff Academy — training and qualification
@@ -290,6 +297,29 @@ Use observable performance where possible. Physical tests, practical field scena
 - **Expert:** demonstrates sustained, independently verified performance in a defined specialty.
 
 A person has a profile across competencies, layers, and dimensions—not one universal score or global label such as "elite."
+
+### Individualized high-performance physical development: a fully hybrid model
+
+HDS's physical-development pathway should be genuinely hybrid: it aims to develop the broadest possible range of physical fitness components, rather than defining fitness through one sport, one event, or strength and endurance alone. The ambition is to help each person reach the highest appropriate level they can achieve across the full set of components, while recognizing that trade-offs, genetics, age, health, training history, and available time affect what is realistically attainable.
+
+The framework should cover, at minimum:
+- Maximal strength and relative strength.
+- Muscular hypertrophy and muscle development.
+- Muscular endurance.
+- Aerobic endurance and cardiorespiratory fitness.
+- Anaerobic capacity and high-intensity endurance.
+- Speed and acceleration.
+- Explosive power.
+- Agility and change of direction.
+- Coordination and balance.
+- Flexibility and joint mobility.
+- Motor skill, precision, and body control.
+
+For every component, HDS should define suitable tests, units, protocols, reference context, and progression levels. Examples may include load lifted relative to body mass, repetitions at a standardized task, timed running or swimming distances, jump or throw performance, sprint times, range-of-motion measures, and validated coordination or agility tests. A result is meaningful only when the test protocol, conditions, and limitations are recorded.
+
+Each participant should have an individualized physical profile and personal benchmarks: baseline measurements, chosen targets, reassessment dates, and a training plan that develops weaker areas while maintaining strengths. HDS may use ambitious reference standards, but should not impose one universal target or imply that every person can maximize every component simultaneously. Training load, recovery, injury risk, health status, and sustainable participation must guide progression.
+
+Hybrid development means integrating and balancing training modalities where useful—such as resistance training, running, swimming, calisthenics, gymnastics or acrobatics, loaded carries, intervals, and mixed-modal conditioning—according to the target components and the person's goals. The label "hybrid" is not itself a method or proof of effectiveness; the program must specify what is being trained and measure each intended outcome.
 
 ## Product architecture implications
 
