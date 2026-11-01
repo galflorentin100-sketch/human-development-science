@@ -37,6 +37,17 @@ class ResearchEvidenceSynthesizer:
                 else:
                     excluded.append({"evidence_id": row["evidence_id"], "review_state": state})
 
+            # Structured study descriptors are included only when explicitly
+            # recorded in this HDS project. They are not inferred from abstracts.
+            study_metadata = {}
+            for source_id in sorted({x["source_id"] for x in rows}):
+                study_metadata[source_id] = self.db.all(
+                    """SELECT id,title,design,population,findings
+                       FROM studies WHERE source_id=? AND project_id=?
+                       ORDER BY created_at,id""",
+                    (source_id, project_id),
+                )
+
             support = [x for x in verified if x["stance"] == "SUPPORTS"]
             contradict = [x for x in verified if x["stance"] == "CONTRADICTS"]
             neutral = [x for x in verified if x["stance"] == "NEUTRAL"]
@@ -75,6 +86,14 @@ class ResearchEvidenceSynthesizer:
                     "distinct_contradicting_sources": len(contradict_sources),
                     "excluded_nonverified_items": len(excluded),
                 },
+                "recorded_study_descriptors": [
+                    {
+                        "source_id": source_id,
+                        "studies": study_metadata[source_id],
+                    }
+                    for source_id in sorted(study_metadata)
+                    if study_metadata[source_id]
+                ],
                 "verified_evidence": [
                     {
                         "evidence_id": x["evidence_id"],
