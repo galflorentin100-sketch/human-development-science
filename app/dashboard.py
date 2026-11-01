@@ -76,6 +76,8 @@ async function loadBackgroundFeed(){
  const target=document.getElementById("background-feed"); if(!target)return;
  try{
   const rows=await Promise.all(projects.map(async p=>{try{const r=await api("/api/hds/research-loops/project/"+encodeURIComponent(p.id));return (r.items||[]).map(x=>({...x,project_objective:p.objective||""}))}catch(_){return []}}));
+  const queueRows=await Promise.all(projects.map(async p=>{try{const r=await api("/api/science/research-queue/"+encodeURIComponent(p.id));return (r.items||[]).map(x=>({...x,project_objective:p.objective||""}))}catch(_){return []}}));
+  const queueItems=queueRows.flat().sort((a,b)=>String(b.created_at||"").localeCompare(String(a.created_at||""))).slice(0,12);
   const runs=rows.flat().sort((a,b)=>String(b.updated_at||b.created_at||"").localeCompare(String(a.updated_at||a.created_at||""))).slice(0,10);
   const enriched=await Promise.all(runs.map(async x=>{
    if(!x.workspace_id)return {...x,sources:[]};
@@ -88,6 +90,7 @@ async function loadBackgroundFeed(){
    }).join("");
    return '<div class="row"><span class="tag">'+esc(x.status||"UNKNOWN")+'</span><b>'+esc(x.gap||x.project_objective||"Research run")+'</b><br><span class="muted">'+esc(x.updated_at||x.created_at||"Date unavailable")+'</span>'+(x.sources?.length?'<div style="margin-top:8px"><b>Retrieved sources</b>'+sourceLinks+'</div>':'<div class="muted">No retrievable source records attached yet.</div>')+'</div>';
   }).join("")||"<p>No automatic research runs yet. The scheduler starts its first pass shortly after launch.</p>";
+  target.innerHTML+='<div class="row"><h3>Proposed follow-up questions</h3><p class="muted">Questions generated from recorded research gaps. All remain proposals until reviewed; none changes a scientific claim.</p>'+(queueItems.map(q=>'<div class="row"><span class="tag">'+esc(q.status||"PROPOSED")+'</span><span class="tag">'+esc(q.priority||"NORMAL")+'</span><b>'+esc(q.question)+'</b><br><span class="muted">'+esc(q.rationale||"No rationale recorded.")+'</span></div>').join("")||'<p>No follow-up questions have been proposed yet.</p>')+'</div>';
  }catch(e){target.innerHTML='<p class="danger">Could not load research feed: '+esc(e.message)+'</p>'}
 }
 async function init(){try{projects=(await api('/api/founder/projects')).items||[];const s=document.getElementById('project');s.innerHTML=projects.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.objective||p.id)+'</option>').join('');await refresh();await loadBackgroundFeed()}catch(e){document.getElementById('status').textContent='Authentication or API error: '+e.message}}
