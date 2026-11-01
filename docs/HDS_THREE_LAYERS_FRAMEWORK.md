@@ -389,3 +389,46 @@ Professional roles must have clearly defined competencies, training requirements
 HDS serves both ends of the development spectrum: people who need support to get out of a difficult place, and people who want to pursue exceptional performance. Between them is everyone who wants to live better, grow, and preserve their capabilities.
 
 Its central proposition remains mental-first: build a rigorous science and a practical system for understanding, training, assessing, and maintaining human mental capabilities, while integrating physical-motor development and ethical values where relevant.
+
+
+## Evidence-led development methods: activities are means, not the mission
+
+HDS does not prescribe one activity—such as combat sports, survival training, or military-style challenges—as the universal route to human development. These are examples of possible training contexts among many. The mission is to develop defined human capabilities; activities are selected as methods only when their suitability, safety, and evidence justify their use.
+
+Potential methods and contexts include:
+- **Combat sports and martial arts:** may provide structured practice involving pressure, feedback, emotional regulation, decision-making, discipline, and interaction with an opponent. Which outcomes improve must be specified and evaluated; benefits should not be presumed.
+- **Survival, outdoor, and expedition activities:** may provide contexts for practicing planning, adaptation, practical problem-solving, teamwork, and decisions under uncertainty. They require qualified instruction and risk controls.
+- **Sport and physical challenges:** may provide opportunities to practice goal-setting, persistence, effort regulation, learning from feedback, and cooperation. Physical improvement and mental transfer are separate outcomes and should be measured separately.
+- **Cognitive games and problem-solving tasks:** can train or assess particular task-specific skills such as strategy, memory, reasoning, or planning. Transfer to broader everyday abilities must be tested rather than assumed.
+- **Social and team-based activities:** can provide practice in communication, trust, leadership, conflict resolution, and cooperation, provided the activities are designed and assessed appropriately.
+- **Psychological and behavioral methods:** evidence-informed approaches may support emotional regulation, behavior change, coping, habit formation, and other defined goals. Clinical interventions must be delivered by appropriately qualified professionals within their scope.
+- **Everyday-life practice:** routines, responsibilities, learning projects, volunteering, and real-world goals can provide meaningful opportunities to apply and maintain capabilities.
+
+### The HDS evidence chain
+
+Every HDS method should be connected to a transparent chain of reasoning:
+
+1. **Define the target capability:** specify exactly what is intended to improve, using an operational definition.
+2. **Explain the proposed mechanism:** state why and how the activity is expected to affect that capability. Label uncertain mechanisms as hypotheses.
+3. **Review the research:** identify relevant studies, systematic reviews, populations, effect sizes where available, comparison conditions, limitations, and conflicting findings.
+4. **Assess suitability and safety:** consider age, health, disability, experience, context, risks, accessibility, consent, and professional scope.
+5. **Design the intervention:** define the activity, dose, frequency, progression, coaching, feedback, and recovery.
+6. **Measure outcomes:** assess the target capability with suitable measures before and after training, and where feasible use comparison groups and follow-up.
+7. **Test transfer and retention:** determine whether improvements appear in relevant real-world settings and persist over time, rather than only improving performance on the practiced task.
+8. **Update or discontinue:** revise, restrict, or stop methods when evidence is weak, risks outweigh benefits, or outcomes do not support the intended claim.
+
+HDS must distinguish among:
+- evidence that an activity improves performance **at the practiced task**;
+- evidence that it improves a **closely related capability**;
+- evidence that gains **transfer to everyday life or other settings**;
+- evidence that gains are **retained over time**.
+
+These are different claims and require different evidence. A plausible mechanism, a participant testimonial, or a short-term improvement is not by itself proof of broad or lasting development.
+
+### Research-led identity
+
+The Research Lab is not merely one department that supplies occasional information. Scientific research is the foundation and quality-control process across HDS. Programs, exercises, assessments, competitions, educational content, and professional training should all be traceable to the available evidence and its limitations.
+
+HDS should maintain a living evidence record for each important capability and intervention, showing what is established, what is preliminary, what remains hypothetical, what outcomes have been measured, and when the evidence was last reviewed. Where research is insufficient, HDS should say so clearly and treat the method as experimental or exploratory—not present it as proven.
+
+**HDS principle: choose the method according to the capability and the evidence—not the capability according to the activity.**
