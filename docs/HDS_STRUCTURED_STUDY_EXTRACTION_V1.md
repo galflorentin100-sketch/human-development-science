@@ -3,22 +3,24 @@
 ## Purpose
 Create a conservative, auditable representation of study characteristics before HDS attempts synthesis or intervention design.
 
-## Current implementation
-`app/research_metadata.py` provides a versioned study-record schema and validation:
-- nine predefined fields: design, population, sample size, setting, intervention/exposure, comparator, outcomes, follow-up, limitations;
-- each field must be marked EXTRACTED, NOT_REPORTED, UNCLEAR, or REQUIRES_REVIEW;
-- extracted values require a source locator;
-- missing fields are explicitly stored as NOT_REPORTED and are never inferred;
-- sample size must be a positive integer; outcomes must be a list;
-- abstract-only extraction must identify abstract locations and cannot claim full-text provenance;
-- records remain STRUCTURED_EXTRACTION_UNREVIEWED and require human review.
+## Implemented
+- `app/research_metadata.py`: versioned nine-field study schema.
+- Each field is marked EXTRACTED, NOT_REPORTED, UNCLEAR, or REQUIRES_REVIEW.
+- Every extracted value requires a source locator and a verbatim excerpt that matches the stored source text exactly.
+- Missing values are explicitly NOT_REPORTED; no inference fills gaps.
+- Sample size must be a positive integer; outcomes must be a list.
+- Abstract-only records must use abstract locators.
+- `app/research_metadata_service.py`: workspace-scoped persistence pinned to the parsed-source content hash, idempotent for the same workspace/source/version, and independent review.
+- New records remain PENDING_REVIEW. A reviewer other than the extractor must record ACCEPTED, REJECTED, or NEEDS_CORRECTION with a rationale.
+- Authenticated API routes are exposed for create, list, and review. Each route checks project-level authorization.
 
-## Important limits
-This is a schema/validation layer, not an AI extractor, full-text parser, systematic-review workflow, or risk-of-bias tool. Source locators are currently supplied by the caller; this module does not independently verify that a locator or quoted value exists in source text. That check must be implemented before scientific reliance.
+## API
+- POST `/api/hds/research-workspaces/{workspace_id}/study-extractions`
+- GET `/api/hds/research-workspaces/{workspace_id}/study-extractions`
+- POST `/api/hds/study-extractions/{extraction_id}/review`
 
-## Next steps
-1. Add a storage table and authenticated workspace-scoped API.
-2. Verify every extracted value against exact source text and stable page/section/paragraph locators.
-3. Add independent human review, correction history, and audit logs.
-4. Add duplicate/version relationships between records.
-5. Evaluate extraction accuracy against a manually annotated gold-standard set before enabling automated use.
+Creation body: `source_id`, `fields`, optional `extractor`, optional `source_content_level`.
+Review body: `decision`, `rationale`.
+
+## Limits
+Exact excerpt matching proves only that the excerpt exists in stored text; it does not prove the extracted interpretation is correct. Source locators are caller-supplied and not independently parsed/verified against page coordinates. Full-text/abstract classification is also supplied by the caller and should be bound to acquisition metadata in a later version. This is not a risk-of-bias assessment or an automated systematic-review workflow.
