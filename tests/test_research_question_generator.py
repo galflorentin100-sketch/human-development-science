@@ -34,3 +34,25 @@ def test_question_generator_creates_review_questions_without_mutating_claims(tmp
     result=ResearchQuestionGenerator(db).generate(project["id"])
     assert any(x["trigger_type"]=="AUTONOMOUS_GAP_DETECTOR" for x in result["queue_items"])
     assert all(x["status"]=="PROPOSED" for x in result["queue_items"])
+
+
+
+def test_question_generator_is_idempotent_for_open_followups(tmp_path):
+    db=Database(str(tmp_path/"idempotent-questions.db"))
+    project=ResearchCycle(db).run("Idempotent question generation")["project"]
+    e=ExperimentEngine(db)
+    exp=e.create(project["id"],"Q","H","D","P","I","C","O",'{"outcome":"O"}')
+    e.preregister(exp["id"])
+    ExperimentSafetyReviewer(db).review(exp["id"],"ACCEPT","review","reviewer")
+    e.start(exp["id"]); e.record_result(exp["id"],"outcome","interpretation"); e.complete(exp["id"])
+    rp=ReplicationEngine(db).propose(project["id"],exp["id"],"independent confirmation")
+    ReplicationEngine(db).ready(rp["id"])
+    ReplicationEngine(db).record_result(rp["id"],"descriptive outcome","no automatic conclusion")
+
+    generator=ResearchQuestionGenerator(db)
+    first=generator.generate(project["id"])
+    second=generator.generate(project["id"])
+
+    assert len(first["queue_items"]) == len(second["queue_items"])
+    assert all(item["status"] == "PROPOSED" for item in second["queue_items"])
+    assert "no claim" in second["policy"]
