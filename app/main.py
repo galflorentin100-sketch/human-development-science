@@ -2173,6 +2173,40 @@ def retrieve_hds_research_sources(run_id: str, body: ScientificRetrievalRequest,
     except ValueError as exc:
         raise HTTPException(400,str(exc)) from exc
 
+@app.post("/api/hds/research-workspaces/{workspace_id}/study-extractions")
+def create_hds_study_extraction(workspace_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_execute(principal)
+    workspace=db.one("SELECT project_id FROM research_workspaces WHERE id=?",(workspace_id,))
+    if not workspace: raise HTTPException(404,"research workspace not found")
+    require_project(principal,workspace["project_id"],"EXECUTE")
+    from app.research_metadata_service import StudyExtractionService
+    try:
+        return StudyExtractionService(db).create(
+            workspace_id,body["source_id"],body["fields"],body.get("extractor",principal.user_id),
+            principal.user_id,body.get("source_content_level","FULL_TEXT"))
+    except (ValueError,KeyError) as exc: raise HTTPException(400,str(exc)) from exc
+
+@app.get("/api/hds/research-workspaces/{workspace_id}/study-extractions")
+def list_hds_study_extractions(workspace_id: str, principal: Principal = Depends(principal_from_header)):
+    require_read(principal)
+    workspace=db.one("SELECT project_id FROM research_workspaces WHERE id=?",(workspace_id,))
+    if not workspace: raise HTTPException(404,"research workspace not found")
+    require_project(principal,workspace["project_id"],"READ")
+    from app.research_metadata_service import StudyExtractionService
+    return StudyExtractionService(db).list_workspace(workspace_id)
+
+@app.post("/api/hds/study-extractions/{extraction_id}/review")
+def review_hds_study_extraction(extraction_id: str, body: dict, principal: Principal = Depends(principal_from_header)):
+    require_write(principal)
+    row=db.one("SELECT project_id FROM research_study_extractions WHERE id=?",(extraction_id,))
+    if not row: raise HTTPException(404,"study extraction not found")
+    require_project(principal,row["project_id"],"WRITE")
+    from app.research_metadata_service import StudyExtractionService
+    try:
+        return StudyExtractionService(db).review(
+            extraction_id,principal.user_id,body["decision"],body["rationale"])
+    except (ValueError,KeyError) as exc: raise HTTPException(400,str(exc)) from exc
+
 @app.post("/api/hds/research-loops/{run_id}/run-first-pass")
 def run_hds_research_first_pass(run_id: str, body: ScientificRetrievalRequest, principal: Principal = Depends(principal_from_header)):
     """Run one bounded HDS literature-research pass; never bypass independent review."""
