@@ -63,3 +63,29 @@ def test_synthesis_excludes_unreviewed_evidence(tmp_path):
     assert row["pattern"] == "NO_VERIFIED_EVIDENCE"
     assert row["counts"]["excluded_nonverified_items"] == 1
     assert row["verified_evidence"] == []
+
+
+
+def test_evidence_map_includes_only_explicitly_recorded_study_descriptors(tmp_path):
+    db = Database(str(tmp_path / "study-descriptors.db"))
+    project = ResearchCycle(db).run("Study descriptors")["project"]
+    pipeline = EvidencePipeline(db)
+    claim_id = _claim(db, project["id"], "A claim about training.")
+    evidence_id = _verified_excerpt(
+        db, pipeline, claim_id, "Study with descriptors",
+        "https://example.org/descriptors", "SUPPORTS", "independent-reviewer"
+    )
+    source_id = db.one("SELECT source_id FROM evidence WHERE id=?", (evidence_id,))["source_id"]
+    study_id = str(uuid4())
+    db.execute(
+        "INSERT INTO studies(id,source_id,project_id,title,design,population,findings,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (study_id, source_id, project["id"], "Recorded cohort study", "Prospective cohort", "Adults aged 18-35", "Adherence improved in this recorded dataset.", now()),
+    )
+
+    result = ResearchEvidenceSynthesizer(db).synthesize_project(project["id"])
+    row = next(x for x in result["claims"] if x["claim_id"] == claim_id)
+
+    descriptors = row["recorded_study_descriptors"]
+    assert descriptors[0]["source_id"] == source_id
+    assert descriptors[0]["studies"][0]["design"] == "Prospective cohort"
+    assert descriptors[0]["studies"][0]["population"] == "Adults aged 18-35"
