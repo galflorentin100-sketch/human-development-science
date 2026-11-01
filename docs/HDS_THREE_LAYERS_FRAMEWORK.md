@@ -315,3 +315,77 @@ The same competency, intervention, or activity may relate to more than one layer
 **Lead yourself. Navigate the world. Relate to people.**
 
 HDS develops the whole person through the integration of mental capabilities, physical and motor capabilities, and values across all three layers.
+
+
+## HDS's societal vision: human flourishing for everyone
+
+HDS aims to improve both **individual well-being** and **the capabilities of society as a whole**. Its ambition is not limited to elite performers, athletes, soldiers, or people who are already doing well. It should serve people across the full range of human circumstances and aspirations.
+
+The long-term vision is to make evidence-informed human development as accessible, systematic, and culturally embedded as physical education and physical fitness.
+
+### 1. Support people who are struggling
+
+HDS should help people who are facing difficult periods, adversity, setbacks, low confidence, reduced functioning, or a sense of being stuck. The aim is to help them rebuild capabilities, develop coping skills, regain agency, and take achievable steps toward a better quality of life.
+
+This work must be compassionate, individualized, and appropriately paced. HDS coaching and educational programs are not substitutes for psychotherapy, psychiatric care, medical treatment, or crisis services. Staff must recognize the limits of their competence and refer participants to qualified health professionals when needs fall outside HDS's scope.
+
+### 2. Support people living with illness and health challenges
+
+HDS may develop evidence-informed programs that help people maintain or rebuild relevant mental and everyday capabilities while living with illness, disability, or during recovery, in collaboration with appropriate healthcare professionals.
+
+The aim is supportive development—such as coping, self-efficacy, adaptation, routines, participation, and quality of life—not to claim that mental training cures disease or replaces medical care. Programs must be adapted to the person's condition, energy, accessibility needs, and clinical guidance. Any health-related claims require appropriate evidence and professional oversight.
+
+### 3. Help people intentionally develop their character and way of life
+
+HDS should help individuals identify the qualities they want to strengthen—such as responsibility, courage, patience, honesty, discipline, empathy, or perseverance—and translate those aspirations into observable behaviors, practice, reflection, and feedback.
+
+HDS should not impose one narrow personality ideal. It should help people pursue ethically sound, self-chosen development goals while respecting individual differences and autonomy.
+
+### 4. Develop human potential and excellence
+
+For people who actively seek demanding development, HDS can offer advanced pathways, high-performance training, structured challenges, and competitions for willing participants.
+
+These pathways may aim to develop exceptional levels of selected mental capabilities, individually or in teams. Competitions should be designed around clearly defined competencies and valid assessments; they should motivate practice and excellence without pretending that a single ranking captures a person's overall worth or potential.
+
+### 5. The Mental Gym for continuous development and maintenance
+
+The Mental Gym is intended to serve not only people who want to improve, but also people who want to **maintain important capabilities throughout life**.
+
+Like physical fitness, mental development should not be treated as a one-time achievement. HDS aims to provide ongoing opportunities to:
+- assess relevant capabilities and identify areas for development;
+- train selected capabilities through structured, progressive practice;
+- maintain skills through regular practice and periodic reassessment;
+- adapt training to life stage, goals, context, and changing needs;
+- recognize when a capability is improving, being maintained, or needs renewed attention.
+
+HDS must test whether a particular practice improves the intended capability and whether the benefit persists and transfers beyond the training task.
+
+### 6. Education, public institutions, and a stronger society
+
+HDS aspires to contribute to a society in which human development is a normal and accessible part of education and lifelong learning. Potential settings include schools, youth programs, pre-military preparation, military and veteran support, workplaces, community organizations, and programs for older adults.
+
+For example, HDS may help young people and pre-enlistees develop resilience, self-regulation, responsibility, teamwork, and the ability to function under pressure. These are transferable life capabilities; HDS should not claim that a civilian program makes someone equivalent to a special-forces operator or replaces military selection and training.
+
+The societal goal is to strengthen well-being, agency, preparedness, cooperation, and the ability to contribute—not to create one uniform model of a "perfect person."
+
+### 7. A professional field and meaningful careers
+
+HDS aims to help establish a recognized field of study, research, education, and practice, creating responsible professional opportunities such as:
+- mental-development coaches and instructors;
+- program designers and facilitators;
+- assessors and competency-development specialists;
+- researchers and research coordinators;
+- educators and curriculum developers;
+- competition and challenge designers;
+- trainers and supervisors within the HDS professional academy;
+- specialists working in partnership with schools, organizations, public services, and healthcare teams.
+
+Professional roles must have clearly defined competencies, training requirements, supervision, ethical standards, and boundaries of practice. Clinical, medical, and other regulated activities remain the responsibility of appropriately licensed professionals.
+
+## HDS's overarching purpose
+
+**Help people overcome difficulties, develop their chosen capabilities, reach their potential, and maintain important human capacities throughout life—so that individual well-being improves and society becomes stronger.**
+
+HDS serves both ends of the development spectrum: people who need support to get out of a difficult place, and people who want to pursue exceptional performance. Between them is everyone who wants to live better, grow, and preserve their capabilities.
+
+Its central proposition remains mental-first: build a rigorous science and a practical system for understanding, training, assessing, and maintaining human mental capabilities, while integrating physical-motor development and ethical values where relevant.
