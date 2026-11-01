@@ -3,6 +3,14 @@
 ## What this MVP does
 The dashboard can start a bounded research run from a mental-development question. HDS searches PubMed and Crossref, stores available readable abstracts, passes the source packet to the configured model, and displays candidate claims, excerpts, analysis, limitations, and uncertainty. The output remains unverified and must be independently reviewed.
 
+## Get the correct code version
+The research dashboard work is currently on the `research-first-run-audit` branch, not `main`. Clone that branch:
+```bash
+git clone --branch research-first-run-audit https://github.com/galflorentin100-sketch/human-development-science.git
+cd human-development-science
+```
+If you already cloned the repository, run `git switch research-first-run-audit` and `git pull`.
+
 ## Requirements
 - Python 3.12 or newer.
 - Ollama installed and running locally.
