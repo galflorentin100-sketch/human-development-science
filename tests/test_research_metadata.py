@@ -49,7 +49,7 @@ def test_not_reported_cannot_contain_guessed_value():
     payload = _base()
     payload["population"] = {"value": "Adults", "status": "NOT_REPORTED"}
     with pytest.raises(StudyRecordValidationError, match="cannot contain a value"):
-        validate_study_record(payload, source_id="s", source_content_hash="h", extractor="ai")
+        validate_study_record(payload, source_id="s", source_content_hash="h", extractor="ai", source_text="Randomized controlled trial with 120 participants.")
 
 
 def test_sample_size_must_be_positive_integer():
