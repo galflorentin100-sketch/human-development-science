@@ -5,13 +5,15 @@ An auditable foundation for an AI-native Human Development Science company.
 ## Current state
 HDS is an auditable Company OS foundation with persistent company state, a 17-agent registry, project-scoped permissions, bounded autonomous research, evidence/claim/knowledge workflows, founder intelligence, a unified Founder OS dashboard, approvals, failure/recovery controls, and scientific provenance.
 
-## Run
+## Run the local mentality research MVP
+For the HDS research dashboard with a local model, install Python dependencies and Ollama, pull a model, then run the preflight launcher:
 ```bash
 python -m pip install -r requirements.txt
-uvicorn app.main:app --reload
+ollama pull qwen2.5:14b
+python scripts/run_local_research.py
 ```
 
-Open `http://127.0.0.1:8000` for the unified Founder OS dashboard.
+Open `http://127.0.0.1:8000` and use **HDS Mentality Research Lab** to submit a research question. The launcher binds only to localhost and never uses a paid provider. See [the local research guide](docs/LOCAL_MENTALITY_RESEARCH_MVP.md) for model alternatives and troubleshooting. The original Company OS dashboard remains available at the same address.
 
 ## Scientific rule
 Do not fabricate evidence or data. Separate established findings, preliminary evidence, hypotheses, assumptions and unknowns. Experimental functionality must be validated before being treated as established.
