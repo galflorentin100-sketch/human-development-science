@@ -108,7 +108,7 @@ async function runMentalResearch(){
    html+='<h3>Uncertainty</h3><pre>'+esc(output.agent_output?.uncertainty||"Not supplied.")+'</pre>';
    html+='<h3>Retrieved scientific sources ('+sourceItems.length+')</h3>';
    html+='<div class="list">'+sourceItems.map((x,n)=>{
-    const url=typeof x.url==="string"&&/^https?:\\/\\//i.test(x.url)?x.url:"";
+    const url=typeof x.url==="string"&&(x.url.startsWith("https://")||x.url.startsWith("http://"))?x.url:"";
     return '<div class="row"><b>'+(n+1)+'. '+esc(x.title||"Untitled source")+'</b><br><span class="muted">'+esc(x.authors||"Authors not listed")+' • '+esc(x.publication_year||"Year unknown")+'</span><br><span class="tag">'+esc(x.source_type||"SOURCE")+'</span> '+(url?'<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">Open source</a>':"No source URL")+'</div>';
    }).join("")+'</div>';
    html+='<p class="research-warning"><b>Unverified research output.</b> This is a discovery pass, not a scientific finding. Each claim needs independent source review and interpretation.</p>';
