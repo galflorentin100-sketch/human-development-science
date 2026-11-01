@@ -1,7 +1,7 @@
 # Run the HDS mentality research MVP locally
 
 ## What this MVP does
-The dashboard can start a bounded research run from a mental-development question. HDS searches PubMed and Crossref, stores available readable abstracts, passes the source packet to the configured model, and displays candidate claims, excerpts, analysis, limitations, and uncertainty. The output remains unverified and must be independently reviewed.
+The dashboard can start a bounded research run from a mental-development question. When launched with the local launcher, HDS also starts a background scheduler that rotates through a curated set of mentality questions and runs one bounded literature pass every four hours. HDS searches PubMed and Crossref, stores available readable abstracts, passes the source packet to the configured local model, and records candidate claims, excerpts, analysis, limitations, and uncertainty. The dashboard's Autonomous research feed refreshes every five minutes and lists saved runs. Outputs remain unverified and require independent review.
 
 ## Get the correct code version
 The research dashboard work is currently on the `research-first-run-audit` branch, not `main`. Clone that branch:
@@ -35,7 +35,7 @@ python scripts/run_local_research.py
 ```
 Open `http://127.0.0.1:8000`.
 
-The launcher checks that Ollama responds and that the selected model is already installed. It does not download models, use paid APIs, expose the server publicly, or change production settings.
+The launcher checks that Ollama responds and that the selected model is already installed. It starts the local background scheduler automatically: the first run begins shortly after startup, followed by one research pass every four hours. Set `HDS_BACKGROUND_RESEARCH_INTERVAL_SECONDS` to change the interval (minimum 15 minutes). The scheduler stops when the local process stops; it does not run while your computer is off. The launcher does not download models, use paid APIs, expose the server publicly, or change production settings.
 
 ## Change model
 Set `HDS_OLLAMA_MODEL` before starting the launcher. Example:
@@ -49,7 +49,7 @@ python scripts/run_local_research.py
 ```
 
 ## Run a mentality research question
-In the HDS Mentality Research Lab panel, enter a question, choose a maximum retrieval count, and select Start research. The dashboard:
+In the HDS Mentality Research Lab panel, you can still start a manual question. For automatic work, simply leave the local launcher running. HDS rotates through research themes without requiring a prompt. The dashboard's Autonomous research feed shows the saved runs. Each pass:
 1. creates an isolated research project and workspace;
 2. searches PubMed and Crossref;
 3. supplies readable abstracts to the researcher agent;
