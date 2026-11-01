@@ -15,6 +15,8 @@ def test_dashboard_exposes_saved_autonomous_research_feed():
     assert "Autonomous research feed" in html
     assert "loadBackgroundFeed" in html
     assert "refreshProjectFeed" in html
+    assert "Retrieved sources" in html
+    assert "/sources" in html
 
 
 def test_background_scheduler_persists_question_rotation(tmp_path):
