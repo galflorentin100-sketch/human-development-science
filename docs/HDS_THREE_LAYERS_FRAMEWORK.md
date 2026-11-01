@@ -499,6 +499,64 @@ HDS aims to develop exceptionally capable coaches and professionals, while defin
 
 HDS should build a demanding professional academy with clear competency frameworks, entry requirements, practical examinations, supervised practice, continuing education, periodic reassessment, and transparent levels of qualification. The goal is not that every coach must be the world's best athlete or possess every specialty. The goal is that every professional is highly competent in their defined role, knows their limits, and can demonstrate that they help participants progress safely and effectively. HDS itself should continually evaluate the quality of its coaches and improve its standards.
 
+## HDS as a research-led institution and a major societal partner
+
+HDS must be built on a clear hierarchy: **scientific research is the foundation and governing quality standard for the entire institution.** Research is not a supporting department that occasionally advises program teams. The Research Institute is the intellectual core of HDS; all other functions—assessment, training methods, development programs, competitions, professional education, and partnerships—must be accountable to its scientific standards.
+
+### The HDS Research Institute
+
+HDS should aspire to establish a prestigious, internationally respected research institute focused on human development. Its credibility must be earned through scientific quality, independence, transparency, reproducibility, ethical conduct, and meaningful contributions—not through branding or claims of prestige.
+
+Its responsibilities should include:
+- Build and continuously refine scientific models of human mental capabilities and their development across the three layers.
+- Review, synthesize, and critically evaluate research across psychology, cognitive science, behavioral science, neuroscience, education, exercise science, physiology, and related disciplines.
+- Develop and validate assessments, benchmarks, measurement protocols, and competency frameworks.
+- Design, conduct, preregister where appropriate, and publish ethical studies of training methods and development programs.
+- Test mechanisms, effectiveness, individual differences, side effects, transfer to real-world functioning, and retention over time.
+- Establish evidence standards and determine which methods are established, promising, experimental, ineffective, or potentially harmful for specific outcomes and populations.
+- Create research partnerships with universities, hospitals, schools, public institutions, companies, and independent laboratories.
+- Maintain open, traceable evidence records, publish limitations and negative findings, and update HDS standards as knowledge changes.
+
+The institute must have meaningful scientific independence from HDS commercial, marketing, and program-delivery teams. Research protocols, analyses, and conclusions must not be altered to sell a program, protect a brand, satisfy a partner, or validate a founder's belief. Where feasible, HDS should use independent replication, external peer review, ethics review, transparent methods, and publication of unfavorable as well as favorable findings. Research involving people requires appropriate ethics oversight, informed consent, privacy protections, and compliance with applicable law.
+
+### The evidence-to-practice governance chain
+
+The Research Institute sets the evidence standards and evaluates the scientific basis of HDS practice. Program and product teams translate supported findings into interventions and services. The Coach and Staff Academy teaches practitioners how to deliver them within their scope. Assessment and quality teams monitor outcomes and safety. Results and new questions return to the Research Institute for further investigation.
+
+No HDS program, certification standard, assessment, competition, or public scientific claim should be described as evidence-based without a documented rationale and an appropriate level of supporting evidence. When evidence is incomplete, HDS must label the method as experimental or preliminary and communicate uncertainty clearly.
+
+The Research Institute should have authority to recommend modifying, restricting, pausing, or discontinuing an HDS method when evidence or safety findings warrant it—even when doing so is commercially inconvenient.
+
+### HDS as a major institution and indispensable partner
+
+HDS's long-term ambition is to grow into a major, trusted organization and international institution whose expertise is valuable to many sectors. The aspiration is that companies and organizations actively want HDS as a partner because it helps them understand, develop, assess, and support the capabilities of their people.
+
+Potential partners and settings include:
+- Companies and workplaces seeking better leadership, teamwork, communication, learning, adaptability, well-being, and sustainable performance.
+- Schools, universities, and educational networks seeking evidence-informed human-development programs.
+- Sports organizations and performance environments seeking integrated mental and physical development.
+- Public institutions, municipalities, and community organizations seeking stronger life skills, resilience, preparedness, and social participation.
+- Healthcare and rehabilitation partners seeking appropriately supervised support for coping, self-management, and quality of life.
+- Military and security institutions, where appropriate, for research or general human-capability development within clear legal, ethical, and institutional boundaries.
+- Universities and research centers seeking collaboration on measurement, intervention research, and human development science.
+
+HDS should offer organizations more than motivational workshops. Its value proposition should be a rigorous cycle: understand the organization's needs; assess relevant capabilities responsibly; design an evidence-informed development program; train qualified practitioners; measure outcomes; evaluate safety, transfer, and retention; and improve the program based on findings.
+
+HDS must not claim that every organization needs its services or promise unsupported gains in productivity, performance, resilience, or health. It should earn long-term partnerships by demonstrating relevance, scientific integrity, measurable value, privacy protection, and responsible practice.
+
+### Institutional growth and credibility
+
+The ambition to become a large company or institution should be pursued in stages:
+1. Establish a scientifically credible research foundation and a clear governance model.
+2. Build and validate a small number of measurement tools and pilot programs.
+3. Demonstrate safety, feasibility, and meaningful outcomes through transparent evaluation.
+4. Develop high-quality professional education and reliable delivery standards.
+5. Form independent academic and institutional partnerships.
+6. Expand services and sectors only when evidence, staff capability, and operational quality support growth.
+7. Build an international research and practice network while preserving scientific independence.
+
+Commercial success and scientific credibility must reinforce one another, but science must never be subordinated to commercial success. HDS should become large because its work is trusted and useful—not claim trust or importance simply because it is large.
+
 ## HDS professional selection, education, and certification: an exceptionally high standard
 
 Becoming an HDS coach or practitioner should be a demanding professional achievement. HDS must not treat its qualification as a short course or award certification simply for attendance. The role carries significant responsibility: practitioners influence people's development, safety, confidence, behavior, and sometimes their decisions in challenging situations. Admission and certification must therefore require substantial study, high demonstrated capability, rigorous assessment, and ongoing accountability.
