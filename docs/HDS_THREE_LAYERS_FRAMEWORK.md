@@ -123,9 +123,9 @@ These support all three layers:
 - Reflection, feedback, and continuous improvement.
 - Communication of uncertainty and limitations.
 
-## HDS organizational and operating model — three parts
+## HDS organizational and operating model — five parts
 
-The three human-development layers describe **what** HDS develops. The following three parts describe **how HDS operates**. They are complementary structures, not competing classifications.
+The three human-development layers describe **what** HDS develops. The following five parts describe **how HDS operates**. They are complementary structures, not competing classifications.
 
 ### 1. Human Gym — mental, values, and character development
 
@@ -153,7 +153,37 @@ Formats may include:
 
 Each program should define its target population, objectives, competencies, duration, activities, prerequisites, safety requirements, assessment methods, and expected outcomes. Programs should be adapted to the participant and should not promise outcomes beyond the supporting evidence.
 
-### 3. Research Lab — scientific research and evaluation
+### 3. Mental Challenges and Competitions — challenge, practice, and demonstration
+
+A structured arena in which participants practice and demonstrate selected capabilities through individual and team challenges.
+
+Possible formats:
+- Mental challenges involving attention, memory, reasoning, planning, and problem solving.
+- Self-discipline and consistency challenges with clear, healthy boundaries.
+- Resilience and adaptive-response scenarios involving setbacks or changing constraints.
+- Leadership, teamwork, trust, and communication challenges.
+- Ethical dilemmas and decision-making scenarios.
+- Strategy, negotiation, and cooperative or competitive games.
+- Multi-domain events combining mental, physical-motor, and values-based tasks.
+
+Every competition must state what it is intended to measure, use fair and transparent rules, account for accessibility and participant differences, and avoid treating one performance as proof of a stable personality trait. Challenges must be psychologically and physically safe, voluntary, age-appropriate, and designed to avoid humiliation, coercion, or harmful extremes. Results can inform development and, with appropriate consent and safeguards, research.
+
+### 4. Coach and Staff Academy — training and qualification
+
+The education and professional-development arm that prepares people to deliver HDS programs responsibly and consistently.
+
+Core functions:
+- Train HDS coaches, instructors, facilitators, mentors, assessors, and program leaders.
+- Teach the HDS framework: the three development layers and the mental, physical-motor, and values dimensions.
+- Develop skills in instruction, coaching, group facilitation, communication, feedback, motivation, and leadership.
+- Teach assessment, goal setting, program design, progress tracking, and adapting work to participants.
+- Provide safeguarding, duty of care, inclusion, risk management, referral boundaries, and emergency procedures.
+- Establish competency standards, supervised practice, assessment, continuing education, and periodic re-evaluation.
+- Create specialist tracks for different program areas, with prerequisites and external professional licensing where required.
+
+HDS certificates should clearly state what was taught and assessed. They must not imply a government licence, clinical qualification, or professional authorization unless that recognition has actually been granted by the relevant authority. Coaches must work within their competence and refer needs outside their scope to qualified professionals.
+
+### 5. Research Lab — scientific research and evaluation
 
 The knowledge-generating and quality-control arm of HDS.
 
@@ -173,13 +203,15 @@ Research involving people must follow appropriate ethics review, informed consen
 1. **Research Lab** investigates human development, evaluates evidence, and tests methods.
 2. **Human Gym** turns suitable findings into trainable exercises and development practices.
 3. **Development Programs** organize those practices into pathways and deliver them to individuals and groups.
-4. Program outcomes and participant feedback return to the **Research Lab** for evaluation and improvement.
+4. **Mental Challenges and Competitions** provide structured opportunities to practice and demonstrate selected competencies.
+5. **Coach and Staff Academy** prepares qualified people to deliver, assess, and improve HDS activities.
+6. Outcomes, assessments, and participant feedback return to the **Research Lab** for evaluation and improvement.
 
 This creates a continuous learning cycle: research → practice design → program delivery → measurement → improved research.
 
 ### The two HDS frameworks together
 
-- **Operating structure:** Human Gym · Development Programs · Research Lab.
+- **Operating structure:** Human Gym · Development Programs · Mental Challenges and Competitions · Coach and Staff Academy · Research Lab.
 - **Development framework:** Self-Mastery · Environmental Mastery · Social Mastery.
 - **Development dimensions:** Mental · Physical-Motor · Values.
 
