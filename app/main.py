@@ -2182,7 +2182,7 @@ def create_hds_study_extraction(workspace_id: str, body: dict, principal: Princi
     from app.research_metadata_service import StudyExtractionService
     try:
         return StudyExtractionService(db).create(
-            workspace_id,body["source_id"],body["fields"],body.get("extractor",principal.user_id),
+            workspace_id,body["source_id"],body["fields"],principal.user_id,
             principal.user_id,body.get("source_content_level","FULL_TEXT"))
     except (ValueError,KeyError) as exc: raise HTTPException(400,str(exc)) from exc
 
