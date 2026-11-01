@@ -15,7 +15,13 @@ def main():
     side=b.with_suffix(".sha256")
     if side.is_file() and side.read_text(encoding="utf-8").split()[0]!=digest:
         raise SystemExit("backup checksum mismatch")
-    r=subprocess.run(["pg_restore","--exit-on-error","--no-owner","--no-privileges","--dbname",url,str(b)],capture_output=True,text=True)
+    image=os.environ.get("HDS_PG_CLIENT_IMAGE")
+    if image:
+        command=["docker","run","--rm","--network","host","-e","DATABASE_URL","-v",f"{b.resolve().parent}:/backup:ro",image,
+                 "pg_restore","--exit-on-error","--no-owner","--no-privileges","--dbname",url,f"/backup/{b.name}"]
+    else:
+        command=["pg_restore","--exit-on-error","--no-owner","--no-privileges","--dbname",url,str(b)]
+    r=subprocess.run(command,capture_output=True,text=True)
     if r.returncode: raise SystemExit("pg_restore failed: " + (r.stderr.strip() or r.stdout.strip() or f"exit {r.returncode}"))
     q=subprocess.run(["psql",url,"-Atqc","SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'"],capture_output=True,text=True)
     if q.returncode: raise SystemExit("restored database schema query failed: " + (q.stderr.strip() or f"exit {q.returncode}"))
