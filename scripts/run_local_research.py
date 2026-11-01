@@ -21,7 +21,7 @@ def main() -> int:
     os.environ.setdefault("COMPANY_OS_ENV", "development")
     os.environ.setdefault("HDS_MODEL_PROVIDER", "ollama")
     os.environ.setdefault("HDS_OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-    os.environ.setdefault("HDS_OLLAMA_MODEL", "qwen2.5:14b")
+    os.environ.setdefault("HDS_OLLAMA_MODEL", "qwen2.5:7b")
 
     if os.environ["HDS_MODEL_PROVIDER"].strip().lower() != "ollama":
         print("This local launcher only supports Ollama. No paid provider will be started.")
