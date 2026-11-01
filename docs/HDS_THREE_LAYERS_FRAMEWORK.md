@@ -432,3 +432,38 @@ The Research Lab is not merely one department that supplies occasional informati
 HDS should maintain a living evidence record for each important capability and intervention, showing what is established, what is preliminary, what remains hypothetical, what outcomes have been measured, and when the evidence was last reviewed. Where research is insufficient, HDS should say so clearly and treat the method as experimental or exploratory—not present it as proven.
 
 **HDS principle: choose the method according to the capability and the evidence—not the capability according to the activity.**
+
+
+## Additional development domains: environmental adaptation and contemplative practice
+
+These are additional HDS domains and possible methods. They should be integrated into the mental-first framework only with clear target outcomes, scientific review, suitable assessment, and safety controls.
+
+### 1. Adaptation to heat and cold
+
+HDS may study and, where appropriate, provide supervised training in safe adaptation to environmental temperatures.
+
+- **Cold exposure and cold adaptation:** understand physiological responses to cold, thermoregulation, cold stress, safe exposure limits, and task-specific functioning in cold environments.
+- **Heat acclimation:** understand physiological adaptation to heat, hydration, pacing, thermoregulation, heat stress, and safe performance in hot environments.
+- **Environmental decision-making:** recognize changing conditions, assess risk, select suitable clothing and equipment, pace activity, and know when to stop or seek help.
+- **Psychological responses:** study attention, discomfort tolerance, perceived stress, and decision-making during temperature exposure without assuming that exposure creates generalized mental toughness.
+
+HDS must distinguish physiological acclimation from psychological adaptation and from broad claims about resilience. Evidence that repeated exposure improves a specific thermoregulatory response does not establish improvement in unrelated mental capabilities. Heat and cold exposure carry real risks, including heat illness, hypothermia, cold injury, and cardiovascular stress. Programs require evidence-based protocols, gradual progression, appropriate supervision and screening, environmental monitoring, clear stop criteria, and medical guidance where indicated. Deliberate extreme exposure, competitive suffering, and unsafe breath-holding or immersion practices must not be promoted.
+
+### 2. Meditation, mindfulness, and attention training
+
+HDS may include contemplative and attention-based practices as potential methods for developing or supporting specific mental capabilities.
+
+- **Mindfulness practice:** intentionally attending to present-moment experience with an attitude of openness, while noticing distraction and returning attention.
+- **Focused-attention meditation:** practicing sustained attention on a selected object, such as the breath, and noticing when attention wanders.
+- **Open-monitoring practice:** observing thoughts, emotions, sensations, and other experiences without immediately reacting to them.
+- **Body scan and interoceptive awareness:** directing attention to bodily sensations and learning to notice them without automatically acting on every sensation.
+- **Breathing and relaxation practices:** using suitable breathing or relaxation methods to support down-regulation and stress management, with techniques selected according to the individual and purpose.
+- **Reflection and journaling:** structured review of experiences, choices, emotions, habits, and progress to support self-awareness and learning.
+
+HDS should specify the intended outcome for each practice—such as attentional control, stress symptoms, emotional awareness, or well-being—and review the evidence for that particular outcome. Meditation is not a universal intervention and does not work identically for everyone; some people may experience discomfort or adverse effects. Practices should be optional, adaptable, trauma-sensitive, and stopped or modified if they cause significant distress. Mindfulness is not a substitute for evidence-based mental-health treatment when treatment is needed.
+
+### 3. Evidence and assessment requirements for these domains
+
+For temperature adaptation, distinguish physiological outcomes (for example, specific heat-acclimation responses or cold tolerance under defined conditions) from mental outcomes (for example, perceived discomfort or decision quality in a defined task).
+
+For meditation and mindfulness, distinguish practice adherence and task performance from changes in validated measures of attention, stress, emotional functioning, or well-being. Use suitable comparison conditions and follow-up where feasible. Do not infer broad personality change, generalized resilience, or permanent mental strength from participation alone.
