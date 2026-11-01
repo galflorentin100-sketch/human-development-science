@@ -40,13 +40,40 @@ class ResearchEvidenceSynthesizer:
             # Structured study descriptors are included only when explicitly
             # recorded in this HDS project. They are not inferred from abstracts.
             study_metadata = {}
-            for source_id in sorted({x["source_id"] for x in rows}):
+            for source_id in sorted({x["source_id"] for x in verified}):
                 study_metadata[source_id] = self.db.all(
                     """SELECT id,title,design,population,findings
                        FROM studies WHERE source_id=? AND project_id=?
                        ORDER BY created_at,id""",
                     (source_id, project_id),
                 )
+
+            # Comparison is deliberately literal: values are not normalized,
+            # ranked, or interpreted as comparable effect estimates.
+            comparison_fields = {}
+            for field in ("design", "population", "findings"):
+                recorded = []
+                missing_source_ids = []
+                for source_id in sorted({x["source_id"] for x in verified}):
+                    studies = study_metadata.get(source_id, [])
+                    if not studies:
+                        missing_source_ids.append(source_id)
+                    for study in studies:
+                        value = study.get(field)
+                        if value is None or not str(value).strip():
+                            continue
+                        recorded.append({
+                            "source_id": source_id,
+                            "study_id": study["id"],
+                            "study_title": study["title"],
+                            "value": value,
+                        })
+                comparison_fields[field] = {
+                    "recorded_values": recorded,
+                    "distinct_literal_values": len({str(x["value"]).strip() for x in recorded}),
+                    "verified_sources_without_study_record": missing_source_ids,
+                    "status": "RECORDED_VALUES_PRESENT" if recorded else "NO_RECORDED_VALUES",
+                }
 
             support = [x for x in verified if x["stance"] == "SUPPORTS"]
             contradict = [x for x in verified if x["stance"] == "CONTRADICTS"]
@@ -86,6 +113,7 @@ class ResearchEvidenceSynthesizer:
                     "distinct_contradicting_sources": len(contradict_sources),
                     "excluded_nonverified_items": len(excluded),
                 },
+                "study_comparison": comparison_fields,
                 "recorded_study_descriptors": [
                     {
                         "source_id": source_id,
