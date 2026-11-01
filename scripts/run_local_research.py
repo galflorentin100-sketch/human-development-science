@@ -47,7 +47,14 @@ def main() -> int:
     print("Ollama ready. Model: " + model)
     print("Starting HDS dashboard at http://127.0.0.1:8000")
     print("Local development mode: no public network binding; no paid API provider.")
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=False)
+    print("Autonomous mentality research: one bounded literature pass every 4 hours.")
+    print("The background researcher stops when this local process stops.")
+    from app.background_research import start_background_research
+    scheduler = start_background_research()
+    try:
+        uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=False)
+    finally:
+        scheduler.stop()
     return 0
 
 
