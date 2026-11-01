@@ -475,6 +475,30 @@ The ambition is not simply to have the fittest people or the toughest personalit
 
 ---
 
+## Civilian human development inspired by elite preparation — without militarization
+
+HDS draws inspiration from the **human-development elements** found in demanding elite preparation environments, including selected aspects of survival education, outdoor challenge, disciplined physical preparation, resilience development, teamwork, leadership, and functioning under pressure. It does not adopt their military mission, combat role, weapons training, operational doctrine, or chain of command. HDS is a civilian human-development institution.
+
+Its purpose is to make high-quality development opportunities accessible to ordinary people. Many people are drawn to combat service or elite military environments because they seek challenge, meaning, belonging, discipline, confidence, resilience, physical excellence, and a test of their capabilities. HDS aims to offer a responsible civilian path for developing those human capabilities without requiring military service or combat. This should expand people's choices—not diminish the value of military service or imply that civilian programs replicate military selection or training.
+
+### Two complementary pathways
+
+1. **Civilian development pathway:** People who want challenge and personal growth can develop mental strength, self-discipline, physical capability, practical independence, outdoor and survival competence, teamwork, leadership, and responsible functioning under pressure in a civilian setting.
+2. **Preparation and personal-development pathway for people who choose combat service:** People who independently choose military service may use appropriate HDS programs to strengthen general foundations such as physical fitness, self-regulation, resilience, responsibility, teamwork, adaptability, and decision-making. HDS does not conduct military training or promise to produce better soldiers. Whether and how these capabilities transfer to military performance must be evaluated with valid evidence and, where relevant, in cooperation with authorized military professionals. Military selection, operational training, and combat readiness remain the responsibility of the military.
+
+HDS should encourage people to choose military service for informed and considered reasons—such as a genuine wish to serve and contribute—not because they believe that combat is the only route to meaning, strength, belonging, or personal development. Equally, HDS can help those who do choose combat service arrive with stronger general foundations, while respecting the distinct demands and responsibilities of military training.
+
+### The standard of HDS professionals: excellence with responsibility
+
+HDS aims to develop exceptionally capable coaches and professionals, while defining excellence through demonstrated competence, evidence, ethics, and outcomes—not bravado, extreme suffering, or a claim to be "the toughest."
+
+- **Physical and hybrid-fitness coaches:** should demonstrate high-level knowledge and practical competence across relevant fitness components, assessment, programming, technique, adaptation, recovery, injury-risk management, and safe coaching. Specialist areas require appropriate qualifications and supervised experience.
+- **HDS mental-development coaches:** should demonstrate strong knowledge of relevant psychological science, behavior change, learning, coaching, assessment, communication, safeguarding, and the limits of non-clinical practice. They must not present themselves as therapists or clinicians unless separately qualified and licensed.
+- **Specialist instructors:** survival, driving, water safety, first aid, climbing, martial arts, and other technical domains require relevant recognized qualifications, current competence, and scope-specific safety procedures.
+- **HDS educators, assessors, and leaders:** should be assessed for their ability to teach, evaluate, design programs, lead teams, and uphold research integrity and professional standards.
+
+HDS should build a demanding professional academy with clear competency frameworks, entry requirements, practical examinations, supervised practice, continuing education, periodic reassessment, and transparent levels of qualification. The goal is not that every coach must be the world's best athlete or possess every specialty. The goal is that every professional is highly competent in their defined role, knows their limits, and can demonstrate that they help participants progress safely and effectively. HDS itself should continually evaluate the quality of its coaches and improve its standards.
+
 ## HDS's overarching purpose
 
 **Help people overcome difficulties, develop their chosen capabilities, reach their potential, and maintain important human capacities throughout life—so that individual well-being improves and society becomes stronger.**
