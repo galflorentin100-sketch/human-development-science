@@ -33,6 +33,7 @@ class ExtractedField:
     value: Any
     status: str
     source_locator: str | None = None
+    source_excerpt: str | None = None
     note: str = ""
 
     def to_dict(self) -> dict:
@@ -67,7 +68,7 @@ def _field(raw: Any, name: str, source_text: str) -> ExtractedField:
             raise StudyRecordValidationError("sample_size must be a positive integer")
     if name == "outcomes" and status == "EXTRACTED" and not isinstance(value, list):
         raise StudyRecordValidationError("outcomes must be a list")
-    return ExtractedField(value=value, status=status, source_locator=locator, note=note + (("\\nSOURCE_EXCERPT: " + excerpt) if status == "EXTRACTED" else ""))
+    return ExtractedField(value=value, status=status, source_locator=locator, source_excerpt=excerpt if status == "EXTRACTED" else None, note=note)
 
 
 def validate_study_record(payload: dict, *, source_id: str, source_content_hash: str,
