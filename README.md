@@ -5,6 +5,10 @@ An auditable foundation for an AI-native Human Development Science company.
 ## Current state
 HDS is an auditable Company OS foundation with persistent company state, a 17-agent registry, project-scoped permissions, bounded autonomous research, evidence/claim/knowledge workflows, founder intelligence, a unified Founder OS dashboard, approvals, failure/recovery controls, and scientific provenance.
 
+## Human development model
+
+HDS organizes human development into three primary layers: **Self-Mastery**, **Environmental Mastery**, and **Social Mastery**. Each layer contains domains and measurable competencies, supported by shared foundations in critical thinking, ethics, risk assessment, learning, and continuous improvement. The framework and its evidence standards are defined in [`docs/HDS_THREE_LAYERS_FRAMEWORK.md`](docs/HDS_THREE_LAYERS_FRAMEWORK.md).
+
 ## Run
 ```bash
 python -m pip install -r requirements.txt
