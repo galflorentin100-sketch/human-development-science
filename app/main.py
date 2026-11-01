@@ -2451,6 +2451,18 @@ def generate_hds_research_followups(run_id: str, principal: Principal = Depends(
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.get("/api/hds/projects/{project_id}/evidence-map")
+def get_hds_project_evidence_map(project_id: str, principal: Principal = Depends(principal_from_header)):
+    """Return a descriptive map of reviewer-verified evidence by project claim."""
+    require_read(principal)
+    require_project(principal, project_id, "READ")
+    from app.research_evidence_synthesis import ResearchEvidenceSynthesizer
+    try:
+        return ResearchEvidenceSynthesizer(db).synthesize_project(project_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @app.get("/api/hds/research-loops/{run_id}/sources")
 def list_hds_research_sources(run_id: str, principal: Principal = Depends(principal_from_header)):
     require_read(principal)
