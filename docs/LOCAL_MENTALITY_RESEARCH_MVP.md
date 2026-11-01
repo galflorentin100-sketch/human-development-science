@@ -90,3 +90,21 @@ existing scientific admission gates remain mandatory.
 This is a deterministic first version of an adaptive research agenda. It is
 not yet semantic cross-paper synthesis, systematic-review automation, or
 validated contradiction detection across article abstracts/full texts.
+
+
+## Descriptive project evidence map (first version)
+
+A read-only endpoint, `GET /api/hds/projects/{project_id}/evidence-map`,
+returns a claim-by-claim evidence map. It includes only evidence whose review
+records currently resolve to `VERIFIED`, groups excerpts by their recorded
+stance (`SUPPORTS`, `CONTRADICTS`, `NEUTRAL`), counts distinct source
+records, and retains source IDs, titles, publication years, URLs, and excerpts.
+Non-verified evidence is counted separately and excluded from the stance map.
+
+The output labels mixed verified stances, multiple-source same-sided records,
+limited verified records, and no verified evidence. These are descriptive
+signals, not evidence grades. Two source records are not necessarily
+independent studies. The map does not evaluate study design, bias, sample
+quality, effect sizes, population differences, or causality. It does not
+change claim status or promote findings. Treat it as a navigational aid for
+human reviewers, not a scientific synthesis conclusion.
