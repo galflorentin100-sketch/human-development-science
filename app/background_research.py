@@ -5,11 +5,11 @@ It never approves, publishes, or promotes AI-generated claims.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import threading
-import time
-from itertools import cycle
+from pathlib import Path
 
 import httpx
 
@@ -27,9 +27,11 @@ QUESTIONS = (
 
 
 class BackgroundResearchScheduler:
-    def __init__(self, base_url: str = "http://127.0.0.1:8000", interval_seconds: int = 4 * 60 * 60):
+    def __init__(self, base_url: str = "http://127.0.0.1:8000", interval_seconds: int = 4 * 60 * 60, state_path: str | Path | None = None):
         self.base_url = base_url.rstrip("/")
         self.interval_seconds = max(900, int(interval_seconds))
+        # Persist rotation so restarts do not always return to topic 1.
+        self.state_path = Path(state_path or os.getenv("HDS_BACKGROUND_RESEARCH_STATE", ".hds_research_scheduler.json"))
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -45,17 +47,40 @@ class BackgroundResearchScheduler:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=5)
 
+    def _load_cursor(self) -> int:
+        try:
+            payload = json.loads(self.state_path.read_text(encoding="utf-8"))
+            cursor = int(payload.get("next_question_index", 0))
+            return cursor % len(QUESTIONS)
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            return 0
+
+    def _save_cursor(self, cursor: int) -> None:
+        self.state_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.state_path.with_suffix(self.state_path.suffix + ".tmp")
+        temporary.write_text(
+            json.dumps({"next_question_index": cursor % len(QUESTIONS)}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        temporary.replace(self.state_path)
+
     def _run(self) -> None:
-        questions = cycle(QUESTIONS)
+        cursor = self._load_cursor()
         # Wait briefly for Uvicorn to finish binding before the first local API call.
         if self._stop.wait(8):
             return
         while not self._stop.is_set():
-            question = next(questions)
+            question = QUESTIONS[cursor]
             try:
                 self._run_one(question)
             except Exception:
-                LOG.exception("Background research cycle failed")
+                LOG.exception("Background research cycle failed; keeping the same question for retry")
+            else:
+                cursor = (cursor + 1) % len(QUESTIONS)
+                try:
+                    self._save_cursor(cursor)
+                except OSError:
+                    LOG.exception("Could not persist background research cursor")
             if self._stop.wait(self.interval_seconds):
                 break
 
