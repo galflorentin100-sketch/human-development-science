@@ -114,7 +114,7 @@ async function runMentalResearch(){
    html+='<p class="research-warning"><b>Unverified research output.</b> This is a discovery pass, not a scientific finding. Each claim needs independent source review and interpretation.</p>';
   }else{
    html+='<h3>Research could not complete</h3><pre>'+esc(JSON.stringify({reason:output.reason||output.error||output.validation_error||output.notice||"No further detail",next_action:output.next_action||null,errors:output.retrieval?.errors||output.errors||[]},null,2))+'</pre>';
-   html+='<p>Check that a research-capable model is configured and that readable abstracts were retrieved. The default local placeholder does not generate AI analysis.</p>';
+   html+='<p>Check that Ollama is running with the selected model installed and that readable abstracts were retrieved. If the model provider is left on the safe placeholder, AI analysis will not run.</p>';
   }
   html+='<details><summary>Technical record</summary><pre>'+esc(JSON.stringify({run_id:runId,project_id:created.project?.id,run:output.run,retrieval:output.retrieval,task:output.task,agent_run_id:output.agent_run_id},null,2))+'</pre></details></div>';
   results.innerHTML=html;
