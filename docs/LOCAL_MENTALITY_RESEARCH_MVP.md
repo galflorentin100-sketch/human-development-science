@@ -66,3 +66,27 @@ This is a research-discovery MVP, not an autonomous scientist. AI suggestions ar
 - No research abstracts: try a more focused or alternate query; PubMed/Crossref coverage is not exhaustive.
 - Dashboard API 401/403: local development should allow the local founder identity; do not use this local launcher for production.
 - Model too large: choose a smaller model and check the output quality; a smaller model may produce weaker extraction and synthesis.
+
+
+## Governed follow-up question generation
+
+After each bounded background research pass, the local scheduler calls
+`POST /api/hds/research-loops/{run_id}/generate-followups`. The generator
+currently uses explicit, persisted governance signals rather than claiming
+open-ended AI discovery:
+
+- conflicting evidence, completed replication records, and completed
+  falsification challenges;
+- limitations and uncertainty explicitly recorded in prior research syntheses;
+- literature retrievals that completed with zero results, treated as a
+  search-strategy problem rather than proof that no literature exists.
+
+Generated questions are stored as `PROPOSED` in the project-scoped research
+queue and shown in the dashboard. Repeated generation is designed to reuse
+existing open questions. This process does not verify evidence, resolve
+contradictions, approve a question, or promote a finding. Human review and the
+existing scientific admission gates remain mandatory.
+
+This is a deterministic first version of an adaptive research agenda. It is
+not yet semantic cross-paper synthesis, systematic-review automation, or
+validated contradiction detection across article abstracts/full texts.
