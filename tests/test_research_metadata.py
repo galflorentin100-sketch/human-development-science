@@ -56,7 +56,7 @@ def test_sample_size_must_be_positive_integer():
     payload = _base()
     payload["sample_size"]["value"] = "about 100"
     with pytest.raises(StudyRecordValidationError, match="positive integer"):
-        validate_study_record(payload, source_id="s", source_content_hash="h", extractor="ai")
+        validate_study_record(payload, source_id="s", source_content_hash="h", extractor="ai", source_text="Randomized controlled trial with 120 participants.")
 
 
 def test_abstract_only_cannot_claim_full_text_locator():
@@ -70,10 +70,10 @@ def test_unclear_requires_note_and_unknown_fields_are_rejected():
     payload = _base()
     payload["population"] = {"value": None, "status": "UNCLEAR"}
     with pytest.raises(StudyRecordValidationError, match="explanatory note"):
-        validate_study_record(payload, source_id="s", source_content_hash="h", extractor="ai")
+        validate_study_record(payload, source_id="s", source_content_hash="h", extractor="ai", source_text="Randomized controlled trial with 120 participants.")
     payload["unexpected"] = {"value": "x", "status": "EXTRACTED", "source_locator": "p.1"}
     with pytest.raises(StudyRecordValidationError, match="unsupported study fields"):
-        validate_study_record(payload, source_id="s", source_content_hash="h", extractor="ai")
+        validate_study_record(payload, source_id="s", source_content_hash="h", extractor="ai", source_text="Randomized controlled trial with 120 participants.")
 
 
 def test_serialization_is_stable():
