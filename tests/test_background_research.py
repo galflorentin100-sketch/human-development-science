@@ -19,6 +19,7 @@ def test_dashboard_exposes_saved_autonomous_research_feed():
     assert "/sources" in html
     assert "Proposed follow-up questions" in html
     assert "/api/science/research-queue/" in html
+    assert "Array.isArray(r)?r:(r.items||[])" in html
 
 
 def test_background_scheduler_persists_question_rotation(tmp_path):
