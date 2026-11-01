@@ -76,7 +76,7 @@ async function loadBackgroundFeed(){
  const target=document.getElementById("background-feed"); if(!target)return;
  try{
   const rows=await Promise.all(projects.map(async p=>{try{const r=await api("/api/hds/research-loops/project/"+encodeURIComponent(p.id));return (r.items||[]).map(x=>({...x,project_objective:p.objective||""}))}catch(_){return []}}));
-  const queueRows=await Promise.all(projects.map(async p=>{try{const r=await api("/api/science/research-queue/"+encodeURIComponent(p.id));return (r.items||[]).map(x=>({...x,project_objective:p.objective||""}))}catch(_){return []}}));
+  const queueRows=await Promise.all(projects.map(async p=>{try{const r=await api("/api/science/research-queue/"+encodeURIComponent(p.id));return (Array.isArray(r)?r:(r.items||[])).map(x=>({...x,project_objective:p.objective||""}))}catch(_){return []}}));
   const queueItems=queueRows.flat().sort((a,b)=>String(b.created_at||"").localeCompare(String(a.created_at||""))).slice(0,12);
   const runs=rows.flat().sort((a,b)=>String(b.updated_at||b.created_at||"").localeCompare(String(a.updated_at||a.created_at||""))).slice(0,10);
   const enriched=await Promise.all(runs.map(async x=>{
