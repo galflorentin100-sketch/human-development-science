@@ -15,3 +15,21 @@ def test_dashboard_exposes_saved_autonomous_research_feed():
     assert "Autonomous research feed" in html
     assert "loadBackgroundFeed" in html
     assert "refreshProjectFeed" in html
+
+
+def test_background_scheduler_persists_question_rotation(tmp_path):
+    state = tmp_path / "scheduler-state.json"
+    first = BackgroundResearchScheduler(state_path=state)
+    first._save_cursor(3)
+
+    restarted = BackgroundResearchScheduler(state_path=state)
+    assert restarted._load_cursor() == 3
+
+
+def test_background_scheduler_recovers_from_missing_or_invalid_state(tmp_path):
+    state = tmp_path / "scheduler-state.json"
+    scheduler = BackgroundResearchScheduler(state_path=state)
+    assert scheduler._load_cursor() == 0
+
+    state.write_text("not-json", encoding="utf-8")
+    assert scheduler._load_cursor() == 0
