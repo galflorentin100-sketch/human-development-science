@@ -499,6 +499,60 @@ HDS aims to develop exceptionally capable coaches and professionals, while defin
 
 HDS should build a demanding professional academy with clear competency frameworks, entry requirements, practical examinations, supervised practice, continuing education, periodic reassessment, and transparent levels of qualification. The goal is not that every coach must be the world's best athlete or possess every specialty. The goal is that every professional is highly competent in their defined role, knows their limits, and can demonstrate that they help participants progress safely and effectively. HDS itself should continually evaluate the quality of its coaches and improve its standards.
 
+## HDS as a new academic discipline: Human Mental Development Science
+
+HDS's long-term academic ambition is not merely to apply existing psychology, sports psychology, or coaching knowledge. It is to establish and develop a distinct, rigorous field of inquiry focused on the structure, functioning, development, measurement, training, and maintenance of human mental capabilities throughout life.
+
+A working name for this proposed field is **Human Mental Development Science (HMDS)**, or **the Science of Human Mental Development**. The name is provisional and should be refined through academic consultation. HDS as an institution may encompass this mental-development discipline alongside physical-motor development, values/character, and their interactions; mental development remains the central research priority.
+
+### The field's central subject
+
+The field investigates:
+- What human mental capabilities are, how they are defined, organized, related, and distinguished from traits, states, skills, symptoms, and learned behaviors.
+- How capabilities develop across childhood, adolescence, adulthood, and older age, and how they can be maintained or rebuilt after setbacks.
+- How attention, learning, memory, judgment, self-regulation, emotion regulation, motivation, persistence, flexibility, resilience-related processes, self-efficacy, metacognition, and other capabilities function individually and together.
+- How people function and develop in three contexts: in relation to themselves, the surrounding world, and other people.
+- Which biological, cognitive, emotional, behavioral, social, cultural, and environmental factors influence development.
+- How capabilities can be assessed validly and reliably, and how to distinguish a momentary performance from a stable or transferable capability.
+- Which interventions and learning environments can develop particular capabilities, for whom, at what dose, under what conditions, with what risks, and for how long.
+- How development transfers beyond a practiced task into everyday functioning, and whether improvements persist over time.
+
+### Relationship to existing disciplines
+
+The proposed field must be intellectually independent in its questions and framework, but not isolated from established science. It should integrate and critically engage with psychology, cognitive science, neuroscience, behavioral science, education, developmental science, philosophy, sociology, anthropology, public health, and exercise science.
+
+It is not a replacement for psychology, psychiatry, neuroscience, or education, and it must not claim ownership of all research into the mind. Its distinctive contribution would be an integrated science organized around **human mental capabilities and their development across the lifespan and across real-life contexts**—including valid measurement, evidence-based development methods, transfer, maintenance, and ethical application.
+
+Sports psychology is one relevant application area, not the boundary of the field. The same scientific questions should apply in education, work, family and social life, rehabilitation support, community life, demanding environments, and everyday functioning. Clinical diagnosis and treatment remain within the remit of appropriately qualified and licensed professionals.
+
+### Academic pathway and university ambition
+
+HDS should aspire to see this field taught and researched in universities and recognized academic institutions. A mature pathway could eventually include:
+1. Undergraduate study introducing the science of human mental development, its foundations, research methods, measurement, ethics, and applications.
+2. Master's-level specializations such as self-regulation and behavior change; cognition and learning; emotional capabilities; resilience and adaptation; interpersonal and social capabilities; assessment and measurement; and applied human development.
+3. Doctoral research developing original theories, methods, measures, and intervention evidence.
+4. Research laboratories, academic chairs, journals, conferences, research centers, and cross-university collaborations.
+
+These are long-term ambitions, not credentials HDS can unilaterally declare equivalent to accredited university degrees. University degrees and academic recognition require independent universities, qualified faculty, recognized research standards, formal accreditation where applicable, and sustained scholarly contribution.
+
+### Foundational academic questions
+
+The field should build its identity around difficult, answerable research questions, for example:
+- What is a mental capability, and what framework best organizes human mental capabilities?
+- Which capabilities are distinct, which overlap, and which depend on one another?
+- How can we distinguish a person's capability from their current mood, motivation, circumstances, or performance on one test?
+- What makes a capability generalizable across different environments rather than specific to a practiced task?
+- How do mental capabilities change with age, experience, adversity, education, health, and social context?
+- Which forms of deliberate practice, instruction, therapy, social support, physical activity, or environmental design develop which capabilities—and what evidence supports each claim?
+- How can capability development be measured without reducing a person to a single score?
+- What does it mean to maintain, recover, or improve mental functioning, and how can these outcomes be assessed responsibly?
+
+### Conditions for becoming a credible discipline
+
+A new academic field cannot be established by naming it or announcing a degree. It earns recognition through a coherent research agenda, clear concepts and operational definitions, validated methods, cumulative findings, peer-reviewed publications, independent criticism and replication, high-quality researchers, university partnerships, and demonstrated value to society.
+
+HDS should therefore begin by building a research program and scholarly community, publishing rigorous work, collaborating with existing departments, and demonstrating that its integrated focus produces useful questions and findings that are not adequately addressed by existing disciplinary structures alone. It should remain open to the possibility that some proposed concepts are already well studied under other names, and clearly identify where HDS contributes a genuinely new synthesis, framework, method, or discovery.
+
 ## HDS as a research-led institution and a major societal partner
 
 HDS must be built on a clear hierarchy: **scientific research is the foundation and governing quality standard for the entire institution.** Research is not a supporting department that occasionally advises program teams. The Research Institute is the intellectual core of HDS; all other functions—assessment, training methods, development programs, competitions, professional education, and partnerships—must be accountable to its scientific standards.
