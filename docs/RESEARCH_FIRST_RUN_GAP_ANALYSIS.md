@@ -107,3 +107,42 @@ A bounded, reproducible literature-mapping run should:
 6. Keep external model use disabled until provider, privacy, data-processing, and spending decisions are explicitly approved.
 
 **Status:** this section is a product and engineering specification. It is not evidence that these capabilities are implemented, operational, validated, or scientifically effective.
+
+
+## Code audit — implementation boundary (2026-11-01)
+
+This section records a static inspection of the development branch. It does not certify that the application has been run, that CI passed, or that a live search/model call succeeded.
+
+### Verified in source code
+
+- `app/scientific_retrieval.py` calls PubMed E-utilities and Crossref Works, stores bibliographic records and available abstracts, and labels the result `DISCOVERY_ONLY_UNVERIFIED`.
+- Retrieval is bounded to at most 50 results per provider request. It deduplicates records within a retrieval run using a canonical identifier strategy and avoids duplicate workspace-source/retrieval-result inserts through database uniqueness constraints.
+- The researcher task packet contains source metadata and readable abstract text, explicitly marks sources unverified, and blocks execution if no readable text is available.
+- `app/agent_output_gate.py` stores agent output for review. Candidate excerpts can be materialized only as unverified evidence; verified evidence must be supplied through the separate review path.
+- `app/evidence_pipeline.py` requires an excerpt to match text in a parsed source and prevents a caller from setting `verified=True` at attachment time. Verification is a separate reviewer action.
+- The first-pass route performs one bounded retrieval/model pass and submits output to the output gate. Its response explicitly says that evidence verification, finding approval, and publication are not performed by this route.
+- Provider configuration defaults to a fail-closed local placeholder. Ollama and Anthropic adapters exist, but the repository inspection does not establish that either is configured or reachable in a real deployment.
+- The self-discipline protocol is explicitly labelled planned/not executed. The retrieval and first-pass tests stub provider responses and use a fake model provider; they validate control flow, not live scientific discovery or model quality.
+
+### Confirmed limitations / not yet demonstrated
+
+1. **No full-text acquisition pipeline was found in the inspected retrieval service.** PubMed abstracts and any Crossref abstract are discovery material. Full-text retrieval, lawful access checks, parsing, page/section coordinates, and version handling need a separate implementation or manual workflow.
+2. **No systematic-review workflow is yet demonstrated.** The protocol describes screening and extraction, but code inspection has not established a complete dual-review screening system, structured study extraction, risk-of-bias appraisal, or a reproducible PRISMA-style flow.
+3. **Search reproducibility is incomplete.** A retrieval run stores a query and selected provider(s), but the inspected implementation does not yet demonstrate per-provider query syntax/version, complete pagination, search-date metadata, saved search strategies, or exhaustive multi-database coverage.
+4. **Novelty checking is not implemented as a validated capability.** A model can suggest a possible gap, but prior-art review and expert assessment remain necessary.
+5. **Intervention design is not yet a validated generator.** HDS still needs structured intervention records with target construct, theory of change, dose, comparator, fidelity, safety, transfer, retention, and outcome measures.
+6. **No live research execution was verified in this audit.** GitHub status checks for the inspected documentation commit returned no status entries, and the available first-pass tests are mocked. No conclusion about current CI success or deployment health is warranted.
+
+### Priority order for the next implementation cycle
+
+**P0 — prove a safe first run:** run the existing test suite and release gate in a controlled environment; test real PubMed/Crossref retrieval with a small bounded query; record provider errors and source identifiers; do not enable paid model execution by default.
+
+**P1 — make literature mapping reproducible:** persist per-provider queries, timestamps, retrieval parameters, paging/limits, search logs, deduplication decisions, and source-version relationships. Add explicit screening decisions with reason codes and reviewer identity.
+
+**P2 — build structured extraction:** create versioned study and construct schemas; store each field with source location and confidence/verification status; preserve unknowns rather than prompting the model to fill them.
+
+**P3 — create evidence maps:** link atomic claims to exact excerpts, study design/population/outcomes, supporting and contradictory evidence, and reviewer assessments. Generate machine-readable exports and a human-readable report.
+
+**P4 — develop candidate interventions:** only after the evidence map exists, generate protocol drafts with safety and evaluation plans. Require expert review and ethics approval before any human-participant study.
+
+**Audit conclusion:** HDS has a meaningful research-workflow foundation and a guarded first-pass path in code. It is not yet an autonomous scientific discovery system, a validated systematic-review platform, or a proven intervention-development engine. The next engineering effort should strengthen reproducibility, full-text evidence handling, structured extraction, and reviewability before adding more agents.
