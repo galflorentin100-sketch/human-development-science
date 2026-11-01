@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main, hds-scientific-provenance]
+    branches: [main, hds-scientific-provenance, 'fix/**']
   pull_request:
     branches: [main]
 permissions:
