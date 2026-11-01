@@ -108,3 +108,11 @@ independent studies. The map does not evaluate study design, bias, sample
 quality, effect sizes, population differences, or causality. It does not
 change claim status or promote findings. Treat it as a navigational aid for
 human reviewers, not a scientific synthesis conclusion.
+
+
+The evidence map also includes explicitly recorded HDS study descriptors
+(design, population, and findings) when a study record is linked to a cited
+source in the same project. These fields are displayed as recorded metadata;
+they are not independently validated and are not inferred from source text.
+This enables later comparison workflows to use structured descriptors while
+keeping provenance and uncertainty visible.
