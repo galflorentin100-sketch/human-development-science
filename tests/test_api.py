@@ -668,3 +668,10 @@ def test_ollama_provider_rejects_empty_output(monkeypatch):
     monkeypatch.setattr("httpx.post",lambda *args,**kwargs:Response())
     with pytest.raises(RuntimeError,match="empty model response"):
         OllamaProvider(base_url="http://ollama.test",model="test-model").complete(ModelRequest("research","prompt"))
+
+
+
+def test_project_evidence_map_route_is_registered():
+    from app.main import app
+    paths = {route.path for route in app.routes}
+    assert "/api/hds/projects/{project_id}/evidence-map" in paths
