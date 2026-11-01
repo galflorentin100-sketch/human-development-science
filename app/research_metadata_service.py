@@ -106,12 +106,20 @@ class StudyExtractionService:
             raise ValueError("reviewer must be independent from the extractor")
         if row["status"] != "PENDING_REVIEW":
             raise ValueError("study extraction has already been reviewed")
-        changed = self.db.execute(
-            """UPDATE research_study_extractions
-               SET status=?,reviewed_by=?,review_decision=?,review_rationale=?,reviewed_at=?
-               WHERE id=? AND status='PENDING_REVIEW'""",
-            (decision, reviewer, decision, rationale, now(), extraction_id),
-        )
-        if changed.rowcount != 1:
-            raise ValueError("study extraction review was resolved concurrently")
+        ts = now()
+        with self.db.transaction() as con:
+            changed = con.execute(
+                """UPDATE research_study_extractions
+                   SET status=?,reviewed_by=?,review_decision=?,review_rationale=?,reviewed_at=?
+                   WHERE id=? AND status='PENDING_REVIEW'""",
+                (decision, reviewer, decision, rationale, ts, extraction_id),
+            )
+            if changed.rowcount != 1:
+                raise ValueError("study extraction review was resolved concurrently")
+            con.execute(
+                """INSERT INTO audit_logs(id,event_type,entity_type,entity_id,actor,payload,created_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (str(uuid4()), "research_study_extraction.reviewed", "research_study_extraction",
+                 extraction_id, reviewer, json.dumps({"decision": decision, "rationale": rationale}, sort_keys=True), ts),
+            )
         return self.get(extraction_id)
