@@ -89,3 +89,40 @@ def test_evidence_map_includes_only_explicitly_recorded_study_descriptors(tmp_pa
     assert descriptors[0]["source_id"] == source_id
     assert descriptors[0]["studies"][0]["design"] == "Prospective cohort"
     assert descriptors[0]["studies"][0]["population"] == "Adults aged 18-35"
+
+
+
+def test_study_comparison_preserves_literal_values_and_missingness(tmp_path):
+    db = Database(str(tmp_path / "study-comparison.db"))
+    project = ResearchCycle(db).run("Study comparison")["project"]
+    pipeline = EvidencePipeline(db)
+    claim_id = _claim(db, project["id"], "A training claim.")
+
+    evidence_ids = [
+        _verified_excerpt(db, pipeline, claim_id, "Study one", "https://example.org/one", "SUPPORTS", "reviewer-one"),
+        _verified_excerpt(db, pipeline, claim_id, "Study two", "https://example.org/two", "SUPPORTS", "reviewer-two"),
+    ]
+    source_ids = [
+        db.one("SELECT source_id FROM evidence WHERE id=?", (eid,))["source_id"]
+        for eid in evidence_ids
+    ]
+    db.execute(
+        "INSERT INTO studies(id,source_id,project_id,title,design,population,findings,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (str(uuid4()), source_ids[0], project["id"], "Study one record", "Randomized trial", "Adults", "Outcome A improved", now()),
+    )
+    db.execute(
+        "INSERT INTO studies(id,source_id,project_id,title,design,population,findings,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (str(uuid4()), source_ids[1], project["id"], "Study two record", "Prospective cohort", "Adolescents", "Outcome B unchanged", now()),
+    )
+
+    result = ResearchEvidenceSynthesizer(db).synthesize_project(project["id"])
+    row = next(x for x in result["claims"] if x["claim_id"] == claim_id)
+    comparison = row["study_comparison"]
+
+    assert comparison["design"]["distinct_literal_values"] == 2
+    assert {x["value"] for x in comparison["design"]["recorded_values"]} == {
+        "Randomized trial", "Prospective cohort"
+    }
+    assert comparison["population"]["distinct_literal_values"] == 2
+    assert comparison["findings"]["status"] == "RECORDED_VALUES_PRESENT"
+    assert comparison["design"]["verified_sources_without_study_record"] == []
