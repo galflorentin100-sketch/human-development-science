@@ -9,7 +9,7 @@ HDS is an auditable Company OS foundation with persistent company state, a 17-ag
 For the HDS research dashboard with a local model, install Python dependencies and Ollama, pull a model, then run the preflight launcher:
 ```bash
 python -m pip install -r requirements.txt
-ollama pull qwen2.5:14b
+ollama pull qwen2.5:7b
 python scripts/run_local_research.py
 ```
 
