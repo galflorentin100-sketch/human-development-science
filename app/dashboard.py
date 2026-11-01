@@ -13,13 +13,22 @@ h1{margin:0;font-size:24px}p{color:var(--muted)}main{max-width:1400px;margin:aut
 .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}select,button{background:var(--card);color:inherit;border:1px solid var(--line);border-radius:9px;padding:10px 13px}button{cursor:pointer}button.primary{background:var(--accent);border-color:var(--accent)}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:20px 0}.card{background:#131a2bdd;border:1px solid var(--line);border-radius:14px;padding:17px}.metric{font-size:28px;font-weight:750;margin-top:7px}.label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .cols{display:grid;grid-template-columns:1.25fr .75fr;gap:16px}@media(max-width:900px){.cols{grid-template-columns:1fr}}
-h2{font-size:16px;margin-top:0}.list{display:grid;gap:8px}.row{border-top:1px solid var(--line);padding:12px 0}.row:first-child{border-top:0}.tag{display:inline-block;padding:3px 7px;border-radius:99px;background:#202a42;color:#cbd5e1;font-size:11px;margin-right:5px}.danger{color:#fca5a5}.good{color:#86efac}.muted{color:var(--muted)}pre{white-space:pre-wrap;word-break:break-word;color:#cbd5e1}
+h2{font-size:16px;margin-top:0}.research-lab{margin-bottom:16px}.research-lab textarea{display:block;width:100%;min-height:100px;margin-top:8px;background:#0b1020;color:inherit;border:1px solid var(--line);border-radius:9px;padding:12px;font:inherit}.research-lab label{color:var(--muted);font-size:13px}.research-output{background:#0b1020;border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px}.research-output pre{max-height:520px;overflow:auto}.research-warning{color:#fbbf24}.research-error{color:#fca5a5}.list{display:grid;gap:8px}.row{border-top:1px solid var(--line);padding:12px 0}.row:first-child{border-top:0}.tag{display:inline-block;padding:3px 7px;border-radius:99px;background:#202a42;color:#cbd5e1;font-size:11px;margin-right:5px}.danger{color:#fca5a5}.good{color:#86efac}.muted{color:var(--muted)}pre{white-space:pre-wrap;word-break:break-word;color:#cbd5e1}
 #status{font-size:13px;color:var(--muted)}
 </style></head><body>
 <header><div><h1>HDS Company OS</h1><div id="status">Loading company state…</div></div>
 <div class="toolbar"><select id="project"></select><button class="primary" onclick="runCycle()">Run research cycle</button><button onclick="refresh()">Refresh</button></div></header>
 <main>
 <section class="grid" id="metrics"></section>
+<section class="card research-lab">
+<h2>HDS Mentality Research Lab</h2>
+<p>Start a bounded scientific literature pass on a mental capability. HDS searches PubMed and Crossref, supplies readable abstracts to the configured AI model, and saves an unverified research output for review.</p>
+<label for="mental-question">Research question</label>
+<textarea id="mental-question" maxlength="4000">Which psychological and behavioral processes contribute to the development and maintenance of self-discipline in adults?</textarea>
+<div class="toolbar" style="margin-top:10px"><label>Sources <select id="mental-limit"><option value="10">10 papers</option><option value="20" selected>20 papers</option><option value="30">30 papers</option><option value="50">50 papers</option></select></label><button class="primary" id="mental-run" onclick="runMentalResearch()">Start research</button></div>
+<div id="mental-status" role="status" aria-live="polite" style="margin-top:12px">Ready. Research outputs remain unverified until independent review.</div>
+<div id="mental-results" style="margin-top:14px"></div>
+</section>
 <div class="cols"><section class="card"><h2>Founder Intelligence</h2><div id="snapshot" class="list"></div></section>
 <section class="card"><h2>Decisions & attention</h2><div id="decisions" class="list"></div></section></div>
 <div class="cols" style="margin-top:16px"><section class="card"><h2>Scientific workflow</h2><div id="workflow" class="list"></div></section>
@@ -70,6 +79,41 @@ async function askChat(){
  try{const r=await api("/api/founder/"+selected()+"/chat",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({message:msg})});
  log.innerHTML+='<div class="row"><b>HDS AI</b><br>'+esc(r.answer)+'<br><span class="muted">Unverified advisory output.</span></div>';
  }catch(e){log.innerHTML+='<div class="row danger">Chat blocked: '+esc(e.message)+'</div>'}
+}
+async function runMentalResearch(){
+ const button=document.getElementById("mental-run");
+ const status=document.getElementById("mental-status");
+ const results=document.getElementById("mental-results");
+ const question=document.getElementById("mental-question").value.trim();
+ const limit=Number(document.getElementById("mental-limit").value||20);
+ if(!question){status.textContent="Enter a research question first.";return}
+ button.disabled=true;button.textContent="Researching…";results.innerHTML="";
+ status.textContent="Creating research workspace…";
+ try{
+  const created=await api("/api/hds/research-loops/bootstrap",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({question})});
+  const runId=created.run.id;
+  status.textContent="Searching PubMed and Crossref, collecting available abstracts, and running one bounded AI analysis…";
+  const output=await api("/api/hds/research-loops/"+encodeURIComponent(runId)+"/run-first-pass",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({query:question,providers:["pubmed","crossref"],limit})});
+  const count=output.retrieval?.result_count??0;
+  const claims=Array.isArray(output.agent_output?.candidate_claims)?output.agent_output.candidate_claims:[];
+  let html='<div class="research-output"><div class="toolbar"><span class="tag">'+esc(output.status||"UNKNOWN")+'</span><span class="tag">'+esc(output.scientific_status||"")+'</span><span class="tag">'+esc(count)+' retrieved records</span></div>';
+  if(output.status==="RESEARCH_PASS_RECORDED"){
+   html+='<h3>Candidate claims and observations ('+claims.length+')</h3>';
+   if(claims.length){html+='<div class="list">'+claims.map((x,n)=>'<div class="row"><b>'+esc(x.statement||("Candidate "+(n+1)))+'</b><br><span class="tag">'+esc(x.classification||"UNCLASSIFIED")+'</span><span class="tag">'+esc(x.stance||"")+'</span><p>'+esc(x.exact_excerpt||"No excerpt supplied")+'</p><span class="muted">Source ID: '+esc(x.source_id||"not supplied")+'</span></div>').join("")+'</div>'}
+   else html+='<p>No source-grounded candidate claims were returned. Read the analysis and limitations below; do not treat an empty claim list as a negative finding.</p>';
+   html+='<h3>AI analysis</h3><pre>'+esc(output.agent_output?.result||"No narrative result supplied.")+'</pre>';
+   html+='<h3>Limitations</h3><pre>'+esc(output.agent_output?.limitations||"Not supplied.")+'</pre>';
+   html+='<h3>Uncertainty</h3><pre>'+esc(output.agent_output?.uncertainty||"Not supplied.")+'</pre>';
+   html+='<p class="research-warning"><b>Unverified research output.</b> This is a discovery pass, not a scientific finding. Each claim needs independent source review and interpretation.</p>';
+  }else{
+   html+='<h3>Research could not complete</h3><pre>'+esc(JSON.stringify({reason:output.reason||output.error||output.validation_error||output.notice||"No further detail",next_action:output.next_action||null,errors:output.retrieval?.errors||output.errors||[]},null,2))+'</pre>';
+   html+='<p>Check that a research-capable model is configured and that readable abstracts were retrieved. The default local placeholder does not generate AI analysis.</p>';
+  }
+  html+='<details><summary>Technical record</summary><pre>'+esc(JSON.stringify({run_id:runId,project_id:created.project?.id,run:output.run,retrieval:output.retrieval,task:output.task,agent_run_id:output.agent_run_id},null,2))+'</pre></details></div>';
+  results.innerHTML=html;
+  status.textContent=output.status==="RESEARCH_PASS_RECORDED"?"Research pass saved. Independent review is still required.":"Research pass stopped: "+(output.status||"unknown status");
+ }catch(e){status.innerHTML='<span class="research-error">Research failed: '+esc(e.message)+'</span>'}
+ finally{button.disabled=false;button.textContent="Start research"}
 }
 async function runCycle(){const id=selected();if(!id)return;document.getElementById("status").textContent="Running governed research cycle…";try{await api("/api/science/research-cycle/"+id,{method:"POST"});await refresh()}catch(e){document.getElementById("status").textContent="Cycle blocked: "+e.message}}
 document.getElementById("project").addEventListener("change",refresh);init();
