@@ -28,6 +28,7 @@ h2{font-size:16px;margin-top:0}.research-lab{margin-bottom:16px}.research-lab te
 <div class="toolbar" style="margin-top:10px"><label>Sources <select id="mental-limit"><option value="10">10 papers</option><option value="20" selected>20 papers</option><option value="30">30 papers</option><option value="50">50 papers</option></select></label><button class="primary" id="mental-run" onclick="runMentalResearch()">Start research</button></div>
 <div id="mental-status" role="status" aria-live="polite" style="margin-top:12px">Ready. Research outputs remain unverified until independent review.</div>
 <div id="mental-results" style="margin-top:14px"></div>
+<div class="research-output"><h3>Autonomous research feed</h3><p>Background literature scans appear here automatically. The feed refreshes every five minutes while the dashboard is open.</p><div id="background-feed" class="list">Loading saved research runs…</div></div>
 </section>
 <div class="cols"><section class="card"><h2>Founder Intelligence</h2><div id="snapshot" class="list"></div></section>
 <section class="card"><h2>Decisions & attention</h2><div id="decisions" class="list"></div></section></div>
@@ -71,7 +72,17 @@ async function refresh(){
   document.getElementById("status").textContent="Live • "+new Date().toLocaleTimeString();
  }catch(e){document.getElementById("status").textContent="Could not load project state: "+e.message}
 }
-async function init(){try{projects=(await api("/api/founder/projects")).items||[];const s=document.getElementById("project");s.innerHTML=projects.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.objective||p.id)+'</option>').join("");await refresh()}catch(e){document.getElementById("status").textContent="Authentication or API error: "+e.message}}
+async function loadBackgroundFeed(){
+ const target=document.getElementById("background-feed"); if(!target)return;
+ try{
+  const rows=await Promise.all(projects.map(async p=>{try{const r=await api("/api/hds/research-loops/project/"+encodeURIComponent(p.id));return (r.items||[]).map(x=>({...x,project_objective:p.objective||""}))}catch(_){return []}}));
+  const runs=rows.flat().sort((a,b)=>String(b.updated_at||b.created_at||"").localeCompare(String(a.updated_at||a.created_at||""))).slice(0,15);
+  target.innerHTML=runs.map(x=>'<div class="row"><span class="tag">'+esc(x.status||"UNKNOWN")+'</span><b>'+esc(x.gap||x.project_objective||"Research run")+'</b><br><span class="muted">'+esc(x.updated_at||x.created_at||"Date unavailable")+'</span></div>').join("")||"<p>No automatic research runs yet. The scheduler starts its first pass shortly after launch.</p>";
+ }catch(e){target.innerHTML='<p class="danger">Could not load research feed: '+esc(e.message)+'</p>'}
+}
+async function init(){try{projects=(await api('/api/founder/projects')).items||[];const s=document.getElementById('project');s.innerHTML=projects.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.objective||p.id)+'</option>').join('');await refresh();await loadBackgroundFeed()}catch(e){document.getElementById('status').textContent='Authentication or API error: '+e.message}}
+async function refreshProjectFeed(){try{const previous=selected();projects=(await api('/api/founder/projects')).items||[];const s=document.getElementById('project');s.innerHTML=projects.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.objective||p.id)+'</option>').join('');if(projects.some(p=>p.id===previous))s.value=previous;await loadBackgroundFeed()}catch(e){document.getElementById('background-feed').textContent='Feed refresh failed: '+e.message}}
+setInterval(refreshProjectFeed,5*60*1000);
 async function askChat(){
  const msg=document.getElementById("chatmsg").value.trim(); if(!msg)return;
  const log=document.getElementById("chatlog"); log.innerHTML+='<div class="row"><b>You</b><br>'+esc(msg)+'</div>';
