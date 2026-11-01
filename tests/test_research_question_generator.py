@@ -56,3 +56,35 @@ def test_question_generator_is_idempotent_for_open_followups(tmp_path):
     assert len(first["queue_items"]) == len(second["queue_items"])
     assert all(item["status"] == "PROPOSED" for item in second["queue_items"])
     assert "no claim" in second["policy"]
+
+
+
+def test_question_generator_surfaces_recorded_synthesis_limitations(tmp_path):
+    from app.research_engine import ResearchEngine
+    from app.evidence_pipeline import EvidencePipeline
+
+    db=Database(str(tmp_path/"synthesis-limitations.db"))
+    project=ResearchCycle(db).run("Synthesis limitation follow-up")["project"]
+    engine=ResearchEngine(db)
+    workspace=engine.create(project["id"],"Does implementation planning improve long-term adherence?")
+    engine.activate(workspace["id"],"researcher")
+    source=EvidencePipeline(db).register_source(
+        "Synthetic test paper","https://example.org/hds-synthetic-paper",
+        authors="Test Author",year=2025
+    )
+    engine.add_source(workspace["id"],source["id"],content="Synthetic abstract for a unit test.")
+    engine.synthesize(
+        workspace["id"],
+        "Candidate synthesis text.",
+        limitations="Small and non-representative samples.",
+        uncertainty="Long-term transfer remains unclear.",
+        created_by="researcher",
+    )
+
+    result=ResearchQuestionGenerator(db).generate(project["id"])
+
+    followups=[item for item in result["queue_items"] if item["trigger_type"]=="AUTONOMOUS_GAP_DETECTOR"]
+    assert any("methodological limitations" in item["question"] for item in followups)
+    limitation=next(item for item in followups if "methodological limitations" in item["question"])
+    assert "non-representative samples" in limitation["rationale"]
+    assert limitation["status"]=="PROPOSED"
