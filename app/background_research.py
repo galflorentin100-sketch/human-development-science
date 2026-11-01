@@ -105,6 +105,24 @@ class BackgroundResearchScheduler:
                 payload.get("status"),
                 (payload.get("retrieval") or {}).get("result_count", 0),
             )
+            # Scan only recorded, project-scoped governance signals for possible
+            # follow-up questions. This never upgrades evidence or starts a study.
+            try:
+                followups = client.post(
+                    f"/api/hds/research-loops/{run_id}/generate-followups"
+                )
+                followups.raise_for_status()
+                proposed = len(followups.json().get("queue_items", []))
+                LOG.info(
+                    "Background research run %s generated %s advisory follow-up question(s)",
+                    run_id,
+                    proposed,
+                )
+            except Exception:
+                LOG.exception(
+                    "Follow-up question generation failed for run %s; research pass remains saved",
+                    run_id,
+                )
 
 
 def start_background_research() -> BackgroundResearchScheduler:
