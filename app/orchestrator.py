@@ -24,7 +24,7 @@ class CompanyOrchestrator:
         pending_decision=self.db.one(
             """SELECT a.id,a.action,a.status
                FROM approvals a
-               JOIN decisions d ON d.id=SUBSTR(a.action,9)
+               JOIN decisions d ON d.id=SUBSTR(a.action,10)
                WHERE a.status='PENDING'
                  AND a.action LIKE 'DECISION:%'
                  AND d.project_id=?
