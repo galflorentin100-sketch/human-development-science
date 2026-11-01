@@ -16,7 +16,9 @@ def main():
     if side.is_file() and side.read_text(encoding="utf-8").split()[0]!=digest:
         raise SystemExit("backup checksum mismatch")
     r=subprocess.run(["pg_restore","--clean","--if-exists","--no-owner","--no-privileges","--dbname",url,str(b)],capture_output=True,text=True)
-    if r.returncode: raise SystemExit("pg_restore failed")
+    if r.returncode:
+        detail=(r.stderr or r.stdout or "no diagnostic output").strip()
+        raise SystemExit(f"pg_restore failed (exit {r.returncode}): {detail[-2000:]}")
     q=subprocess.run(["psql",url,"-Atqc","SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'"],capture_output=True,text=True)
     if q.returncode or int(q.stdout.strip() or "0")==0: raise SystemExit("restored database schema verification failed")
     print(f"Backup restore verified: {b}")
