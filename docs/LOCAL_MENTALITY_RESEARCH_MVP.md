@@ -13,7 +13,7 @@ The dashboard can start a bounded research run from a mental-development questio
 1. Install Ollama from its official website and start it.
 2. In a terminal, download a model once, for example:
    ```bash
-   ollama pull qwen2.5:14b
+   ollama pull qwen2.5:7b
    ```
 3. In the repository root, install Python dependencies:
    ```bash
