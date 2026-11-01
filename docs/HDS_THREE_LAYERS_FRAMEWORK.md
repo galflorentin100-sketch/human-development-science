@@ -19,10 +19,11 @@ The framework is about capability, agency, adaptability, and responsibility. "Ma
 - **Psychological skills:** self-awareness, emotional regulation, attention, stress management, resilience, self-efficacy, values, and reflective practice.
 - **Self-regulation and behavior:** self-discipline, habits, planning, goal setting, consistency, impulse management, and behavior change.
 - **Physical capability:** strength, power, muscular endurance, aerobic and anaerobic capacity, speed, mobility, flexibility, coordination, balance, and general athleticism.
+- **Personal safety and physical composure:** awareness of personal limits, managing fear and stress, safe falling and movement skills, and maintaining composure under physical pressure.
 - **Health and recovery:** nutrition, sleep, recovery, injury prevention, and sustainable lifestyle practices.
 - **Personal learning:** deliberate practice, feedback, skill acquisition, and metacognition.
 
-Examples of physical practice may include resistance training, running, swimming, calisthenics, CrossFit-style mixed-modal training, HYROX-style conditioning, capoeira, and mobility work. These are practice methods, not separate top-level layers.
+Examples of physical practice may include resistance training, running, swimming, calisthenics, CrossFit-style mixed-modal training, HYROX-style conditioning, capoeira, martial arts training, and mobility work. Combat sports can develop physical and psychological capabilities in this layer; their interpersonal, rules-based and conflict-management dimensions are also classified in Layer 3. These are practice methods, not separate top-level layers.
 
 ## Layer 2 — Environmental Mastery
 
@@ -32,8 +33,11 @@ Examples of physical practice may include resistance training, running, swimming
 
 - **Outdoor competence:** navigation, route planning, terrain awareness, weather awareness, and expedition preparation.
 - **Survival and preparedness:** water, shelter, warmth, signaling, first aid, emergency planning, and risk management.
-- **Movement and transport:** safe and responsible driving, vehicle awareness, and other relevant modes of transport.
-- **Practical problem solving:** tool use, resource management, situational awareness, and adapting plans when conditions change.
+- **Driving and transport:** road rules, hazard perception, defensive driving, vehicle control appropriate to the driver's training and licence, trip planning, basic vehicle checks, and understanding vehicle limitations. Off-road driving belongs only in suitable supervised and lawful settings. Other transport modes can be included where relevant.
+- **Urban and built environments:** wayfinding, public infrastructure, environmental awareness, and navigating unfamiliar places.
+- **Water and weather safety:** understanding local hazards, basic water safety, exposure risks, and making conservative decisions around changing conditions.
+- **Practical problem solving:** tool use, basic repairs, resource management, situational awareness, and adapting plans when conditions change.
+- **Technology and information environments:** practical digital literacy, privacy and security hygiene, evaluating information quality, and using tools safely.
 - **Decision-making under uncertainty:** identifying hazards, assessing options, managing risk, and knowing when not to act.
 
 Training must be lawful, safety-led, and appropriate to the learner's experience. Driving competence must be developed through qualified instruction and legal licensing; survival and first-aid skills require practical training with qualified providers.
@@ -46,8 +50,9 @@ Training must be lawful, safety-led, and appropriate to the learner's experience
 
 - **Communication:** listening, asking questions, clarity, feedback, non-verbal communication, and adapting communication to context.
 - **Social and emotional competence:** empathy, perspective-taking, emotional awareness, boundaries, and relationship skills.
-- **Cooperation and leadership:** teamwork, coordination, accountability, group decision-making, and leadership.
-- **Negotiation and conflict:** interests, options, trade-offs, de-escalation, mediation, and principled negotiation.
+- **Cooperation and leadership:** teamwork, coordination, accountability, group decision-making, leadership, mentoring, and public speaking.
+- **Combat sports and martial arts:** structured, consent-based and rules-governed practice such as boxing, kickboxing, wrestling, judo, Brazilian jiu-jitsu, MMA, and capoeira. HDS should assess technical skill, control, sportsmanship, safety, and the ability to disengage—not reward aggression. Self-defence education should prioritize avoidance, de-escalation, escape, and lawful proportionate protection.
+- **Negotiation and conflict:** interests, options, trade-offs, de-escalation, mediation, principled negotiation, boundary setting, and conflict resolution.
 - **Strategic interaction:** game theory, incentives, signaling, cooperation, competition, and decision-making in interdependent situations.
 - **Influence and persuasion:** rhetoric, ethical persuasion, critical evaluation of influence techniques, and resistance to manipulation.
 - **NLP:** treated as a collection of claims and techniques to be evaluated individually. HDS must not present NLP as an established scientific theory or assume its broad efficacy without strong supporting evidence.
@@ -88,7 +93,7 @@ Each competency should have:
 7. A record of results, context, and uncertainty.
 8. A review date and next development step.
 
-Assessment should use observable performance where possible, not motivation or self-description alone. Physical tests, practical field scenarios, driving qualifications, communication role-play, and negotiation exercises require different assessment methods and must not be collapsed into one score without a validated rationale.
+Assessment should use observable performance where possible, not motivation or self-description alone. Physical tests, practical field scenarios, formal driving qualifications, supervised driving assessments, martial-arts skill assessments, communication role-play, and negotiation exercises require different assessment methods and must not be collapsed into one score without a validated rationale. Driving and combat-sport practice must respect licensing, qualified supervision, consent, applicable law, and appropriate safety standards.
 
 ## Suggested maturity levels
 
