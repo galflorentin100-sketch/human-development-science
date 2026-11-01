@@ -29,6 +29,7 @@ h2{font-size:16px;margin-top:0}.research-lab{margin-bottom:16px}.research-lab te
 <div id="mental-status" role="status" aria-live="polite" style="margin-top:12px">Ready. Research outputs remain unverified until independent review.</div>
 <div id="mental-results" style="margin-top:14px"></div>
 <div class="research-output"><h3>Autonomous research feed</h3><p>Background literature scans appear here automatically. The feed refreshes every five minutes while the dashboard is open.</p><div id="background-feed" class="list">Loading saved research runs…</div></div>
+<div class="research-output"><h3>Project evidence map</h3><p>Descriptive summary of reviewer-verified excerpts linked to project claims. Study descriptors are displayed as recorded, not independently validated.</p><div id="evidence-map" class="list">Loading evidence map…</div></div>
 </section>
 <div class="cols"><section class="card"><h2>Founder Intelligence</h2><div id="snapshot" class="list"></div></section>
 <section class="card"><h2>Decisions & attention</h2><div id="decisions" class="list"></div></section></div>
@@ -93,7 +94,27 @@ async function loadBackgroundFeed(){
   target.innerHTML+='<div class="row"><h3>Proposed follow-up questions</h3><p class="muted">Questions generated from recorded research gaps. All remain proposals until reviewed; none changes a scientific claim.</p>'+(queueItems.map(q=>'<div class="row"><span class="tag">'+esc(q.status||"PROPOSED")+'</span><span class="tag">'+esc(q.priority||"NORMAL")+'</span><b>'+esc(q.question)+'</b><br><span class="muted">'+esc(q.rationale||"No rationale recorded.")+'</span></div>').join("")||'<p>No follow-up questions have been proposed yet.</p>')+'</div>';
  }catch(e){target.innerHTML='<p class="danger">Could not load research feed: '+esc(e.message)+'</p>'}
 }
-async function init(){try{projects=(await api('/api/founder/projects')).items||[];const s=document.getElementById('project');s.innerHTML=projects.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.objective||p.id)+'</option>').join('');await refresh();await loadBackgroundFeed()}catch(e){document.getElementById('status').textContent='Authentication or API error: '+e.message}}
+async function loadEvidenceMap(){
+ const target=document.getElementById("evidence-map"); if(!target)return;
+ const id=selected(); if(!id){target.textContent="Select a project to view its evidence map.";return}
+ target.textContent="Loading evidence map…";
+ try{
+  const result=await api("/api/hds/projects/"+encodeURIComponent(id)+"/evidence-map");
+  const claims=result.claims||[];
+  target.innerHTML=claims.map(claim=>{
+   const counts=claim.counts||{}, comparison=claim.study_comparison||{};
+   const comparisonHtml=["design","population","findings"].map(field=>{
+    const item=comparison[field]||{};
+    const values=(item.recorded_values||[]).map(x=>'<div class="muted">• '+esc(x.study_title)+': '+esc(x.value)+'</div>').join("");
+    const missing=(item.verified_sources_without_study_record||[]).length;
+    return '<div><b>'+esc(field)+'</b> <span class="tag">'+esc(item.status||"NOT_RECORDED")+'</span>'+values+(missing?'<div class="muted">'+missing+' verified source(s) without a linked study record</div>':"")+'</div>';
+   }).join("");
+   return '<div class="row"><span class="tag">'+esc(claim.pattern)+'</span><b>'+esc(claim.claim)+'</b><div class="muted">Verified excerpts: '+esc(counts.verified_support_excerpts||0)+' supporting · '+esc(counts.verified_contradict_excerpts||0)+' contradicting · '+esc(counts.verified_neutral_excerpts||0)+' neutral. Excluded non-verified: '+esc(counts.excluded_nonverified_items||0)+'.</div><div class="muted">'+esc(claim.interpretation||"")+'</div><details style="margin-top:8px"><summary>Recorded study comparison</summary><div class="list" style="margin-top:8px">'+comparisonHtml+'</div></details></div>';
+  }).join("")||"<p>No project claims have been registered yet.</p>";
+  target.innerHTML+='<p class="muted">'+esc(result.method||"")+'</p><p class="muted">'+(result.limitations||[]).map(esc).join(" ")+'</p>';
+ }catch(e){target.innerHTML='<p class="danger">Could not load evidence map: '+esc(e.message)+'</p>'}
+}
+async function init(){try{projects=(await api('/api/founder/projects')).items||[];const s=document.getElementById('project');s.innerHTML=projects.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.objective||p.id)+'</option>').join('');await refresh();await loadBackgroundFeed();await loadEvidenceMap();document.getElementById("project").addEventListener("change",loadEvidenceMap)}catch(e){document.getElementById('status').textContent='Authentication or API error: '+e.message}}
 async function refreshProjectFeed(){try{const previous=selected();projects=(await api('/api/founder/projects')).items||[];const s=document.getElementById('project');s.innerHTML=projects.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.objective||p.id)+'</option>').join('');if(projects.some(p=>p.id===previous))s.value=previous;await loadBackgroundFeed()}catch(e){document.getElementById('background-feed').textContent='Feed refresh failed: '+e.message}}
 setInterval(refreshProjectFeed,5*60*1000);
 async function askChat(){
