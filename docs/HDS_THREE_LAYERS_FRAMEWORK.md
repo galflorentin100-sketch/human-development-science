@@ -499,6 +499,127 @@ HDS aims to develop exceptionally capable coaches and professionals, while defin
 
 HDS should build a demanding professional academy with clear competency frameworks, entry requirements, practical examinations, supervised practice, continuing education, periodic reassessment, and transparent levels of qualification. The goal is not that every coach must be the world's best athlete or possess every specialty. The goal is that every professional is highly competent in their defined role, knows their limits, and can demonstrate that they help participants progress safely and effectively. HDS itself should continually evaluate the quality of its coaches and improve its standards.
 
+## HDS official domain map — version 1.0
+
+### Purpose and organizing framework
+
+HDS is both an aspiring scientific/academic field and a company/institution that researches, develops, teaches, assesses, and applies human development. Its organizing framework is the three layers of mastery: the self, the world/environment, and other people. Across all three layers, HDS studies and develops mental, physical-motor, social, practical, and values-related capabilities. Mental development is the central research priority; physical development and hybrid performance are major domains in their own right; education connects the domains across the lifespan.
+
+This map is a proposed institutional taxonomy, not a claim that every area is already a separate recognized academic discipline. HDS should map each domain to existing research, identify genuine gaps, and earn any claim of disciplinary novelty through scholarship and evidence.
+
+### A. Mental development sciences — central research priority
+
+1. **Cognitive capabilities:** attention, perception, memory, learning, reasoning, critical thinking, problem-solving, planning, decision-making, creativity, metacognition, and cognitive flexibility.
+2. **Self-regulation and agency:** self-control, goal setting, implementation, habit formation, motivation, persistence, impulse management, self-monitoring, and personal responsibility.
+3. **Emotional capabilities:** emotional awareness, understanding, regulation, tolerance of distress, coping, and adaptive responses to stress.
+4. **Adaptation and resilience:** adaptation to change, recovery after setbacks, coping flexibility, uncertainty management, and functioning under pressure. These constructs require precise definitions; HDS must not treat resilience or mental toughness as a single universally measurable trait.
+5. **Self-understanding and personal development:** self-awareness, self-efficacy, identity development, values clarification, reflection, and realistic self-assessment.
+6. **Interpersonal and social capabilities:** communication, empathy, perspective-taking, cooperation, trust, conflict resolution, negotiation, leadership, and responsible influence.
+7. **Mental health, functioning, and support interfaces:** understanding how mental capabilities relate to well-being, distress, disability, and everyday functioning; developing appropriate non-clinical education and support in partnership with qualified professionals. Diagnosis and treatment remain with licensed professionals.
+
+### B. Physical and hybrid human performance sciences
+
+1. **Strength and muscular development:** maximal strength, relative strength, hypertrophy, muscular endurance, and strength skill.
+2. **Endurance and energy systems:** aerobic capacity, aerobic endurance, threshold-related performance, anaerobic capacity, and repeated high-intensity effort.
+3. **Speed and power:** acceleration, maximum speed, explosive power, jumping, throwing, and rapid force production.
+4. **Movement competence:** coordination, balance, agility, change of direction, rhythm, body control, and motor learning.
+5. **Mobility and physical capacity:** flexibility, joint range of motion, mobility, tissue tolerance, and movement quality.
+6. **Hybrid training and performance:** evidence-informed integration of strength, running, endurance, mixed-modal conditioning, calisthenics, gymnastics-based skills, carries, swimming, and other relevant movement domains. Programming must manage competing adaptations, recovery, individual differences, and risk.
+7. **Health, recovery, and lifespan physical development:** physical activity, sleep and recovery education, load management, injury-risk reduction, healthy aging, and sustainable participation.
+8. **Practical physical competence:** carrying, climbing, hiking, moving over varied terrain, water competence, and other safe, relevant real-world tasks.
+
+HDS should define the target qualities and assessment protocols before selecting training formats. CrossFit-style training, hybrid racing, bodybuilding, endurance sport, and military-style fitness are methods or contexts—not scientific explanations by themselves.
+
+### C. Human-environment and practical capability sciences
+
+1. Independence and everyday life competence.
+2. Navigation, orientation, route planning, and environmental awareness.
+3. Outdoor skills, expedition competence, and responsible interaction with nature.
+4. Emergency preparedness, first aid, and risk recognition.
+5. Survival-related knowledge and practical skills taught within safe, lawful, qualified boundaries.
+6. Driving knowledge, hazard perception, and defensive driving within licensing and instructor requirements.
+7. Problem-solving and decision-making in unfamiliar or uncertain environments.
+8. Resource management, planning, adaptation, and practical judgment.
+
+### D. Interpersonal and social development sciences
+
+1. Communication and listening.
+2. Cooperation and teamwork.
+3. Leadership, followership, and shared responsibility.
+4. Trust, relationships, and social understanding.
+5. Conflict resolution, negotiation, and mediation skills.
+6. Group dynamics and collective decision-making.
+7. Community participation, citizenship, and prosocial contribution.
+8. Martial arts and self-defense as specialist physical-social practices, taught safely and lawfully; participation does not automatically establish generalized confidence, resilience, or character.
+
+### E. Values, character, and ethical development
+
+1. Integrity and honesty.
+2. Responsibility and accountability.
+3. Respect, fairness, and care.
+4. Courage and humility.
+5. Commitment and service.
+6. Ethical judgment and moral reasoning.
+7. Personal values clarification and values-consistent action.
+
+HDS should distinguish values (what a person or community judges important), observable behavior, learned skills, and psychological traits. It must not impose a single personality ideal or claim that a short assessment can determine someone's moral worth.
+
+### F. Education and lifespan development
+
+1. Human development and learning across childhood, adolescence, adulthood, and older age.
+2. Developmental curricula and age-appropriate learning environments.
+3. Experiential learning, deliberate practice, reflection, and feedback.
+4. Physical literacy, mental capability education, social learning, and practical life skills.
+5. Family, school, university, workplace, and community education.
+6. Teacher, educator, coach, and facilitator development.
+7. Inclusion, accessibility, safeguarding, and individual learning differences.
+8. Evaluation of educational programs, learning transfer, and long-term outcomes.
+
+HDS education should not be limited to school-age students. It should support lifelong learning and capability maintenance, while protecting learner autonomy and avoiding coercive or humiliating practices.
+
+### G. Research, assessment, and scientific methods — cross-cutting foundation
+
+This is not merely another topic area; it is the scientific infrastructure governing every HDS domain:
+1. Conceptual analysis and operational definitions.
+2. Literature synthesis and critical evidence review.
+3. Research design, statistics, measurement theory, and psychometrics.
+4. Reliability, validity, fairness, and measurement invariance.
+5. Longitudinal, experimental, quasi-experimental, observational, and qualitative methods as appropriate.
+6. Intervention design, feasibility, effectiveness, safety, and adverse-event monitoring.
+7. Transfer across tasks and contexts, and retention over time.
+8. Individual differences, developmental stages, culture, and environmental context.
+9. Research ethics, informed consent, privacy, preregistration where appropriate, open methods, replication, and transparent reporting.
+
+Every HDS intervention should specify: target capability; proposed mechanism; evidence level; target population; delivery method and dose; risks and safeguards; outcome measures; transfer criteria; and follow-up period.
+
+### H. Three-layer application matrix
+
+- **Self:** mental self-regulation and learning; personal physical development and health; independence and personal responsibility; values-consistent behavior.
+- **World/environment:** attention and judgment in environmental demands; physical capacity for practical tasks; navigation, safety, adaptation, and problem-solving; responsible environmental conduct.
+- **Other people:** emotional and social understanding; physical cooperation and safe partner/group activity; communication, teamwork, leadership, and conflict resolution; respect, fairness, and care.
+
+The same capability may appear in more than one layer. For example, decision-making can be studied in personal planning, outdoor navigation, and team leadership. HDS should measure the specific context and test whether learning transfers between contexts rather than assuming it does.
+
+### I. What HDS researches, teaches, develops, trains, and measures
+
+- **Researches:** constructs, mechanisms, development trajectories, individual differences, interventions, transfer, and retention.
+- **Teaches:** scientific knowledge, practical understanding, self-development literacy, health and physical literacy, social and life skills.
+- **Develops:** validated curricula, methods, assessments, technologies, professional standards, and evidence-informed programs.
+- **Trains:** specific mental, physical, social, and practical capabilities through methods appropriate to each target.
+- **Measures:** baseline capability, task performance, progress, safety, transfer, retention, and relevant real-world outcomes.
+
+These functions must remain distinct. Teaching knowledge is not the same as training a capability; performance on a practiced task is not proof of broad personal development; and a program's popularity is not evidence of effectiveness.
+
+### J. Institutional application areas
+
+The HDS organization may apply this knowledge through schools and education systems, youth and adult development programs, individual and group coaching, hybrid physical-performance centers, outdoor and practical-skills programs, organizational and leadership development, community initiatives, professional academies, research partnerships, and public-sector collaborations. Each application must remain within appropriate professional, legal, safeguarding, and clinical boundaries.
+
+### K. Relationship to existing academic fields
+
+HDS should integrate rather than erase established disciplines. Relevant foundations include psychology, developmental science, cognitive science, neuroscience, behavioral science, education and learning sciences, sociology, anthropology, philosophy, public health, physiology, exercise science, motor learning, and related fields.
+
+There are already interdisciplinary fields studying learning and human development. For example, learning sciences explicitly connect learning, cognition, development, and educational design. HDS must therefore demonstrate its distinctive contribution rather than claim that no one studies these topics. Its proposed contribution is a unified, capability-centered framework spanning the self, environment, and social relationships; combining mental development with physical, practical, and educational development; and systematically connecting research, measurement, training, transfer, and lifelong maintenance.
+
 ## HDS as an educational philosophy and institution
 
 HDS is also an educational vision. It should contribute to how people are educated and developed across the lifespan—not only through fitness programs or adult coaching, but through age-appropriate education, schools, youth programs, higher education, workplaces, and community settings.
