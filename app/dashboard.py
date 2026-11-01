@@ -96,6 +96,8 @@ async function runMentalResearch(){
   const output=await api("/api/hds/research-loops/"+encodeURIComponent(runId)+"/run-first-pass",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({query:question,providers:["pubmed","crossref"],limit})});
   const count=output.retrieval?.result_count??0;
   const claims=Array.isArray(output.agent_output?.candidate_claims)?output.agent_output.candidate_claims:[];
+  const sourceData=await api("/api/hds/research-loops/"+encodeURIComponent(runId)+"/sources").catch(()=>({items:[]}));
+  const sourceItems=sourceData.items||[];
   let html='<div class="research-output"><div class="toolbar"><span class="tag">'+esc(output.status||"UNKNOWN")+'</span><span class="tag">'+esc(output.scientific_status||"")+'</span><span class="tag">'+esc(count)+' retrieved records</span></div>';
   if(output.status==="RESEARCH_PASS_RECORDED"){
    html+='<h3>Candidate claims and observations ('+claims.length+')</h3>';
@@ -104,6 +106,11 @@ async function runMentalResearch(){
    html+='<h3>AI analysis</h3><pre>'+esc(output.agent_output?.result||"No narrative result supplied.")+'</pre>';
    html+='<h3>Limitations</h3><pre>'+esc(output.agent_output?.limitations||"Not supplied.")+'</pre>';
    html+='<h3>Uncertainty</h3><pre>'+esc(output.agent_output?.uncertainty||"Not supplied.")+'</pre>';
+   html+='<h3>Retrieved scientific sources ('+sourceItems.length+')</h3>';
+   html+='<div class="list">'+sourceItems.map((x,n)=>{
+    const url=typeof x.url==="string"&&/^https?:\\/\\//i.test(x.url)?x.url:"";
+    return '<div class="row"><b>'+(n+1)+'. '+esc(x.title||"Untitled source")+'</b><br><span class="muted">'+esc(x.authors||"Authors not listed")+' • '+esc(x.publication_year||"Year unknown")+'</span><br><span class="tag">'+esc(x.source_type||"SOURCE")+'</span> '+(url?'<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">Open source</a>':"No source URL")+'</div>';
+   }).join("")+'</div>';
    html+='<p class="research-warning"><b>Unverified research output.</b> This is a discovery pass, not a scientific finding. Each claim needs independent source review and interpretation.</p>';
   }else{
    html+='<h3>Research could not complete</h3><pre>'+esc(JSON.stringify({reason:output.reason||output.error||output.validation_error||output.notice||"No further detail",next_action:output.next_action||null,errors:output.retrieval?.errors||output.errors||[]},null,2))+'</pre>';
