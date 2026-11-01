@@ -14,7 +14,7 @@ If you already cloned the repository, run `git switch research-first-run-audit` 
 ## Requirements
 - Python 3.12 or newer.
 - Ollama installed and running locally.
-- Enough RAM/VRAM for the selected model. The default is Qwen 2.5 14B; smaller models can be selected with `HDS_OLLAMA_MODEL`.
+- Enough RAM/VRAM for the selected model. The default is Qwen 2.5 7B; smaller models can be selected with `HDS_OLLAMA_MODEL`.
 - Internet access for PubMed/Crossref discovery. Access to full texts depends on lawful availability; this first pass uses available abstracts.
 
 ## One-time setup
