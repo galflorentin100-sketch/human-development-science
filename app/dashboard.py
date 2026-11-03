@@ -112,13 +112,22 @@ async function loadEvidenceMap(){
      }).join("")||'<div class="muted">No structured outcome observations recorded.</div>')+'</div>'
     ).join("")
    ).join("");
+   const adherenceHtml=(claim.recorded_study_adherence||[]).map(sourceGroup=>
+    (sourceGroup.studies||[]).map(study=>
+     '<div class="row"><b>'+esc(study.study_title||study.study_id)+'</b>'+
+     ((study.phases||[]).map(phase=>{
+      const rate=phase.completion_rate===null||phase.completion_rate===undefined?"not calculable":(phase.completion_rate*100).toFixed(1)+"%";
+      return '<div class="muted">'+esc(phase.phase)+': '+esc(phase.completed_total)+' completed / '+esc(phase.planned_total)+' planned ('+esc(rate)+'); '+esc(phase.participants_total)+' participants, '+esc(phase.records_total)+' records.</div>';
+     }).join("")||'<div class="muted">No adherence records recorded.</div>')+'</div>'
+    ).join("")
+   ).join("");
    const comparisonHtml=["design","population","findings"].map(field=>{
     const item=comparison[field]||{};
     const values=(item.recorded_values||[]).map(x=>'<div class="muted">• '+esc(x.study_title)+': '+esc(x.value)+'</div>').join("");
     const missing=(item.verified_sources_without_study_record||[]).length;
     return '<div><b>'+esc(field)+'</b> <span class="tag">'+esc(item.status||"NOT_RECORDED")+'</span>'+values+(missing?'<div class="muted">'+missing+' verified source(s) without a linked study record</div>':"")+'</div>';
    }).join("");
-   return '<div class="row"><span class="tag">'+esc(claim.pattern)+'</span><b>'+esc(claim.claim)+'</b><div class="muted">Verified excerpts: '+esc(counts.verified_support_excerpts||0)+' supporting · '+esc(counts.verified_contradict_excerpts||0)+' contradicting · '+esc(counts.verified_neutral_excerpts||0)+' neutral. Excluded non-verified: '+esc(counts.excluded_nonverified_items||0)+'.</div><div class="muted">'+esc(claim.interpretation||"")+'</div><details style="margin-top:8px"><summary>Recorded study comparison</summary><div class="list" style="margin-top:8px">'+comparisonHtml+'</div></details><details style="margin-top:8px"><summary>Recorded study outcome data (within-study summaries only)</summary><div class="list" style="margin-top:8px">'+(outcomeHtml||'<div class="muted">No linked structured outcome observations recorded.</div>')+'</div></details></div>';
+   return '<div class="row"><span class="tag">'+esc(claim.pattern)+'</span><b>'+esc(claim.claim)+'</b><div class="muted">Verified excerpts: '+esc(counts.verified_support_excerpts||0)+' supporting · '+esc(counts.verified_contradict_excerpts||0)+' contradicting · '+esc(counts.verified_neutral_excerpts||0)+' neutral. Excluded non-verified: '+esc(counts.excluded_nonverified_items||0)+'.</div><div class="muted">'+esc(claim.interpretation||"")+'</div><details style="margin-top:8px"><summary>Recorded study comparison</summary><div class="list" style="margin-top:8px">'+comparisonHtml+'</div></details><details style="margin-top:8px"><summary>Recorded study outcome data (within-study summaries only)</summary><div class="list" style="margin-top:8px">'+(outcomeHtml||'<div class="muted">No linked structured outcome observations recorded.</div>')+'</div></details><details style="margin-top:8px"><summary>Recorded intervention adherence (process measure)</summary><div class="list" style="margin-top:8px">'+(adherenceHtml||'<div class="muted">No linked adherence records recorded.</div>')+'</div></details></div>';
   }).join("")||"<p>No project claims have been registered yet.</p>";
   target.innerHTML+='<p class="muted">'+esc(result.method||"")+'</p><p class="muted">'+(result.limitations||[]).map(esc).join(" ")+'</p>';
  }catch(e){target.innerHTML='<p class="danger">Could not load evidence map: '+esc(e.message)+'</p>'}
