@@ -6,7 +6,7 @@ runs pytest, and commits only if tests pass.
 
 Safety:
 - Requires a clean Git working tree.
-- Starts from research-first-run-audit and creates/uses local branch hds-agent-work.
+- Starts from hds-local-developer-agent and creates/uses local branch hds-agent-work.
 - Refuses main or any other branch.
 - Only edits existing files in app/, tests/, scripts/, docs/.
 - No deletion, rename, new dependencies, secrets, workflows or model-supplied shell commands.
@@ -21,8 +21,7 @@ Setup in PowerShell:
    cd human-development-science
 3. Install dependencies: py -m pip install -r requirements.txt
 4. Start Ollama and download model once: ollama pull qwen2.5:7b
-5. Switch baseline: git switch research-first-run-audit
-6. Verify clean tree: git status --short
+5. Verify clean tree: git status --short
 
 Test one cycle:
    py scripts/run_local_developer_agent.py --once
