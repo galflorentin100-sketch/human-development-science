@@ -111,6 +111,42 @@ class ResearchEvidenceSynthesizer:
                         "outcomes": summaries,
                     })
 
+            # Adherence is summarized within each study and recorded session phase.
+            # Completion is a process measure, not an outcome or causal estimate.
+            study_adherence_summaries = {}
+            for source_id, studies in study_metadata.items():
+                for study in studies:
+                    adherence_rows = self.db.all(
+                        """SELECT a.planned,a.completed,a.participant_id,
+                                  COALESCE(ss.phase,'NO_SESSION_LINK') AS phase
+                           FROM study_adherence a
+                           LEFT JOIN study_sessions ss ON ss.id=a.session_id
+                           WHERE a.study_id=?
+                           ORDER BY phase,a.recorded_at,a.id""",
+                        (study["id"],),
+                    )
+                    groups = {}
+                    for item in adherence_rows:
+                        groups.setdefault(item["phase"], []).append(item)
+                    summaries = []
+                    for phase, items in sorted(groups.items()):
+                        planned = sum(int(x["planned"]) for x in items)
+                        completed = sum(int(x["completed"]) for x in items)
+                        summaries.append({
+                            "phase": phase,
+                            "records_total": len(items),
+                            "participants_total": len({x["participant_id"] for x in items}),
+                            "planned_total": planned,
+                            "completed_total": completed,
+                            "completion_rate": completed / planned if planned > 0 else None,
+                            "records_with_zero_planned": sum(1 for x in items if int(x["planned"]) == 0),
+                        })
+                    study_adherence_summaries.setdefault(source_id, []).append({
+                        "study_id": study["id"],
+                        "study_title": study["title"],
+                        "phases": summaries,
+                    })
+
             # Comparison is deliberately literal: values are not normalized,
             # ranked, or interpreted as comparable effect estimates.
             comparison_fields = {}
@@ -180,6 +216,10 @@ class ResearchEvidenceSynthesizer:
                 "recorded_study_outcomes": [
                     {"source_id": source_id, "studies": studies}
                     for source_id, studies in sorted(study_outcome_summaries.items())
+                ],
+                "recorded_study_adherence": [
+                    {"source_id": source_id, "studies": studies}
+                    for source_id, studies in sorted(study_adherence_summaries.items())
                 ],
                 "recorded_study_descriptors": [
                     {
