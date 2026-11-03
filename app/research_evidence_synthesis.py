@@ -48,6 +48,69 @@ class ResearchEvidenceSynthesizer:
                     (source_id, project_id),
                 )
 
+            # Study outcome records are summarized within each study only.
+            # Exact outcome name, unit, observation type and session phase are
+            # kept separate; no cross-study pooling or participant-level data
+            # are exposed by this evidence-map endpoint.
+            study_outcome_summaries = {}
+            for source_id, studies in study_metadata.items():
+                for study in studies:
+                    observations = self.db.all(
+                        """SELECT o.outcome_name,o.value,o.unit,o.missing_reason,
+                                  o.observation_type,o.participant_id,
+                                  COALESCE(ss.phase,'NO_SESSION_LINK') AS phase
+                           FROM study_outcomes o
+                           LEFT JOIN study_sessions ss ON ss.id=o.session_id
+                           WHERE o.study_id=?
+                           ORDER BY o.outcome_name,o.unit,o.observation_type,phase,o.recorded_at,o.id""",
+                        (study["id"],),
+                    )
+                    groups = {}
+                    for observation in observations:
+                        key = (
+                            observation["outcome_name"],
+                            observation["unit"] or "UNIT_NOT_RECORDED",
+                            observation["observation_type"],
+                            observation["phase"],
+                        )
+                        groups.setdefault(key, []).append(observation)
+
+                    summaries = []
+                    for (outcome_name, unit, observation_type, phase), items in sorted(groups.items()):
+                        values = [float(x["value"]) for x in items if x["value"] is not None]
+                        missing = [x for x in items if x["value"] is None]
+                        ordered = sorted(values)
+                        median = None
+                        if ordered:
+                            middle = len(ordered) // 2
+                            median = (
+                                ordered[middle] if len(ordered) % 2
+                                else (ordered[middle - 1] + ordered[middle]) / 2
+                            )
+                        summaries.append({
+                            "outcome_name": outcome_name,
+                            "unit": unit,
+                            "observation_type": observation_type,
+                            "phase": phase,
+                            "records_total": len(items),
+                            "participants_total": len({x["participant_id"] for x in items}),
+                            "n_observed": len(values),
+                            "n_missing": len(missing),
+                            "missing_reasons": {
+                                reason: sum(1 for x in missing if (x["missing_reason"] or "NOT_RECORDED") == reason)
+                                for reason in sorted({x["missing_reason"] or "NOT_RECORDED" for x in missing})
+                            },
+                            "minimum": min(values) if values else None,
+                            "maximum": max(values) if values else None,
+                            "mean": sum(values) / len(values) if values else None,
+                            "median": median,
+                        })
+                    study_outcome_summaries.setdefault(source_id, []).append({
+                        "study_id": study["id"],
+                        "study_title": study["title"],
+                        "outcomes": summaries,
+                    })
+
             # Comparison is deliberately literal: values are not normalized,
             # ranked, or interpreted as comparable effect estimates.
             comparison_fields = {}
@@ -114,7 +177,7 @@ class ResearchEvidenceSynthesizer:
                     "excluded_nonverified_items": len(excluded),
                 },
                 "study_comparison": comparison_fields,
-                "recorded_study_descriptors": [
+                "recorded_study_outcomes": [\n                    {"source_id": source_id, "studies": studies}\n                    for source_id, studies in sorted(study_outcome_summaries.items())\n                ],\n                "recorded_study_descriptors": [
                     {
                         "source_id": source_id,
                         "studies": study_metadata[source_id],
