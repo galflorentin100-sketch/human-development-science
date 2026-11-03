@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse,json,logging,os,re,subprocess,sys,time,urllib.error,urllib.request
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-BASE="research-first-run-audit"; WORK="hds-agent-work"; MODEL="qwen2.5:7b"
+BASE="hds-local-developer-agent"; WORK="hds-agent-work"; MODEL="qwen2.5:7b"
 PREFIXES=("app/","tests/","scripts/","docs/"); MAX_DIFF=30000; MAX_FILES=8
 LOG=logging.getLogger("hds.developer_agent")
 def state_dir():
