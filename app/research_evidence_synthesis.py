@@ -180,7 +180,8 @@ class ResearchEvidenceSynthesizer:
                 "recorded_study_outcomes": [
                     {"source_id": source_id, "studies": studies}
                     for source_id, studies in sorted(study_outcome_summaries.items())
-                ],\n                "recorded_study_descriptors": [
+                ],
+                "recorded_study_descriptors": [
                     {
                         "source_id": source_id,
                         "studies": study_metadata[source_id],
