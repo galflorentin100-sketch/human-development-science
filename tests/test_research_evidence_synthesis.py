@@ -178,3 +178,51 @@ def test_evidence_map_summarizes_recorded_outcomes_within_study_and_preserves_mi
     assert study_outcomes["maximum"] == 10.0
     assert study_outcomes["mean"] == 9.0
     assert study_outcomes["median"] == 9.0
+
+
+def test_evidence_map_summarizes_recorded_adherence_by_phase_without_calling_it_an_outcome(tmp_path):
+    db = Database(str(tmp_path / "study-adherence.db"))
+    project = ResearchCycle(db).run("Study adherence")["project"]
+    pipeline = EvidencePipeline(db)
+    claim_id = _claim(db, project["id"], "A claim about intervention adherence.")
+    evidence_id = _verified_excerpt(
+        db, pipeline, claim_id, "Adherence study",
+        "https://example.org/adherence", "SUPPORTS", "independent-reviewer"
+    )
+    source_id = db.one("SELECT source_id FROM evidence WHERE id=?", (evidence_id,))["source_id"]
+    study_id = str(uuid4())
+    db.execute(
+        "INSERT INTO studies(id,source_id,project_id,title,design,population,findings,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (study_id, source_id, project["id"], "Recorded adherence study", "Pilot", "Adults", "Adherence records", now()),
+    )
+    participant_ids = [str(uuid4()) for _ in range(2)]
+    for index, participant_id in enumerate(participant_ids):
+        db.execute(
+            "INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",
+            (participant_id, study_id, f"adherence-participant-{index}", "CONSENTED", now()),
+        )
+    session_id = str(uuid4())
+    db.execute(
+        "INSERT INTO study_sessions(id,study_id,participant_id,phase,session_number,occurred_at,status) VALUES (?,?,?,?,?,?,?)",
+        (session_id, study_id, participant_ids[0], "INTERVENTION", 1, now(), "COMPLETED"),
+    )
+    for participant_id, planned, completed in [
+        (participant_ids[0], 4, 3),
+        (participant_ids[1], 4, 2),
+    ]:
+        db.execute(
+            "INSERT INTO study_adherence(id,study_id,participant_id,session_id,planned,completed,adherence_note,recorded_at) VALUES (?,?,?,?,?,?,?,?)",
+            (str(uuid4()), study_id, participant_id, session_id, planned, completed, None, now()),
+        )
+
+    result = ResearchEvidenceSynthesizer(db).synthesize_project(project["id"])
+    row = next(x for x in result["claims"] if x["claim_id"] == claim_id)
+    adherence = row["recorded_study_adherence"][0]["studies"][0]["phases"][0]
+
+    assert adherence["phase"] == "INTERVENTION"
+    assert adherence["records_total"] == 2
+    assert adherence["participants_total"] == 2
+    assert adherence["planned_total"] == 8
+    assert adherence["completed_total"] == 5
+    assert adherence["completion_rate"] == 0.625
+    assert "process measure" in " ".join(result["limitations"]).lower() or "causal inference" in " ".join(result["limitations"]).lower()
