@@ -22,9 +22,22 @@ def prepare():
     if current!=BASE: raise RuntimeError(f"Start on {BASE} or {WORK}; current branch is {current}.")
     if git("branch","--list",WORK): git("switch",WORK)
     else: git("switch","-c",WORK)
+def completed_task_ids():
+    history=state_dir()/"developer_agent_history.jsonl"
+    done=set()
+    if history.exists():
+        for line in history.read_text(encoding="utf-8").splitlines():
+            try:
+                item=json.loads(line)
+                if item.get("status")=="TESTS_PASSED" and item.get("task_id"):
+                    done.add(str(item["task_id"]))
+            except (ValueError,TypeError):
+                continue
+    return sorted(done)
 def ask(model,url):
     backlog=(ROOT/"docs"/"DEVELOPER_AGENT_BACKLOG.md").read_text(encoding="utf-8")
-    prompt=f"""Choose ONE small unfinished task from this backlog:
+    done=completed_task_ids()
+    prompt=f"""Choose ONE small unfinished task from this backlog. Do not repeat completed task IDs: {done}.
 {backlog}
 Return ONLY JSON with task_id, summary, diff. diff is a unified diff with --- a/path and +++ b/path.
 At most {MAX_FILES} existing files and {MAX_DIFF} characters. Only app/, tests/, scripts/, docs/.
@@ -38,19 +51,29 @@ If no safe patch, return empty diff and explain in summary. Do not claim tests p
     return result
 def validate(diff):
     if not isinstance(diff,str) or not diff.strip(): return []
-    if len(diff)>MAX_DIFF or "\x00" in diff or "GIT binary patch" in diff: raise ValueError("Patch too large or binary")
-    paths=[]
+    if len(diff)>MAX_DIFF or "\\x00" in diff or "GIT binary patch" in diff: raise ValueError("Patch too large or binary")
+    paths=[]; old_paths=[]; new_paths=[]
     for line in diff.splitlines():
-        if not line.startswith("+++ "): continue
-        raw=line[4:].split("\t",1)[0]
-        if raw=="/dev/null" or not raw.startswith("b/"): raise ValueError("New files/deletions disabled")
-        path=raw[2:].replace("\\","/")
+        if line.startswith("--- "):
+            raw=line[4:].split("\\t",1)[0]
+            if raw=="/dev/null" or not raw.startswith("a/"): raise ValueError("New files/deletions disabled")
+            old_paths.append(raw[2:])
+        elif line.startswith("+++ "):
+            raw=line[4:].split("\\t",1)[0]
+            if raw=="/dev/null" or not raw.startswith("b/"): raise ValueError("New files/deletions disabled")
+            new_paths.append(raw[2:])
+    if not old_paths or len(old_paths)!=len(new_paths) or old_paths!=new_paths:
+        raise ValueError("Patch must modify existing files in-place; renames/additions are disabled")
+    for raw in new_paths:
+        path=raw.replace("\\\\","/")
         if path.startswith("/") or ".." in Path(path).parts: raise ValueError("Path traversal rejected")
         if not path.startswith(PREFIXES): raise ValueError(f"Path outside allowlist: {path}")
+        if not (ROOT/path).is_file(): raise ValueError(f"Target must be an existing file: {path}")
         if path in paths: raise ValueError("Duplicate patch path")
         paths.append(path)
-    if not paths or len(paths)>MAX_FILES: raise ValueError("No patch targets or too many files")
-    if re.search(r"(?m)^deleted file mode |^rename from |^rename to ",diff): raise ValueError("Delete/rename disabled")
+    if len(paths)>MAX_FILES: raise ValueError("Too many patch files")
+    if re.search(r"(?m)^deleted file mode |^new file mode |^rename from |^rename to ",diff):
+        raise ValueError("New files, deletion and rename operations are disabled")
     return paths
 def apply_test(diff):
     patch=state_dir()/"pending.patch"; patch.write_text(diff,encoding="utf-8")
