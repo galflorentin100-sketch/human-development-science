@@ -93,6 +93,12 @@ def report(data):
     with (p/"developer_agent_history.jsonl").open("a",encoding="utf-8") as f: f.write(json.dumps(data,ensure_ascii=False)+"\n")
 def cycle(model,url):
     prepare(); item=ask(model,url); task=str(item.get("task_id","unspecified"))[:100]; summary=str(item.get("summary",""))[:2000]; diff=item.get("diff","")
+    backlog=(ROOT/"docs"/"DEVELOPER_AGENT_BACKLOG.md").read_text(encoding="utf-8")
+    allowed_ids=set(re.findall(r"(?m)^- \\[ \\] (HDS-DEV-\\d+):",backlog))
+    if task not in allowed_ids or task in completed_task_ids():
+        report({"task_id":task,"summary":"Unknown or already completed task. "+summary,"status":"INVALID_TASK"})
+        LOG.warning("Rejected unknown or completed task ID: %s",task)
+        return
     if not diff: report({"task_id":task,"summary":summary,"status":"NO_PATCH"}); LOG.info("No patch: %s",summary); return
     paths=validate(diff); ok,out=apply_test(diff)
     data={"task_id":task,"summary":summary,"files":paths,"status":"TESTS_PASSED" if ok else "REJECTED_OR_TEST_FAILED","test_output":out,"branch":WORK,"push_performed":False}
