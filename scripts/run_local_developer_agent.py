@@ -51,21 +51,21 @@ If no safe patch, return empty diff and explain in summary. Do not claim tests p
     return result
 def validate(diff):
     if not isinstance(diff,str) or not diff.strip(): return []
-    if len(diff)>MAX_DIFF or "\\x00" in diff or "GIT binary patch" in diff: raise ValueError("Patch too large or binary")
+    if len(diff)>MAX_DIFF or "\x00" in diff or "GIT binary patch" in diff: raise ValueError("Patch too large or binary")
     paths=[]; old_paths=[]; new_paths=[]
     for line in diff.splitlines():
         if line.startswith("--- "):
-            raw=line[4:].split("\\t",1)[0]
+            raw=line[4:].split("\t",1)[0]
             if raw=="/dev/null" or not raw.startswith("a/"): raise ValueError("New files/deletions disabled")
             old_paths.append(raw[2:])
         elif line.startswith("+++ "):
-            raw=line[4:].split("\\t",1)[0]
+            raw=line[4:].split("\t",1)[0]
             if raw=="/dev/null" or not raw.startswith("b/"): raise ValueError("New files/deletions disabled")
             new_paths.append(raw[2:])
     if not old_paths or len(old_paths)!=len(new_paths) or old_paths!=new_paths:
         raise ValueError("Patch must modify existing files in-place; renames/additions are disabled")
     for raw in new_paths:
-        path=raw.replace("\\\\","/")
+        path=raw.replace("\\","/")
         if path.startswith("/") or ".." in Path(path).parts: raise ValueError("Path traversal rejected")
         if not path.startswith(PREFIXES): raise ValueError(f"Path outside allowlist: {path}")
         if not (ROOT/path).is_file(): raise ValueError(f"Target must be an existing file: {path}")
