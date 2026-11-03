@@ -94,7 +94,7 @@ def report(data):
 def cycle(model,url):
     prepare(); item=ask(model,url); task=str(item.get("task_id","unspecified"))[:100]; summary=str(item.get("summary",""))[:2000]; diff=item.get("diff","")
     backlog=(ROOT/"docs"/"DEVELOPER_AGENT_BACKLOG.md").read_text(encoding="utf-8")
-    allowed_ids=set(re.findall(r"(?m)^- \\[ \\] (HDS-DEV-\\d+):",backlog))
+    allowed_ids=set(re.findall(r"(?m)^- \[ \] (HDS-DEV-\d+):",backlog))
     if task not in allowed_ids or task in completed_task_ids():
         report({"task_id":task,"summary":"Unknown or already completed task. "+summary,"status":"INVALID_TASK"})
         LOG.warning("Rejected unknown or completed task ID: %s",task)
