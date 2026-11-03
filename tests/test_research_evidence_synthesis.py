@@ -126,3 +126,55 @@ def test_study_comparison_preserves_literal_values_and_missingness(tmp_path):
     assert comparison["population"]["distinct_literal_values"] == 2
     assert comparison["findings"]["status"] == "RECORDED_VALUES_PRESENT"
     assert comparison["design"]["verified_sources_without_study_record"] == []
+
+
+def test_evidence_map_summarizes_recorded_outcomes_within_study_and_preserves_missingness(tmp_path):
+    db = Database(str(tmp_path / "study-outcomes.db"))
+    project = ResearchCycle(db).run("Study outcome summaries")["project"]
+    pipeline = EvidencePipeline(db)
+    claim_id = _claim(db, project["id"], "A claim about self-discipline.")
+    evidence_id = _verified_excerpt(
+        db, pipeline, claim_id, "Outcome study",
+        "https://example.org/outcomes", "SUPPORTS", "independent-reviewer"
+    )
+    source_id = db.one("SELECT source_id FROM evidence WHERE id=?", (evidence_id,))["source_id"]
+    study_id = str(uuid4())
+    db.execute(
+        "INSERT INTO studies(id,source_id,project_id,title,design,population,findings,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (study_id, source_id, project["id"], "Recorded outcome study", "Pilot", "Adults", "Recorded outcome data", now()),
+    )
+    participant_ids = [str(uuid4()) for _ in range(3)]
+    for index, participant_id in enumerate(participant_ids):
+        db.execute(
+            "INSERT INTO study_participants(id,study_id,external_ref,consent_status,created_at) VALUES (?,?,?,?,?)",
+            (participant_id, study_id, f"participant-{index}", "CONSENTED", now()),
+        )
+    for participant_id, value, missing_reason in [
+        (participant_ids[0], 8.0, None),
+        (participant_ids[1], 10.0, None),
+        (participant_ids[2], None, "WITHDREW"),
+    ]:
+        db.execute(
+            """INSERT INTO study_outcomes(
+                   id,study_id,participant_id,session_id,outcome_name,value,unit,
+                   missing_reason,observation_type,recorded_at
+               ) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (str(uuid4()), study_id, participant_id, None, "Self-regulation score",
+             value, "points", missing_reason, "POST", now()),
+        )
+
+    result = ResearchEvidenceSynthesizer(db).synthesize_project(project["id"])
+    row = next(x for x in result["claims"] if x["claim_id"] == claim_id)
+    study_outcomes = row["recorded_study_outcomes"][0]["studies"][0]["outcomes"][0]
+
+    assert study_outcomes["outcome_name"] == "Self-regulation score"
+    assert study_outcomes["unit"] == "points"
+    assert study_outcomes["records_total"] == 3
+    assert study_outcomes["participants_total"] == 3
+    assert study_outcomes["n_observed"] == 2
+    assert study_outcomes["n_missing"] == 1
+    assert study_outcomes["missing_reasons"] == {"WITHDREW": 1}
+    assert study_outcomes["minimum"] == 8.0
+    assert study_outcomes["maximum"] == 10.0
+    assert study_outcomes["mean"] == 9.0
+    assert study_outcomes["median"] == 9.0
