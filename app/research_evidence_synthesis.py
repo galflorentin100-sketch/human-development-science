@@ -177,7 +177,10 @@ class ResearchEvidenceSynthesizer:
                     "excluded_nonverified_items": len(excluded),
                 },
                 "study_comparison": comparison_fields,
-                "recorded_study_outcomes": [\n                    {"source_id": source_id, "studies": studies}\n                    for source_id, studies in sorted(study_outcome_summaries.items())\n                ],\n                "recorded_study_descriptors": [
+                "recorded_study_outcomes": [
+                    {"source_id": source_id, "studies": studies}
+                    for source_id, studies in sorted(study_outcome_summaries.items())
+                ],\n                "recorded_study_descriptors": [
                     {
                         "source_id": source_id,
                         "studies": study_metadata[source_id],
