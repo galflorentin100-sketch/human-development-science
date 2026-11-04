@@ -17,7 +17,7 @@ h2{font-size:16px;margin-top:0}.research-lab{margin-bottom:16px}.research-lab te
 #status{font-size:13px;color:var(--muted)}
 </style></head><body>
 <header><div><h1>HDS Company OS</h1><div id="status">Loading company state…</div></div>
-<div class="toolbar"><select id="project"></select><button class="primary" onclick="runCycle()">Run research cycle</button><button onclick="refresh()">Refresh</button></div></header>
+<div class="toolbar"><select id="project"></select><button class="primary" onclick="runCycle()">Run research cycle</button><button onclick="refreshAll()">Refresh</button></div></header>
 <main>
 <section class="grid" id="metrics"></section>
 <section class="card research-lab">
@@ -132,7 +132,8 @@ async function loadEvidenceMap(){
   target.innerHTML+='<p class="muted">'+esc(result.method||"")+'</p><p class="muted">'+(result.limitations||[]).map(esc).join(" ")+'</p>';
  }catch(e){target.innerHTML='<p class="danger">Could not load evidence map: '+esc(e.message)+'</p>'}
 }
-async function init(){try{projects=(await api('/api/founder/projects')).items||[];const s=document.getElementById('project');s.innerHTML=projects.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.objective||p.id)+'</option>').join('');await refresh();await loadBackgroundFeed();await loadEvidenceMap();document.getElementById("project").addEventListener("change",loadEvidenceMap)}catch(e){document.getElementById('status').textContent='Authentication or API error: '+e.message}}
+async function init(){try{projects=(await api('/api/founder/projects')).items||[];const s=document.getElementById('project');s.innerHTML=projects.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.objective||p.id)+'</option>').join('');await refreshAll();document.getElementById("project").addEventListener("change",refreshAll)}catch(e){document.getElementById('status').textContent='Authentication or API error: '+e.message}}
+async function refreshAll(){await Promise.all([refresh(),loadBackgroundFeed(),loadEvidenceMap()])}
 async function refreshProjectFeed(){try{const previous=selected();projects=(await api('/api/founder/projects')).items||[];const s=document.getElementById('project');s.innerHTML=projects.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.objective||p.id)+'</option>').join('');if(projects.some(p=>p.id===previous))s.value=previous;await loadBackgroundFeed()}catch(e){document.getElementById('background-feed').textContent='Feed refresh failed: '+e.message}}
 setInterval(refreshProjectFeed,5*60*1000);
 async function askChat(){
