@@ -52,6 +52,19 @@ class AutonomousResearchScheduler:
         )
         item_id=item["id"]
 
+        # propose() deliberately reuses an existing open queue item. If another
+        # scheduler cycle already started it, do not attempt to claim it again:
+        # autonomous_begin() only accepts PROPOSED items and a duplicate cycle
+        # must not create a second workspace or crash the scheduler.
+        if item.get("status") != "PROPOSED":
+            return {
+                "status": "QUEUE_ITEM_ALREADY_ACTIVE",
+                "queue_item_id": item_id,
+                "queue_item_status": item.get("status"),
+                "candidate": candidate,
+                "gap_report": gap_report,
+            }
+
         # Autonomous execution is permitted only for the explicit digital mode.
         if candidate.get("kind") not in {"RESEARCH","SCIENTIFIC_MAINTENANCE"}:
             raise ValueError("autonomous execution policy permits digital research only")
