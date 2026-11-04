@@ -83,16 +83,54 @@ class AutonomousResearchScheduler:
         from app.scientific_retrieval import ScientificRetrievalService
         retrieval_service=ScientificRetrievalService(self.db)
         retrieval_queries=self._retrieval_queries(question + " " + project["objective"])
-        retrieval_runs=[
-            retrieval_service.retrieve(
-                workspace["id"], query=query, providers=("pubmed","crossref"), limit=20
+        try:
+            retrieval_runs=[
+                retrieval_service.retrieve(
+                    workspace["id"], query=query, providers=("pubmed","crossref"), limit=20
+                )
+                for query in retrieval_queries
+            ]
+        except Exception as exc:
+            # A provider/network failure must leave an auditable terminal run
+            # state rather than an orphaned STARTED record and IN_PROGRESS queue item.
+            failure_type=type(exc).__name__
+            self.db.execute(
+                "UPDATE autonomous_research_runs SET status='RETRIEVAL_FAILED',reason=?,updated_at=? WHERE id=?",
+                (f"Literature retrieval failed ({failure_type}); retry requires a new governed cycle.",now(),run_id),
             )
-            for query in retrieval_queries
-        ]
+            return {
+                "status":"RETRIEVAL_FAILED",
+                "run_id":run_id,
+                "queue_item_id":item_id,
+                "workspace_id":workspace["id"],
+                "retrieval_queries":retrieval_queries,
+                "failure_type":failure_type,
+                "candidate":candidate,
+                "gap_report":gap_report,
+            }
         # Preserve the legacy single-run field while exposing the full reproducible
         # search set. All discovered records remain explicitly unverified.
         retrieval=retrieval_runs[-1] if retrieval_runs else None
-        execution=ResearchActionExecutor(self.db).execute(workspace["id"],candidate["action_type"],actor=actor)
+        try:
+            execution=ResearchActionExecutor(self.db).execute(workspace["id"],candidate["action_type"],actor=actor)
+        except Exception as exc:
+            failure_type=type(exc).__name__
+            self.db.execute(
+                "UPDATE autonomous_research_runs SET status='TASK_PREPARATION_FAILED',reason=?,updated_at=? WHERE id=?",
+                (f"Research task preparation failed ({failure_type}).",now(),run_id),
+            )
+            return {
+                "status":"TASK_PREPARATION_FAILED",
+                "run_id":run_id,
+                "queue_item_id":item_id,
+                "workspace_id":workspace["id"],
+                "retrieval":retrieval,
+                "retrieval_runs":retrieval_runs,
+                "retrieval_queries":retrieval_queries,
+                "failure_type":failure_type,
+                "candidate":candidate,
+                "gap_report":gap_report,
+            }
         if execution["status"] != "TASK_CREATED":
             self.db.execute("UPDATE autonomous_research_runs SET status='GOVERNED_REVIEW_REQUIRED',updated_at=? WHERE id=?",(now(),run_id))
             return {"status":execution["status"],"run_id":run_id,"queue_item_id":item_id,
