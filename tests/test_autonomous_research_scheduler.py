@@ -197,3 +197,51 @@ def test_scheduler_returns_existing_active_queue_item_without_crashing(tmp_path,
     assert result["queue_item_id"]==item["id"]
     assert result["queue_item_status"]=="IN_PROGRESS"
     assert db.one("SELECT COUNT(*) AS n FROM autonomous_research_runs")["n"]==0
+
+
+def _scheduler_with_open_question(tmp_path, name):
+    db=Database(str(tmp_path/f"{name}.db"))
+    project=ResearchCycle(db).run(name)["project"]
+    db.execute("UPDATE projects SET status='RUNNING' WHERE id=?",(project["id"],))
+    db.execute(
+        "INSERT INTO research_questions(id,project_id,question,status,trigger_type,priority,created_at) "
+        "VALUES (?,?,?,?,?,?,datetime('now'))",
+        (f"q-{name}",project["id"],
+         "What is self-discipline and how can its development be measured?",
+         "OPEN","MANUAL",100),
+    )
+    return db,project
+
+
+def test_scheduler_records_retrieval_failure_without_orphaned_started_run(tmp_path, monkeypatch):
+    from app.scientific_retrieval import ScientificRetrievalService
+    db,project=_scheduler_with_open_question(tmp_path,"retrieval-failure")
+    def fail_retrieval(self, workspace_id, query, providers, limit):
+        raise TimeoutError("provider timed out")
+    monkeypatch.setattr(ScientificRetrievalService,"retrieve",fail_retrieval)
+
+    result=AutonomousResearchScheduler(db).schedule_once(project["id"])
+
+    assert result["status"]=="RETRIEVAL_FAILED"
+    assert result["failure_type"]=="TimeoutError"
+    run=db.one("SELECT status,reason FROM autonomous_research_runs WHERE id=?",(result["run_id"],))
+    assert run["status"]=="RETRIEVAL_FAILED"
+    assert "provider timed out" not in run["reason"]
+    assert "TimeoutError" in run["reason"]
+
+
+def test_scheduler_records_task_preparation_failure_after_retrieval(tmp_path, monkeypatch):
+    _mock_retrieval(monkeypatch)
+    from app.research_action_executor import ResearchActionExecutor
+    db,project=_scheduler_with_open_question(tmp_path,"task-preparation-failure")
+    def fail_prepare(self, workspace_id, action_type, actor):
+        raise RuntimeError("internal details must not be persisted")
+    monkeypatch.setattr(ResearchActionExecutor,"execute",fail_prepare)
+
+    result=AutonomousResearchScheduler(db).schedule_once(project["id"])
+
+    assert result["status"]=="TASK_PREPARATION_FAILED"
+    assert result["failure_type"]=="RuntimeError"
+    run=db.one("SELECT status,reason FROM autonomous_research_runs WHERE id=?",(result["run_id"],))
+    assert run["status"]=="TASK_PREPARATION_FAILED"
+    assert "internal details" not in run["reason"]
