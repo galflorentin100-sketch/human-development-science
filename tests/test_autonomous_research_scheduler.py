@@ -161,3 +161,39 @@ def test_scheduler_distinguishes_metadata_only_results_from_zero_sources(tmp_pat
     run=db.one("SELECT status,reason FROM autonomous_research_runs WHERE id=?",(result["run_id"],))
     assert run["status"]=="BLOCKED_NO_READABLE_SOURCE_TEXT"
     assert "no readable abstract/source text" in run["reason"]
+
+
+def test_scheduler_returns_existing_active_queue_item_without_crashing(tmp_path, monkeypatch):
+    from app.research_queue import ResearchQueue
+    from app.autonomous_research import AutonomousResearchPlanner
+    from app.research_question_generator import ResearchQuestionGenerator
+
+    db=Database(str(tmp_path/"scheduler-active-queue.db"))
+    project=ResearchCycle(db).run("Active queue scheduler")["project"]
+    db.execute("UPDATE projects SET status='RUNNING' WHERE id=?",(project["id"],))
+    question="What factors explain successful transfer of self-regulation skills?"
+    queue=ResearchQueue(db)
+    item=queue.propose(
+        project["id"], question, "Existing autonomous research item",
+        trigger_type="AUTONOMOUS_SCHEDULER",
+    )
+    queue.autonomous_begin(item["id"], "test-owner", mode="DIGITAL_RESEARCH")
+
+    monkeypatch.setattr(
+        ResearchQuestionGenerator, "generate",
+        lambda self, project_id: {"status":"OK"},
+    )
+    monkeypatch.setattr(
+        AutonomousResearchPlanner, "next_work",
+        lambda self: {"candidate_count":1,"next":[{
+            "kind":"RESEARCH","title":question,"priority":80,
+            "reason":"Open evidence gap","trigger_type":"AUTONOMOUS_SCHEDULER",
+        }]},
+    )
+
+    result=AutonomousResearchScheduler(db).schedule_once(project["id"])
+
+    assert result["status"]=="QUEUE_ITEM_ALREADY_ACTIVE"
+    assert result["queue_item_id"]==item["id"]
+    assert result["queue_item_status"]=="IN_PROGRESS"
+    assert db.one("SELECT COUNT(*) AS n FROM autonomous_research_runs")["n"]==0
